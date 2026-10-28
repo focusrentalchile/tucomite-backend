@@ -7,7 +7,7 @@ from app.repositories.client_repository import SqlClientRepository
 from app.services.access_bootstrap import bootstrap_access, upsert_platform_accounts
 
 SUPER_ADMIN_EMAIL = "superadmin@tucomite.cl"
-DEMO_ADMIN_EMAIL = "admin@tucomite.cl"
+DEMO_ADMIN_EMAIL = "client@tucomite.cl"
 SEED_PASSWORD = "123456"
 
 

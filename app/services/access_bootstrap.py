@@ -12,6 +12,9 @@ from app.utils.passwords import hash_password
 DEMO_CLIENT_NAME = "Cliente de prueba"
 # Shared by demo building accounts (administrator / committee / resident).
 DEMO_BUILDING_PASSWORD = "123456"
+# Building owner login. Legacy seed used admin@; bootstrap renames it.
+DEMO_CLIENT_EMAIL = "client@tucomite.cl"
+LEGACY_DEMO_CLIENT_EMAIL = "admin@tucomite.cl"
 
 # English role keys. The admin site translates them in the Spanish locale.
 STARTER_ROLES: dict[str, frozenset[str]] = {
@@ -30,8 +33,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
     ),
     "administrator": frozenset(
         {
-            "users.view",
-            "users.create",
+            "agreements.view",
             "support.view",
             "support.create",
             "support.reply",
@@ -93,6 +95,7 @@ def bootstrap_access(
         repository.save_role(RoleRecord(id=role.id, name=role.name, system=True, permissions=keys))
     _ensure_starter_roles(repository, keys)
     if clients is not None:
+        _rename_legacy_client_email(repository)
         _ensure_building_owners_use_client_role(repository, clients)
         demo_client = clients.get_client_by_name(DEMO_CLIENT_NAME)
         if demo_client is not None:
@@ -109,7 +112,7 @@ def upsert_platform_accounts(
     *,
     super_admin_email: str,
     super_admin_password: str,
-    demo_admin_email: str,
+    demo_admin_email: str = DEMO_CLIENT_EMAIL,
     demo_admin_password: str,
     demo_client_name: str = DEMO_CLIENT_NAME,
     demo_admin_name: str = "Cliente demo",
@@ -272,6 +275,27 @@ def _ensure_demo_building_users(
                 client_id=client_id,
             ),
         )
+
+
+def _rename_legacy_client_email(repository: AccessRepository) -> None:
+    """Move the building owner from admin@ to client@ when the new address is free."""
+    current = repository.get_user_by_email(DEMO_CLIENT_EMAIL)
+    if current is not None:
+        return
+    legacy = repository.get_user_by_email(LEGACY_DEMO_CLIENT_EMAIL)
+    if legacy is None:
+        return
+    repository.save_user(
+        UserRecord(
+            id=legacy.id,
+            full_name=legacy.full_name,
+            email=DEMO_CLIENT_EMAIL,
+            password_hash=legacy.password_hash,
+            role_id=legacy.role_id,
+            client_id=legacy.client_id,
+            period_id=legacy.period_id,
+        ),
+    )
 
 
 def _ensure_building_owners_use_client_role(

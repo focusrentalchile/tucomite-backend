@@ -81,7 +81,8 @@ def test_bootstrap_creates_the_building_groups_once() -> None:
 
     roles = {role.name: role for role in repository.list_roles()}
     assert roles["committee"].permissions == STARTER_ROLES["committee"]
-    assert "agreements.vote" not in roles["administrator"].permissions
+    assert "users.view" not in roles["administrator"].permissions
+    assert "agreements.view" in roles["administrator"].permissions
     assert "support.view" in roles["administrator"].permissions
     assert roles["resident"].permissions == STARTER_ROLES["resident"]
     assert "client" in roles
@@ -97,7 +98,7 @@ def test_bootstrap_seeds_demo_users_for_each_building_role() -> None:
         UserRecord(
             id="owner-1",
             full_name="Cliente demo",
-            email="admin@tucomite.cl",
+            email="client@tucomite.cl",
             password_hash=hash_password("123456"),
             role_id=owner.id,
             client_id="client-demo",

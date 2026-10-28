@@ -131,7 +131,7 @@ def require_period_access(
     actor: Actor = Depends(get_current_actor),
     db: Session = Depends(get_db),
 ) -> Actor:
-    """Settings managers (users/roles) or committee members may use periods."""
-    if "users.view" in actor.permissions or "roles.view" in actor.permissions:
+    """Building owners (roles.view) or committee members may use periods."""
+    if "roles.view" in actor.permissions:
         return actor
     return require_committee_member(actor, db)
