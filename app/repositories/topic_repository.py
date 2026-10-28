@@ -2,18 +2,13 @@
 
 
 
+from datetime import date
 from typing import Protocol
 
-
-
 from sqlalchemy import select
-
 from sqlalchemy.orm import Session
 
-
-
 from app.domain.topics import StatusRecord, TopicRecord, TopicVoteRecord
-
 from app.models.topics import StatusModel, TopicModel, TopicVoteModel
 
 
@@ -170,6 +165,10 @@ class SqlTopicRepository:
 
                 priority_id=topic.priority_id,
 
+                assignee_user_id=topic.assignee_user_id,
+
+                due_date=date.fromisoformat(topic.due_date) if topic.due_date else None,
+
             ),
 
         )
@@ -219,6 +218,26 @@ class SqlTopicRepository:
         row.status_id = topic.status_id
 
         row.priority_id = topic.priority_id
+
+        row.assignee_user_id = topic.assignee_user_id
+
+        row.due_date = date.fromisoformat(topic.due_date) if topic.due_date else None
+
+
+
+    def save_topic_assignment(self, topic_id: str, assignee_user_id: str, due_date: str) -> None:
+
+        """Store the person responsible and the completion date."""
+
+        row = self._session.get(TopicModel, topic_id)
+
+        if row is None:
+
+            return
+
+        row.assignee_user_id = assignee_user_id
+
+        row.due_date = date.fromisoformat(due_date)
 
 
 
@@ -361,6 +380,10 @@ class SqlTopicRepository:
             status_id=row.status_id,
 
             priority_id=row.priority_id,
+
+            assignee_user_id=row.assignee_user_id,
+
+            due_date=row.due_date.isoformat() if row.due_date else None,
 
         )
 

@@ -16,7 +16,8 @@ def test_building_admin_opens_ticket_and_staff_replies() -> None:
     )
     assert created.status_code == 201
     ticket_id = created.json()["id"]
-    assert created.json()["status"] == "open"
+    assert created.json()["status"] == "todo"
+    assert created.json()["priority_id"] == 2
     assert created.json()["messages"][0]["from_staff"] is False
 
     listed = client.get("/api/v1/support/tickets")
@@ -34,12 +35,12 @@ def test_building_admin_opens_ticket_and_staff_replies() -> None:
         json={"body": "Revisamos el acceso y ya quedó corregido."},
     )
     assert replied.status_code == 201
-    assert replied.json()["status"] == "pending"
+    assert replied.json()["status"] == "in_progress"
     assert any(message["from_staff"] for message in replied.json()["messages"])
 
     closed = client.patch(
         f"/api/v1/support/tickets/{ticket_id}/status",
-        json={"status": "resolved"},
+        json={"status": "done"},
     )
     assert closed.status_code == 200
-    assert closed.json()["status"] == "resolved"
+    assert closed.json()["status"] == "done"

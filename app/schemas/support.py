@@ -24,6 +24,10 @@ class SupportTicketResponse(BaseModel):
     created_by_name: str
     subject: str
     status: str
+    priority_id: int
+    due_date: str | None = None
+    assignee_user_id: str | None = None
+    topic_id: str | None = None
     created_at: str
     updated_at: str
     messages: list[SupportMessageResponse] = []
@@ -36,10 +40,12 @@ class SupportTicketListResponse(BaseModel):
 
 
 class CreateSupportTicketRequest(BaseModel):
-    """Open a new support ticket."""
+    """Open a new support ticket in Pendientes."""
 
     subject: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=5000)
+    priority_id: int = Field(default=2, ge=1, le=3)
+    due_date: str | None = Field(default=None, max_length=10)
 
 
 class CreateSupportMessageRequest(BaseModel):
@@ -49,6 +55,6 @@ class CreateSupportMessageRequest(BaseModel):
 
 
 class UpdateSupportTicketStatusRequest(BaseModel):
-    """Change ticket status."""
+    """Move a ticket across board columns."""
 
     status: str = Field(min_length=1, max_length=32)

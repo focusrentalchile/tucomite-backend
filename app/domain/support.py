@@ -2,6 +2,20 @@
 
 from dataclasses import dataclass
 
+# Board columns. New tickets always start in todo.
+SUPPORT_STATUS_TODO = "todo"
+SUPPORT_STATUS_IN_PROGRESS = "in_progress"
+SUPPORT_STATUS_DONE = "done"
+ALLOWED_SUPPORT_STATUSES = frozenset(
+    {SUPPORT_STATUS_TODO, SUPPORT_STATUS_IN_PROGRESS, SUPPORT_STATUS_DONE},
+)
+LEGACY_SUPPORT_STATUS_MAP = {
+    "open": SUPPORT_STATUS_TODO,
+    "pending": SUPPORT_STATUS_IN_PROGRESS,
+    "resolved": SUPPORT_STATUS_DONE,
+    "closed": SUPPORT_STATUS_DONE,
+}
+
 
 @dataclass(frozen=True)
 class SupportMessageRecord:
@@ -18,7 +32,7 @@ class SupportMessageRecord:
 
 @dataclass(frozen=True)
 class SupportTicketRecord:
-    """A building support request handled by platform staff."""
+    """A building support task handled on the three-column board."""
 
     id: str
     client_id: str | None
@@ -27,6 +41,10 @@ class SupportTicketRecord:
     created_by_name: str
     subject: str
     status: str
+    priority_id: int
+    due_date: str | None
+    assignee_user_id: str | None
+    topic_id: str | None
     created_at: str
     updated_at: str
     messages: tuple[SupportMessageRecord, ...] = ()

@@ -1,12 +1,18 @@
 """Persistence for support tickets and messages."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.domain.support import SupportMessageRecord, SupportTicketRecord
+from app.domain.support import (
+    LEGACY_SUPPORT_STATUS_MAP,
+    SUPPORT_STATUS_TODO,
+    SupportMessageRecord,
+    SupportTicketRecord,
+)
+from app.domain.topics import MEDIUM_PRIORITY_ID
 from app.models.access import ClientModel, UserModel
 from app.models.support import SupportMessageModel, SupportTicketModel
 
@@ -50,13 +56,18 @@ class SqlSupportRepository:
         return self._ticket(row, include_messages=True)
 
     def add_ticket(self, ticket: SupportTicketRecord) -> None:
+        due = date.fromisoformat(ticket.due_date) if ticket.due_date else None
         self._session.add(
             SupportTicketModel(
                 id=ticket.id,
                 client_id=ticket.client_id,
                 created_by_user_id=ticket.created_by_user_id,
                 subject=ticket.subject,
-                status=ticket.status,
+                status=ticket.status or SUPPORT_STATUS_TODO,
+                priority_id=ticket.priority_id or MEDIUM_PRIORITY_ID,
+                due_date=due,
+                assignee_user_id=ticket.assignee_user_id,
+                topic_id=ticket.topic_id,
             ),
         )
         self._session.flush()
@@ -92,6 +103,7 @@ class SqlSupportRepository:
             client = self._session.get(ClientModel, row.client_id)
             client_name = client.name if client is not None else ""
         author = self._session.get(UserModel, row.created_by_user_id)
+        status = LEGACY_SUPPORT_STATUS_MAP.get(row.status, row.status)
         messages: tuple[SupportMessageRecord, ...] = ()
         if include_messages:
             message_rows = self._session.execute(
@@ -107,7 +119,11 @@ class SqlSupportRepository:
             created_by_user_id=row.created_by_user_id,
             created_by_name=author.full_name if author is not None else "",
             subject=row.subject,
-            status=row.status,
+            status=status,
+            priority_id=row.priority_id or MEDIUM_PRIORITY_ID,
+            due_date=row.due_date.isoformat() if row.due_date else None,
+            assignee_user_id=row.assignee_user_id,
+            topic_id=row.topic_id,
             created_at=row.created_at.isoformat() if row.created_at else "",
             updated_at=row.updated_at.isoformat() if row.updated_at else "",
             messages=messages,
@@ -124,3 +140,40 @@ class SqlSupportRepository:
             created_at=row.created_at.isoformat() if row.created_at else "",
             from_staff=row.from_staff,
         )
+
+
+def ensure_support_schema(connection) -> None:
+    """Add support columns introduced after the first create_all."""
+    for column, ddl in (
+        ("priority_id", "ALTER TABLE `support_tickets` ADD COLUMN `priority_id` INT NOT NULL DEFAULT 2"),
+        ("due_date", "ALTER TABLE `support_tickets` ADD COLUMN `due_date` DATE NULL"),
+        ("assignee_user_id", "ALTER TABLE `support_tickets` ADD COLUMN `assignee_user_id` VARCHAR(36) NULL"),
+        ("topic_id", "ALTER TABLE `support_tickets` ADD COLUMN `topic_id` VARCHAR(36) NULL"),
+    ):
+        exists = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                f"AND TABLE_NAME = 'support_tickets' AND COLUMN_NAME = '{column}'"
+            ),
+        ).scalar()
+        if not exists:
+            connection.execute(text(ddl))
+    connection.execute(
+        text(
+            "UPDATE `support_tickets` SET `status` = 'todo' "
+            "WHERE `status` IN ('open')"
+        ),
+    )
+    connection.execute(
+        text(
+            "UPDATE `support_tickets` SET `status` = 'in_progress' "
+            "WHERE `status` IN ('pending')"
+        ),
+    )
+    connection.execute(
+        text(
+            "UPDATE `support_tickets` SET `status` = 'done' "
+            "WHERE `status` IN ('resolved', 'closed')"
+        ),
+    )

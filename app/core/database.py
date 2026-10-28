@@ -101,6 +101,36 @@ def init_database() -> None:
             if not has_license_start:
                 connection.execute(text("ALTER TABLE `clients` ADD COLUMN `license_starts_at` DATE NULL"))
                 connection.execute(text("ALTER TABLE `clients` ADD COLUMN `license_ends_at` DATE NULL"))
+        topics_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'topics'"
+            ),
+        ).scalar()
+        if topics_exist:
+            for column, ddl in (
+                ("assignee_user_id", "ALTER TABLE `topics` ADD COLUMN `assignee_user_id` VARCHAR(36) NULL"),
+                ("due_date", "ALTER TABLE `topics` ADD COLUMN `due_date` DATE NULL"),
+            ):
+                has_column = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        f"AND TABLE_NAME = 'topics' AND COLUMN_NAME = '{column}'"
+                    ),
+                ).scalar()
+                if not has_column:
+                    connection.execute(text(ddl))
+        support_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'support_tickets'"
+            ),
+        ).scalar()
+        if support_exist:
+            from app.repositories.support_repository import ensure_support_schema
+
+            ensure_support_schema(connection)
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

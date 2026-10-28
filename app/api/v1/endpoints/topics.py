@@ -48,6 +48,8 @@ def _topic_response(topic: TopicRecord, votes: list[TopicVoteRecord]) -> TopicRe
         decision=topic.decision,
         status_id=topic.status_id,
         priority_id=topic.priority_id,
+        assignee_user_id=topic.assignee_user_id,
+        due_date=topic.due_date,
         votes=[_vote_response(vote) for vote in votes],
     )
 
@@ -117,18 +119,55 @@ def move_topic(
     topic_id: str,
     body: MoveTopicRequest,
     service: TopicService = Depends(get_topic_service),
-    _: Actor = Depends(require_permission("matters", "create")),
-    __: Actor = Depends(require_committee_member),
+    actor: Actor = Depends(require_permission("matters", "create")),
+    _: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
 ) -> TopicResponse:
-    """Move one topic to another board column. Only committee members may move."""
+    """Move one topic. Going to execution requires a responsible person and due date."""
+    from app.domain.topics import DOING_STATUS_ID
+    from app.repositories.client_repository import SqlClientRepository
+    from app.repositories.support_repository import SqlSupportRepository
+    from app.repositories.topic_repository import SqlTopicRepository
+    from app.services.support_service import SupportService
+
+    if body.status_id == DOING_STATUS_ID:
+        if not body.assignee_user_id or not body.due_date:
+            raise HTTPException(
+                status_code=422,
+                detail="Assignee and due date are required to start execution.",
+            )
     try:
         topic = service.move_topic(topic_id, body.status_id)
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
     except InvalidTopicStatus as error:
         raise HTTPException(status_code=422, detail="Invalid topic status.") from error
-    votes = service.list_votes_for_topics([topic.id])
-    return _topic_response(topic, votes)
+
+    if body.status_id == DOING_STATUS_ID and body.assignee_user_id and body.due_date:
+        SqlTopicRepository(db).save_topic_assignment(topic_id, body.assignee_user_id, body.due_date)
+        topic = service.list_topics()
+        topic = next(item for item in topic if item.id == topic_id)
+        client = SqlClientRepository(db).get_client(actor.client_id) if actor.client_id else None
+        if client is not None and body.assignee_user_id == client.admin_user_id:
+            access = SqlAccessRepository(db)
+            actor_user = access.get_user(actor.user_id)
+            SupportService(SqlSupportRepository(db)).create_ticket(
+                subject=topic.title,
+                body=topic.description or topic.decision,
+                created_by_user_id=actor.user_id,
+                created_by_name=actor_user.full_name if actor_user else "",
+                client_id=actor.client_id,
+                client_name=client.name,
+                from_staff=False,
+                priority_id=topic.priority_id,
+                due_date=body.due_date,
+                assignee_user_id=body.assignee_user_id,
+                topic_id=topic.id,
+            )
+
+    votes = service.list_votes_for_topics([topic_id])
+    refreshed = next((item for item in service.list_topics() if item.id == topic_id), topic)
+    return _topic_response(refreshed, votes)
 
 
 @router.delete("/topics/{topic_id}", status_code=204)

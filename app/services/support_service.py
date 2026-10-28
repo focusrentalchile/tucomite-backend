@@ -3,10 +3,15 @@
 import uuid
 from datetime import datetime, timezone
 
-from app.domain.support import SupportMessageRecord, SupportTicketRecord, TicketNotFound
+from app.domain.support import (
+    ALLOWED_SUPPORT_STATUSES,
+    SUPPORT_STATUS_TODO,
+    SupportMessageRecord,
+    SupportTicketRecord,
+    TicketNotFound,
+)
+from app.domain.topics import MEDIUM_PRIORITY_ID, PRIORITY_IDS
 from app.repositories.support_repository import SupportRepository
-
-ALLOWED_STATUSES = frozenset({"open", "pending", "resolved", "closed"})
 
 
 class SupportService:
@@ -36,12 +41,18 @@ class SupportService:
         client_id: str | None,
         client_name: str,
         from_staff: bool,
+        priority_id: int = MEDIUM_PRIORITY_ID,
+        due_date: str | None = None,
+        assignee_user_id: str | None = None,
+        topic_id: str | None = None,
     ) -> SupportTicketRecord:
-        """Open a ticket with the first message."""
+        """Open a ticket in the Tareas column with the first message."""
         cleaned_subject = subject.strip()
         cleaned_body = body.strip()
         if not cleaned_subject or not cleaned_body:
             raise ValueError("Subject and body are required.")
+        if priority_id not in PRIORITY_IDS:
+            raise ValueError("Unknown ticket priority.")
         now = datetime.now(timezone.utc).isoformat()
         ticket_id = str(uuid.uuid4())
         message = SupportMessageRecord(
@@ -60,7 +71,11 @@ class SupportService:
             created_by_user_id=created_by_user_id,
             created_by_name=created_by_name,
             subject=cleaned_subject,
-            status="open",
+            status=SUPPORT_STATUS_TODO,
+            priority_id=priority_id,
+            due_date=due_date,
+            assignee_user_id=assignee_user_id,
+            topic_id=topic_id,
             created_at=now,
             updated_at=now,
             messages=(message,),
@@ -92,16 +107,14 @@ class SupportService:
             from_staff=from_staff,
         )
         self._repository.add_message(message)
-        if ticket.status == "resolved" or ticket.status == "closed":
-            self._repository.save_ticket_status(ticket.id, "open")
-        elif from_staff and ticket.status == "open":
-            self._repository.save_ticket_status(ticket.id, "pending")
+        if ticket.status == SUPPORT_STATUS_TODO and from_staff:
+            self._repository.save_ticket_status(ticket.id, "in_progress")
         return self.get_ticket(ticket_id)
 
     def set_status(self, ticket_id: str, status: str) -> SupportTicketRecord:
-        """Change ticket status when the value is allowed."""
+        """Change ticket board column when the value is allowed."""
         cleaned = status.strip().lower()
-        if cleaned not in ALLOWED_STATUSES:
+        if cleaned not in ALLOWED_SUPPORT_STATUSES:
             raise ValueError("Unknown ticket status.")
         self.get_ticket(ticket_id)
         self._repository.save_ticket_status(ticket_id, cleaned)

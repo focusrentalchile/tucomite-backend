@@ -3,7 +3,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.helpers.auth import login_as_super_admin
+from tests.helpers.auth import login_as_demo_admin, login_as_super_admin
 
 client = TestClient(app)
 
@@ -116,9 +116,20 @@ def test_topic_update_move_and_delete_survive_reload() -> None:
     assert updated.status_code == 200
     assert updated.json()["title"] == "Portón principal"
 
-    moved = client.patch(f"/api/v1/topics/{topic_id}/status", json={"status_id": 3})
+    me = client.get("/api/v1/access/me")
+    assert me.status_code == 200
+    moved = client.patch(
+        f"/api/v1/topics/{topic_id}/status",
+        json={
+            "status_id": 3,
+            "assignee_user_id": me.json()["id"],
+            "due_date": "2026-12-31",
+        },
+    )
     assert moved.status_code == 200
     assert moved.json()["status_id"] == 3
+    assert moved.json()["assignee_user_id"] == me.json()["id"]
+    assert moved.json()["due_date"] == "2026-12-31"
 
     listed = client.get("/api/v1/topics")
     assert listed.status_code == 200
@@ -130,3 +141,53 @@ def test_topic_update_move_and_delete_survive_reload() -> None:
     assert deleted.status_code == 204
     listed_after = client.get("/api/v1/topics")
     assert all(item["id"] != topic_id for item in listed_after.json()["items"])
+
+
+def test_assigning_building_admin_opens_support_task_with_same_priority() -> None:
+    login_as_demo_admin(client)
+    me = client.get("/api/v1/access/me")
+    assert me.status_code == 200
+    admin_id = me.json()["id"]
+    if not me.json().get("is_committee_member"):
+        login_as_super_admin(client)
+        added = client.post("/api/v1/committee/members", json={"user_id": admin_id})
+        assert added.status_code in {201, 409}
+        login_as_demo_admin(client)
+
+    created = client.post(
+        "/api/v1/topics",
+        json={
+            "title": "Filtración en techo",
+            "description": "Hay humedad en el hall.",
+            "category_key": "maintenance",
+            "attachment_name": "",
+            "decision": "¿Contratamos reparación?",
+            "priority_id": 1,
+        },
+    )
+    assert created.status_code == 201
+    topic_id = created.json()["id"]
+
+    moved = client.patch(
+        f"/api/v1/topics/{topic_id}/status",
+        json={
+            "status_id": 3,
+            "assignee_user_id": admin_id,
+            "due_date": "2026-11-15",
+        },
+    )
+    assert moved.status_code == 200
+    assert moved.json()["status_id"] == 3
+
+    tickets = client.get("/api/v1/support/tickets")
+    assert tickets.status_code == 200
+    match = next(
+        (item for item in tickets.json()["items"] if item.get("topic_id") == topic_id),
+        None,
+    )
+    assert match is not None
+    assert match["status"] == "todo"
+    assert match["priority_id"] == 1
+    assert match["subject"] == "Filtración en techo"
+    assert match["due_date"] == "2026-11-15"
+    assert match["assignee_user_id"] == admin_id

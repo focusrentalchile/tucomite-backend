@@ -5,6 +5,7 @@ from dataclasses import dataclass
 # Stable ids shared with the admin board. 1 is the open column.
 OPEN_STATUS_ID = 1
 WAITING_STATUS_ID = 2
+DOING_STATUS_ID = 3
 
 TOPIC_STATUSES: tuple[tuple[int, str], ...] = (
     (1, "open"),
@@ -53,6 +54,8 @@ class TopicRecord:
     decision: str
     status_id: int
     priority_id: int
+    assignee_user_id: str | None = None
+    due_date: str | None = None
 
 
 @dataclass(frozen=True)

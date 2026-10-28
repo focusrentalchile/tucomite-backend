@@ -47,6 +47,10 @@ def _ticket_response(ticket) -> SupportTicketResponse:
         created_by_name=ticket.created_by_name,
         subject=ticket.subject,
         status=ticket.status,
+        priority_id=ticket.priority_id,
+        due_date=ticket.due_date,
+        assignee_user_id=ticket.assignee_user_id,
+        topic_id=ticket.topic_id,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         messages=[_message_response(item) for item in ticket.messages],
@@ -121,6 +125,8 @@ def create_ticket(
             client_id=actor.client_id,
             client_name=_client_name(db, actor.client_id),
             from_staff=False,
+            priority_id=body.priority_id,
+            due_date=body.due_date,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
@@ -159,15 +165,16 @@ def update_status(
     ticket_id: str,
     body: UpdateSupportTicketStatusRequest,
     service: SupportService = Depends(get_support_service),
-    actor: Actor = Depends(require_permission("support", "update")),
+    actor: Actor = Depends(require_permission("support", "reply")),
 ) -> SupportTicketResponse:
-    """Change ticket status. Staff only."""
-    if not actor.is_super_admin:
-        raise HTTPException(status_code=403, detail="Forbidden.")
+    """Move a ticket across Pendientes / En curso / Completadas."""
     try:
-        ticket = service.set_status(ticket_id, body.status)
+        existing = service.get_ticket(ticket_id)
     except TicketNotFound:
         raise HTTPException(status_code=404, detail="Ticket not found.") from None
+    _ensure_ticket_access(actor, existing.client_id)
+    try:
+        ticket = service.set_status(ticket_id, body.status)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     return _ticket_response(ticket)

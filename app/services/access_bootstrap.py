@@ -24,6 +24,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "progress.update",
             "documents.view",
             "notifications.receive",
+            "users.view",
         }
     ),
     "administrator": frozenset(
@@ -42,6 +43,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "support.view",
             "support.create",
             "support.reply",
+            "support.update",
         }
     ),
     "resident": frozenset(
