@@ -8,7 +8,7 @@ from app.services.access_bootstrap import bootstrap_access, upsert_platform_acco
 
 SUPER_ADMIN_EMAIL = "superadmin@tucomite.cl"
 DEMO_ADMIN_EMAIL = "admin@tucomite.cl"
-SEED_PASSWORD = "1234567"
+SEED_PASSWORD = "123456"
 
 
 def ensure_test_platform_accounts() -> None:
