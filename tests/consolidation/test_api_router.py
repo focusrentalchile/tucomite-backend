@@ -34,3 +34,5 @@ def test_application_mounts_v1_prefix() -> None:
 def test_cors_allows_frontend_and_admin() -> None:
     assert "http://127.0.0.1:5173" in settings.cors_origins
     assert "http://127.0.0.1:5174" in settings.cors_origins
+    assert "https://tucomite.cl" in settings.cors_origins
+    assert "https://tucomite-admin.web.app" in settings.cors_origins
