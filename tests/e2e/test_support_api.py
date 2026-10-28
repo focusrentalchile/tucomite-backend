@@ -1,5 +1,7 @@
 """End-to-end HTTP tests for platform support tickets."""
 
+import uuid
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -8,8 +10,33 @@ from tests.helpers.auth import login_as_demo_admin, login_as_super_admin
 client = TestClient(app)
 
 
-def test_building_admin_opens_ticket_and_staff_replies() -> None:
+def _login_as_building_administrator() -> None:
+    """Cliente cannot open Gestión; create an administrator in the same building."""
     login_as_demo_admin(client)
+    roles = client.get("/api/v1/roles")
+    assert roles.status_code == 200
+    admin_role = next(item for item in roles.json()["items"] if item["name"] == "administrator")
+    email = f"gestor.{uuid.uuid4().hex[:8]}@tucomite.local"
+    created = client.post(
+        "/api/v1/users",
+        json={
+            "full_name": "Gestor edificio",
+            "email": email,
+            "password": "secreto-1",
+            "role_id": admin_role["id"],
+        },
+    )
+    assert created.status_code == 201, created.text
+    client.post("/api/v1/auth/logout")
+    signed = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "secreto-1"},
+    )
+    assert signed.status_code == 200, signed.text
+
+
+def test_building_admin_opens_ticket_and_staff_replies() -> None:
+    _login_as_building_administrator()
     created = client.post(
         "/api/v1/support/tickets",
         json={"subject": "No puedo votar", "body": "Al abrir acuerdos aparece un error."},

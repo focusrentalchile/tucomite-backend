@@ -15,7 +15,7 @@ def login_as_super_admin(client: TestClient) -> None:
 
 
 def login_as_demo_admin(client: TestClient) -> None:
-    """Sign in as the test building administrator."""
+    """Sign in as the test building owner (client role)."""
     response = client.post(
         "/api/v1/auth/login",
         json={"email": DEMO_ADMIN_EMAIL, "password": SEED_PASSWORD},

@@ -17,8 +17,8 @@ def test_catalog_lists_modules_as_rows_of_functionalities() -> None:
     assert response.status_code == 200
     modules = {item["key"]: item["functionalities"] for item in response.json()["modules"]}
     assert modules["users"] == ["view", "create"]
-    assert modules["roles"] == ["view", "create", "update"]
-    assert modules["clients"] == ["view", "create"]
+    assert modules["roles"] == ["view", "create", "update", "delete"]
+    assert modules["clients"] == ["view", "create", "update", "delete"]
     assert modules["agreements"] == ["view", "vote"]
     assert modules["matters"] == ["create", "comment"]
     assert modules["tasks"] == ["assign"]
@@ -48,18 +48,29 @@ def test_checkbox_persists_a_permission_without_a_second_save() -> None:
     assert stored["permissions"] == ["users.create"]
 
 
-def test_system_role_cannot_be_edited_and_user_can_be_created() -> None:
+def test_building_roles_hide_super_admin_and_custom_role_can_be_deleted() -> None:
     login_as_super_admin(client)
     roles = client.get("/api/v1/roles")
-    system_role = next(item for item in roles.json()["items"] if item["system"] is True)
+    assert roles.status_code == 200
+    items = roles.json()["items"]
+    names = {item["name"] for item in items}
+    assert "administrator" in names
+    assert "committee" in names
+    assert "resident" in names
+    assert "client" not in names
+    assert all(item["system"] is False for item in items)
+    assert not any(item["name"].casefold() in {"super admin", "super administrador", "client"} for item in items)
 
-    rejected = client.patch(
-        f"/api/v1/roles/{system_role['id']}/permissions",
-        json={"module_key": "users", "functionality_key": "view", "granted": False},
-    )
-    assert rejected.status_code == 409
+    starter = next(item for item in items if item["name"] == "administrator")
+    blocked = client.delete(f"/api/v1/roles/{starter['id']}")
+    assert blocked.status_code == 409
 
-    building_role = next(item for item in roles.json()["items"] if item["system"] is False)
+    custom = client.post("/api/v1/roles", json={"name": f"portero-{uuid.uuid4().hex[:8]}"})
+    assert custom.status_code == 201
+    deleted = client.delete(f"/api/v1/roles/{custom.json()['id']}")
+    assert deleted.status_code == 204
+
+    building_role = next(item for item in items if item["name"] == "resident")
     created = client.post(
         "/api/v1/users",
         json={

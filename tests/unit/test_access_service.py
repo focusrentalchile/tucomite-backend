@@ -85,6 +85,27 @@ def test_system_role_rejects_permission_changes() -> None:
         service.set_permission(role.id, "users", "view", False)
 
 
+def test_list_roles_hides_system_and_delete_protects_starters() -> None:
+    repository = InMemoryAccessRepository()
+    registered = catalog()
+    bootstrap_access(repository, registered)
+    service = RoleService(repository, registered)
+
+    listed = service.list_roles()
+    assert all(not role.system for role in listed)
+    assert "administrator" in {role.name for role in listed}
+    assert "committee" in {role.name for role in listed}
+    assert "client" not in {role.name for role in listed}
+
+    starter = next(role for role in listed if role.name == "committee")
+    with pytest.raises(ProtectedRole):
+        service.delete_role(starter.id)
+
+    custom = service.create_role("portero")
+    service.delete_role(custom.id)
+    assert repository.get_role(custom.id) is None
+
+
 def test_unknown_permission_is_rejected() -> None:
     repository = InMemoryAccessRepository()
     service = RoleService(repository, catalog())
@@ -113,7 +134,7 @@ def test_create_user_assigns_a_role_and_rejects_a_duplicate_email() -> None:
     repository = InMemoryAccessRepository()
     registered = catalog()
     bootstrap_access(repository, registered)
-    role = RoleService(repository, registered).create_role("committee")
+    role = next(item for item in repository.list_roles() if item.name == "committee")
     users = UserService(repository)
 
     created = users.create_user("Ana Pérez", "Ana@Example.com", "secreto-1", role.id)

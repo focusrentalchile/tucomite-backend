@@ -60,12 +60,12 @@ class ClientService:
         if self._access.get_user_by_email(normalized) is not None:
             raise DuplicateEmail(normalized)
 
-        admin_role = next(
-            (role for role in self._access.list_roles() if role.name.casefold() == "administrator"),
+        owner_role = next(
+            (role for role in self._access.list_roles() if role.name.casefold() == "client"),
             None,
         )
-        if admin_role is None:
-            raise UnknownRole("administrator")
+        if owner_role is None:
+            raise UnknownRole("client")
 
         client_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
@@ -74,7 +74,7 @@ class ClientService:
             full_name=cleaned_name,
             email=normalized,
             password_hash=hash_password(password),
-            role_id=admin_role.id,
+            role_id=owner_role.id,
             client_id=client_id,
         )
         self._access.add_user(user)

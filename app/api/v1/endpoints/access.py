@@ -11,6 +11,7 @@ from app.domain.access import (
     DuplicateRoleName,
     ProtectedRole,
     ProtectedUser,
+    RoleInUse,
     RoleNotFound,
     RoleRecord,
     UnknownPermission,
@@ -20,7 +21,6 @@ from app.domain.access import (
 )
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.client_repository import SqlClientRepository
-from app.repositories.committee_repository import SqlCommitteeRepository
 from app.schemas.access import (
     CatalogModule,
     CatalogResponse,
@@ -35,6 +35,7 @@ from app.schemas.access import (
     UserResponse,
 )
 from app.services.access_service import RoleService, UserService
+from app.services.committee_access import ensure_committee_access
 
 router = APIRouter(tags=["access"])
 
@@ -98,12 +99,16 @@ def read_me(
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
+    role = access.get_role(user.role_id)
+    role_name = role.name if role is not None else ""
+    role_key = "super_admin" if actor.is_super_admin else role_name
     return MeResponse(
         id=user.id,
         full_name=user.full_name,
         email=user.email,
         role_id=user.role_id,
-        is_committee_member=SqlCommitteeRepository(db).get_member(user.id) is not None,
+        role_key=role_key,
+        is_committee_member=ensure_committee_access(db, user.id, role_name),
         is_super_admin=actor.is_super_admin,
         client_id=user.client_id,
     )
@@ -161,6 +166,23 @@ def set_permission(
     except UnknownPermission:
         raise HTTPException(status_code=422, detail="Unknown permission.") from None
     return _role_response(role)
+
+
+@router.delete("/roles/{role_id}", status_code=204)
+def remove_role(
+    role_id: str,
+    service: RoleService = Depends(get_role_service),
+    _: object = Depends(require_permission("roles", "delete")),
+) -> None:
+    """Delete a custom role. Starter and system roles stay."""
+    try:
+        service.delete_role(role_id)
+    except RoleNotFound as error:
+        raise HTTPException(status_code=404, detail="Role not found.") from error
+    except ProtectedRole as error:
+        raise HTTPException(status_code=409, detail="This role cannot be removed.") from error
+    except RoleInUse as error:
+        raise HTTPException(status_code=409, detail="This role still has users.") from error
 
 
 @router.get("/users", response_model=UserListResponse)

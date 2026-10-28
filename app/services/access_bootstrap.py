@@ -54,7 +54,30 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
+    # Building owner. Hidden from the roles list; can do everything except Gestión (support).
+    "client": frozenset(
+        {
+            "agreements.view",
+            "agreements.vote",
+            "matters.create",
+            "matters.comment",
+            "tasks.assign",
+            "progress.view",
+            "progress.update",
+            "documents.view",
+            "notifications.receive",
+            "users.view",
+            "users.create",
+            "roles.view",
+            "roles.create",
+            "roles.update",
+            "roles.delete",
+        }
+    ),
 }
+
+# Starter roles that exist in the catalog but stay out of the Roles screen.
+HIDDEN_ROLES: frozenset[str] = frozenset({"client"})
 
 
 def bootstrap_access(
@@ -63,7 +86,6 @@ def bootstrap_access(
     clients: ClientRepository | None = None,
 ) -> None:
     """Sync modules and starter roles. Platform users are stored only in the database."""
-    del clients  # Kept for call-site compatibility; accounts are not seeded from code.
     repository.replace_catalog(catalog.modules())
     keys = catalog.permission_keys()
     role = repository.get_system_role()
@@ -79,6 +101,8 @@ def bootstrap_access(
     elif role.permissions != keys:
         repository.save_role(RoleRecord(id=role.id, name=role.name, system=True, permissions=keys))
     _ensure_starter_roles(repository, keys)
+    if clients is not None:
+        _ensure_building_owners_use_client_role(repository, clients)
 
 
 def upsert_platform_accounts(
@@ -96,12 +120,12 @@ def upsert_platform_accounts(
     role = repository.get_system_role()
     if role is None:
         raise RuntimeError("System role is missing. Run bootstrap_access first.")
-    admin_role = next(
-        (item for item in repository.list_roles() if item.name.casefold() == "administrator"),
+    owner_role = next(
+        (item for item in repository.list_roles() if item.name.casefold() == "client"),
         None,
     )
-    if admin_role is None:
-        raise RuntimeError("Administrator role is missing. Run bootstrap_access first.")
+    if owner_role is None:
+        raise RuntimeError("Client role is missing. Run bootstrap_access first.")
 
     super_admin = _find_system_user(repository, role.id, super_admin_email)
     password_hash = hash_password(super_admin_password)
@@ -147,7 +171,7 @@ def upsert_platform_accounts(
                     full_name=demo_admin_name,
                     email=demo_admin_email,
                     password_hash=demo_hash,
-                    role_id=admin_role.id,
+                    role_id=owner_role.id,
                     client_id=client_id,
                 ),
             )
@@ -158,7 +182,7 @@ def upsert_platform_accounts(
                     full_name=demo_user.full_name or demo_admin_name,
                     email=demo_admin_email,
                     password_hash=demo_hash,
-                    role_id=admin_role.id,
+                    role_id=owner_role.id,
                     client_id=client_id,
                 ),
             )
@@ -181,7 +205,7 @@ def upsert_platform_accounts(
                 full_name=demo_admin_name,
                 email=demo_admin_email,
                 password_hash=demo_hash,
-                role_id=admin_role.id,
+                role_id=owner_role.id,
                 client_id=client.id,
             ),
         )
@@ -192,7 +216,7 @@ def upsert_platform_accounts(
                 full_name=demo_user.full_name or demo_admin_name,
                 email=demo_admin_email,
                 password_hash=demo_hash,
-                role_id=admin_role.id,
+                role_id=owner_role.id,
                 client_id=client.id,
             ),
         )
@@ -205,6 +229,33 @@ def upsert_platform_accounts(
             license_ends_at=client.license_ends_at or ends,
         ),
     )
+
+
+def _ensure_building_owners_use_client_role(
+    repository: AccessRepository,
+    clients: ClientRepository,
+) -> None:
+    """Keep each building's owner account on the hidden client role."""
+    owner_role = next(
+        (item for item in repository.list_roles() if item.name.casefold() == "client"),
+        None,
+    )
+    if owner_role is None:
+        return
+    for client in clients.list_clients():
+        user = repository.get_user(client.admin_user_id)
+        if user is None or user.role_id == owner_role.id:
+            continue
+        repository.save_user(
+            UserRecord(
+                id=user.id,
+                full_name=user.full_name,
+                email=user.email,
+                password_hash=user.password_hash,
+                role_id=owner_role.id,
+                client_id=user.client_id or client.id,
+            ),
+        )
 
 
 def _ensure_starter_roles(repository: AccessRepository, keys: frozenset[str]) -> None:

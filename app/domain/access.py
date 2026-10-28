@@ -66,7 +66,11 @@ class UnknownPermission(Exception):
 
 
 class ProtectedRole(Exception):
-    """Raised when a system role would lose its fixed permissions."""
+    """Raised when a system or starter role cannot be changed or removed."""
+
+
+class RoleInUse(Exception):
+    """Raised when a role still has users assigned."""
 
 
 class DuplicateEmail(Exception):

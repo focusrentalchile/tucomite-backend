@@ -15,6 +15,7 @@ from app.repositories.project_repository import SqlProjectRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.access_service import PermissionPolicy, RoleService, UserService
 from app.services.client_service import ClientService
+from app.services.committee_access import ensure_committee_access
 from app.services.committee_service import CommitteeService
 from app.services.period_service import PeriodService
 from app.services.project_service import ProjectService
@@ -109,7 +110,11 @@ def require_committee_member(
     actor: Actor = Depends(get_current_actor),
     db: Session = Depends(get_db),
 ) -> Actor:
-    """Depend on an actor who belongs to the building committee."""
-    if SqlCommitteeRepository(db).get_member(actor.user_id) is None:
+    """Depend on an actor who may act with committee powers."""
+    repository = SqlAccessRepository(db)
+    user = repository.get_user(actor.user_id)
+    role = repository.get_role(user.role_id) if user is not None else None
+    role_name = role.name if role is not None else ""
+    if not ensure_committee_access(db, actor.user_id, role_name):
         raise HTTPException(status_code=403, detail="Committee membership required.")
     return actor

@@ -8,8 +8,8 @@ from app.core.database import get_db
 from app.domain.license import evaluate_license
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.client_repository import SqlClientRepository
-from app.repositories.committee_repository import SqlCommitteeRepository
 from app.schemas.auth import LoginRequest, LoginResponse
+from app.services.committee_access import ensure_committee_access
 from app.utils.passwords import verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def _login_response(
     *,
     user,
+    role_key: str,
     is_super_admin: bool,
     is_committee_member: bool,
     client,
@@ -32,6 +33,7 @@ def _login_response(
         full_name=user.full_name,
         email=user.email,
         role_id=user.role_id,
+        role_key=role_key,
         is_super_admin=is_super_admin,
         client_id=user.client_id,
         is_committee_member=is_committee_member,
@@ -63,10 +65,12 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
 
     request.session.clear()
     request.session[SESSION_USER_KEY] = user.id
+    role_key = "super_admin" if role.system else role.name
     return _login_response(
         user=user,
+        role_key=role_key,
         is_super_admin=role.system,
-        is_committee_member=SqlCommitteeRepository(db).get_member(user.id) is not None,
+        is_committee_member=ensure_committee_access(db, user.id, role.name),
         client=client,
     )
 
@@ -94,9 +98,13 @@ def read_session(
         license = evaluate_license(client.license_starts_at, client.license_ends_at)
         if license.status == "inactive":
             raise HTTPException(status_code=403, detail="license_inactive")
+    access_role = access.get_role(user.role_id)
+    role_name = access_role.name if access_role is not None else ""
+    role_key = "super_admin" if actor.is_super_admin else role_name
     return _login_response(
         user=user,
+        role_key=role_key,
         is_super_admin=actor.is_super_admin,
-        is_committee_member=SqlCommitteeRepository(db).get_member(user.id) is not None,
+        is_committee_member=ensure_committee_access(db, user.id, role_name),
         client=client,
     )

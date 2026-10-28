@@ -17,6 +17,7 @@ class LoginResponse(BaseModel):
     full_name: str
     email: str
     role_id: str
+    role_key: str = ""
     is_super_admin: bool
     client_id: str | None
     is_committee_member: bool

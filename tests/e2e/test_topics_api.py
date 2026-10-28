@@ -179,6 +179,8 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
     assert moved.status_code == 200
     assert moved.json()["status_id"] == 3
 
+    # Building owner (client role) cannot open Gestión; staff verifies the auto ticket.
+    login_as_super_admin(client)
     tickets = client.get("/api/v1/support/tickets")
     assert tickets.status_code == 200
     match = next(

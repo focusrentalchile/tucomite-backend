@@ -58,6 +58,7 @@ class UserResponse(BaseModel):
 class MeResponse(UserResponse):
     """The current actor, including committee membership and scope."""
 
+    role_key: str = ""
     is_committee_member: bool
     is_super_admin: bool = False
     client_id: str | None = None

@@ -33,6 +33,12 @@ class AccessRepository(Protocol):
     def save_role(self, role: RoleRecord) -> None:
         """Replace a role's stored permissions."""
 
+    def delete_role(self, role_id: str) -> None:
+        """Delete one role and its permissions."""
+
+    def count_users_with_role(self, role_id: str) -> int:
+        """Return how many users hold this role."""
+
     def list_users(self) -> list[UserRecord]:
         """Return every user."""
 
@@ -144,6 +150,18 @@ class SqlAccessRepository:
         self._session.execute(delete(RolePermissionModel).where(RolePermissionModel.role_id == role.id))
         self._insert_permissions(role)
         self._session.flush()
+
+    def delete_role(self, role_id: str) -> None:
+        row = self._session.get(RoleModel, role_id)
+        if row is None:
+            return
+        self._session.execute(delete(RolePermissionModel).where(RolePermissionModel.role_id == role_id))
+        self._session.delete(row)
+        self._session.flush()
+
+    def count_users_with_role(self, role_id: str) -> int:
+        rows = self._session.scalars(select(UserModel).where(UserModel.role_id == role_id)).all()
+        return len(rows)
 
     def list_users(self) -> list[UserRecord]:
         rows = self._session.scalars(select(UserModel).order_by(UserModel.full_name)).all()

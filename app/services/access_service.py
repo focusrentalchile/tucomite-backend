@@ -8,6 +8,7 @@ from app.domain.access import (
     DuplicateRoleName,
     ProtectedRole,
     ProtectedUser,
+    RoleInUse,
     RoleNotFound,
     RoleRecord,
     UnknownPermission,
@@ -17,6 +18,7 @@ from app.domain.access import (
     permission_key,
 )
 from app.repositories.access_repository import AccessRepository
+from app.services.access_bootstrap import HIDDEN_ROLES, STARTER_ROLES
 from app.utils.passwords import hash_password
 
 
@@ -40,8 +42,13 @@ class RoleService:
         return self._repository.list_modules()
 
     def list_roles(self) -> list[RoleRecord]:
-        """Return every role."""
-        return self._repository.list_roles()
+        """Return building roles. System and hidden starters (e.g. client) stay out."""
+        hidden = {name.casefold() for name in HIDDEN_ROLES}
+        return [
+            role
+            for role in self._repository.list_roles()
+            if not role.system and role.name.casefold() not in hidden
+        ]
 
     def create_role(self, name: str) -> RoleRecord:
         """Create a role with no permissions yet."""
@@ -76,6 +83,17 @@ class RoleService:
         updated = RoleRecord(id=role.id, name=role.name, system=False, permissions=frozenset(permissions))
         self._repository.save_role(updated)
         return updated
+
+    def delete_role(self, role_id: str) -> None:
+        """Remove a custom role when no users hold it. Starter and system roles stay."""
+        role = self._repository.get_role(role_id)
+        if role is None:
+            raise RoleNotFound(role_id)
+        if role.system or role.name.casefold() in {name.casefold() for name in STARTER_ROLES}:
+            raise ProtectedRole(role_id)
+        if self._repository.count_users_with_role(role_id) > 0:
+            raise RoleInUse(role_id)
+        self._repository.delete_role(role_id)
 
 
 class UserService:
@@ -175,7 +193,9 @@ class UserService:
 
     def _default_role_id(self) -> str:
         roles = self._repository.list_roles()
-        preferred = next((role for role in roles if not role.system), None)
+        preferred = next((role for role in roles if role.name.casefold() == "resident"), None)
+        if preferred is None:
+            preferred = next((role for role in roles if not role.system), None)
         if preferred is not None:
             return preferred.id
         if roles:
