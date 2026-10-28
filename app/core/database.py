@@ -47,6 +47,7 @@ def init_database() -> None:
     from app.models import committee as committee_models  # noqa: F401
     from app.models import periods as period_models  # noqa: F401
     from app.models import projects as project_models  # noqa: F401
+    from app.models import support as support_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
     from app.repositories.access_repository import SqlAccessRepository
     from app.repositories.topic_repository import SqlTopicRepository

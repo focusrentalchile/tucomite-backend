@@ -23,6 +23,10 @@ def test_v1_router_includes_health_path() -> None:
     assert "/projects" in paths
     assert "/projects/{project_id}" in paths
     assert "/reports/summary" in paths
+    assert "/support/tickets" in paths
+    assert "/support/tickets/{ticket_id}" in paths
+    assert "/support/tickets/{ticket_id}/messages" in paths
+    assert "/support/tickets/{ticket_id}/status" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:

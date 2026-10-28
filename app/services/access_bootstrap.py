@@ -39,6 +39,9 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "users.view",
             "users.create",
             "roles.view",
+            "support.view",
+            "support.create",
+            "support.reply",
         }
     ),
     "resident": frozenset(

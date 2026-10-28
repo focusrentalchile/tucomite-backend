@@ -25,6 +25,9 @@ def register_builtin_modules() -> None:
     access_catalog.register(ModuleDefinition(key="progress", functionalities=("view", "update")))
     access_catalog.register(ModuleDefinition(key="documents", functionalities=("view",)))
     access_catalog.register(ModuleDefinition(key="notifications", functionalities=("receive",)))
+    access_catalog.register(
+        ModuleDefinition(key="support", functionalities=("view", "create", "reply", "update")),
+    )
 
 
 register_builtin_modules()

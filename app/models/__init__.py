@@ -4,6 +4,7 @@ from app.models.access import FunctionalityModel, ModuleModel, RoleModel, RolePe
 from app.models.committee import CommitteeMemberModel
 from app.models.periods import PeriodModel
 from app.models.projects import ProjectModel
+from app.models.support import SupportMessageModel, SupportTicketModel
 from app.models.topics import PriorityModel, StatusModel, TopicModel, TopicVoteModel
 
 __all__ = [
@@ -16,6 +17,8 @@ __all__ = [
     "RoleModel",
     "RolePermissionModel",
     "StatusModel",
+    "SupportMessageModel",
+    "SupportTicketModel",
     "TopicModel",
     "TopicVoteModel",
     "UserModel",
