@@ -58,6 +58,11 @@ class InMemoryAccessRepository:
     def count_users_with_role(self, role_id: str) -> int:
         return sum(1 for user in self.users if user.role_id == role_id)
 
+    def delete_users_with_role(self, role_id: str) -> int:
+        before = len(self.users)
+        self.users = [user for user in self.users if user.role_id != role_id]
+        return before - len(self.users)
+
     def list_users(self) -> list[UserRecord]:
         return sorted(self.users, key=lambda user: user.full_name)
 

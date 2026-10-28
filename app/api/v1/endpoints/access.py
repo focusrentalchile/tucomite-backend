@@ -11,7 +11,6 @@ from app.domain.access import (
     DuplicateRoleName,
     ProtectedRole,
     ProtectedUser,
-    RoleInUse,
     RoleNotFound,
     RoleRecord,
     UnknownPermission,
@@ -189,15 +188,13 @@ def remove_role(
     service: RoleService = Depends(get_role_service),
     _: object = Depends(require_permission("roles", "delete")),
 ) -> None:
-    """Delete a custom role. Starter and system roles stay."""
+    """Delete a building role and every user that holds it. System role stays."""
     try:
         service.delete_role(role_id)
     except RoleNotFound as error:
         raise HTTPException(status_code=404, detail="Role not found.") from error
     except ProtectedRole as error:
         raise HTTPException(status_code=409, detail="This role cannot be removed.") from error
-    except RoleInUse as error:
-        raise HTTPException(status_code=409, detail="This role still has users.") from error
 
 
 @router.get("/users", response_model=UserListResponse)

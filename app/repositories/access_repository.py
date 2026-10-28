@@ -39,6 +39,9 @@ class AccessRepository(Protocol):
     def count_users_with_role(self, role_id: str) -> int:
         """Return how many users hold this role."""
 
+    def delete_users_with_role(self, role_id: str) -> int:
+        """Delete every user that holds this role. Return how many were removed."""
+
     def list_users(self) -> list[UserRecord]:
         """Return every user."""
 
@@ -162,6 +165,14 @@ class SqlAccessRepository:
     def count_users_with_role(self, role_id: str) -> int:
         rows = self._session.scalars(select(UserModel).where(UserModel.role_id == role_id)).all()
         return len(rows)
+
+    def delete_users_with_role(self, role_id: str) -> int:
+        rows = self._session.scalars(select(UserModel).where(UserModel.role_id == role_id)).all()
+        removed = 0
+        for row in rows:
+            self.delete_user(row.id)
+            removed += 1
+        return removed
 
     def list_users(self) -> list[UserRecord]:
         rows = self._session.scalars(select(UserModel).order_by(UserModel.full_name)).all()

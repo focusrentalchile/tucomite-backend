@@ -49,7 +49,7 @@ def catalog() -> AccessCatalog:
     registered = AccessCatalog()
     registered.register(ModuleDefinition(key="users", functionalities=("view", "create")))
     registered.register(ModuleDefinition(key="roles", functionalities=("view", "create", "update", "delete")))
-    registered.register(ModuleDefinition(key="clients", functionalities=("view", "create", "update", "delete")))
+    registered.register(ModuleDefinition(key="clients", functionalities=("view", "create")))
     registered.register(ModuleDefinition(key="agreements", functionalities=("view", "vote")))
     registered.register(ModuleDefinition(key="matters", functionalities=("create", "comment")))
     registered.register(ModuleDefinition(key="tasks", functionalities=("assign",)))
@@ -96,7 +96,7 @@ def test_bootstrap_seeds_demo_users_for_each_building_role() -> None:
     repository.add_user(
         UserRecord(
             id="owner-1",
-            full_name="Admin de prueba",
+            full_name="Cliente demo",
             email="admin@tucomite.cl",
             password_hash=hash_password("123456"),
             role_id=owner.id,
@@ -152,11 +152,12 @@ def test_system_role_rejects_permission_changes() -> None:
         service.set_permission(role.id, "users", "view", False)
 
 
-def test_list_roles_hides_system_and_delete_protects_starters() -> None:
+def test_list_roles_hides_system_and_delete_removes_users() -> None:
     repository = InMemoryAccessRepository()
     registered = catalog()
     bootstrap_access(repository, registered)
     service = RoleService(repository, registered)
+    users = UserService(repository)
 
     listed = service.list_roles()
     assert all(not role.system for role in listed)
@@ -166,12 +167,20 @@ def test_list_roles_hides_system_and_delete_protects_starters() -> None:
     assert "resident" in {role.name for role in listed}
 
     starter = next(role for role in listed if role.name == "committee")
-    with pytest.raises(ProtectedRole):
-        service.delete_role(starter.id)
+    users.create_user("Ana Pérez", "ana@example.com", "secreto-1", starter.id)
+    users.create_user("Luis Soto", "luis@example.com", "secreto-1", starter.id)
+    assert repository.count_users_with_role(starter.id) == 2
 
-    custom = service.create_role("portero")
-    service.delete_role(custom.id)
-    assert repository.get_role(custom.id) is None
+    service.delete_role(starter.id)
+    assert repository.get_role(starter.id) is None
+    assert repository.count_users_with_role(starter.id) == 0
+    assert repository.get_user_by_email("ana@example.com") is None
+    assert repository.get_user_by_email("luis@example.com") is None
+
+    system = repository.get_system_role()
+    assert system is not None
+    with pytest.raises(ProtectedRole):
+        service.delete_role(system.id)
 
 
 def test_unknown_permission_is_rejected() -> None:

@@ -106,6 +106,13 @@ def require_permission(module_key: str, functionality_key: str):
     return dependency
 
 
+def require_super_admin(actor: Actor = Depends(get_current_actor)) -> Actor:
+    """Depend on the platform super admin."""
+    if not actor.is_super_admin:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    return actor
+
+
 def require_committee_member(
     actor: Actor = Depends(get_current_actor),
     db: Session = Depends(get_db),

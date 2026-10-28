@@ -112,7 +112,7 @@ def upsert_platform_accounts(
     demo_admin_email: str,
     demo_admin_password: str,
     demo_client_name: str = DEMO_CLIENT_NAME,
-    demo_admin_name: str = "Admin de prueba",
+    demo_admin_name: str = "Cliente demo",
 ) -> None:
     """Create or update platform accounts in MySQL. Credentials come from the caller, not source."""
     role = repository.get_system_role()
@@ -177,7 +177,7 @@ def upsert_platform_accounts(
             repository.save_user(
                 UserRecord(
                     id=user_id,
-                    full_name=demo_user.full_name or demo_admin_name,
+                    full_name=demo_admin_name,
                     email=demo_admin_email,
                     password_hash=demo_hash,
                     role_id=owner_role.id,
@@ -212,7 +212,7 @@ def upsert_platform_accounts(
         repository.save_user(
             UserRecord(
                 id=user_id,
-                full_name=demo_user.full_name or demo_admin_name,
+                full_name=demo_admin_name,
                 email=demo_admin_email,
                 password_hash=demo_hash,
                 role_id=owner_role.id,

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_client_service, require_permission
+from app.api.deps import get_client_service, require_permission, require_super_admin
 from app.core.database import get_db
 from app.domain.access import DuplicateEmail
 from app.domain.license import evaluate_license
@@ -76,9 +76,9 @@ def update_client(
     client_id: str,
     body: UpdateClientRequest,
     service: ClientService = Depends(get_client_service),
-    _: object = Depends(require_permission("clients", "update")),
+    _: object = Depends(require_super_admin),
 ) -> ClientResponse:
-    """Update a client, license window, and administrator credentials."""
+    """Update a client, license window, and administrator credentials (super admin)."""
     try:
         client, admin = service.update_client(
             client_id,
@@ -103,9 +103,9 @@ def update_client(
 def delete_client(
     client_id: str,
     service: ClientService = Depends(get_client_service),
-    _: object = Depends(require_permission("clients", "delete")),
+    _: object = Depends(require_super_admin),
 ) -> None:
-    """Delete a client and every user that belongs to it."""
+    """Delete a client and every user that belongs to it (super admin)."""
     try:
         service.delete_client(client_id)
     except ClientNotFound:

@@ -8,7 +8,6 @@ from app.domain.access import (
     DuplicateRoleName,
     ProtectedRole,
     ProtectedUser,
-    RoleInUse,
     RoleNotFound,
     RoleRecord,
     UnknownPermission,
@@ -18,7 +17,7 @@ from app.domain.access import (
     permission_key,
 )
 from app.repositories.access_repository import AccessRepository
-from app.services.access_bootstrap import HIDDEN_ROLES, STARTER_ROLES
+from app.services.access_bootstrap import HIDDEN_ROLES
 from app.utils.passwords import hash_password
 
 
@@ -85,14 +84,13 @@ class RoleService:
         return updated
 
     def delete_role(self, role_id: str) -> None:
-        """Remove a custom role when no users hold it. Starter and system roles stay."""
+        """Remove a building role and every user assigned to it. System role stays."""
         role = self._repository.get_role(role_id)
         if role is None:
             raise RoleNotFound(role_id)
-        if role.system or role.name.casefold() in {name.casefold() for name in STARTER_ROLES}:
+        if role.system:
             raise ProtectedRole(role_id)
-        if self._repository.count_users_with_role(role_id) > 0:
-            raise RoleInUse(role_id)
+        self._repository.delete_users_with_role(role_id)
         self._repository.delete_role(role_id)
 
 
