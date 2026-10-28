@@ -42,3 +42,21 @@ class SupportMessageModel(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     from_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SupportWorkspaceImportModel(Base):
+    """Permission request to add a building to an administrator's Gestión board."""
+
+    __tablename__ = "support_workspace_imports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    administrator_user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+    client_id: Mapped[str] = mapped_column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

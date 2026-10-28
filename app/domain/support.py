@@ -52,3 +52,35 @@ class SupportTicketRecord:
 
 class TicketNotFound(Exception):
     """Raised when a support ticket id does not exist."""
+
+
+IMPORT_STATUS_PENDING = "pending"
+IMPORT_STATUS_APPROVED = "approved"
+IMPORT_STATUS_REJECTED = "rejected"
+ALLOWED_IMPORT_STATUSES = frozenset(
+    {IMPORT_STATUS_PENDING, IMPORT_STATUS_APPROVED, IMPORT_STATUS_REJECTED},
+)
+
+
+@dataclass(frozen=True)
+class SupportWorkspaceClientRecord:
+    """One building available on an administrator's Gestión board."""
+
+    client_id: str
+    client_name: str
+    home: bool
+
+
+@dataclass(frozen=True)
+class SupportWorkspaceImportRecord:
+    """Request to import a building into an administrator's Gestión workspace."""
+
+    id: str
+    administrator_user_id: str
+    administrator_name: str
+    administrator_email: str
+    client_id: str
+    client_name: str
+    status: str
+    created_at: str
+    resolved_at: str | None

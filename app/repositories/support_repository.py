@@ -7,21 +7,29 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.domain.support import (
+    IMPORT_STATUS_APPROVED,
+    IMPORT_STATUS_PENDING,
     LEGACY_SUPPORT_STATUS_MAP,
     SUPPORT_STATUS_TODO,
     SupportMessageRecord,
     SupportTicketRecord,
+    SupportWorkspaceImportRecord,
 )
 from app.domain.topics import MEDIUM_PRIORITY_ID
 from app.models.access import ClientModel, UserModel
-from app.models.support import SupportMessageModel, SupportTicketModel
+from app.models.support import SupportMessageModel, SupportTicketModel, SupportWorkspaceImportModel
 
 
 class SupportRepository(Protocol):
     """Persistence port used by the support service."""
 
-    def list_tickets(self, *, client_id: str | None = None) -> list[SupportTicketRecord]:
-        """Return tickets, optionally limited to one building."""
+    def list_tickets(
+        self,
+        *,
+        client_id: str | None = None,
+        client_ids: list[str] | None = None,
+    ) -> list[SupportTicketRecord]:
+        """Return tickets for one building, a set of buildings, or every ticket."""
 
     def get_ticket(self, ticket_id: str) -> SupportTicketRecord | None:
         """Return one ticket with messages."""
@@ -35,6 +43,27 @@ class SupportRepository(Protocol):
     def save_ticket_status(self, ticket_id: str, status: str) -> None:
         """Update ticket status."""
 
+    def list_approved_client_ids(self, administrator_user_id: str) -> list[str]:
+        """Return client ids approved for this administrator's Gestión board."""
+
+    def list_imports_for_administrator(self, administrator_user_id: str) -> list[SupportWorkspaceImportRecord]:
+        """Return import requests opened by this administrator."""
+
+    def list_pending_imports_for_client(self, client_id: str) -> list[SupportWorkspaceImportRecord]:
+        """Return pending import requests targeting this building."""
+
+    def get_import(self, import_id: str) -> SupportWorkspaceImportRecord | None:
+        """Return one import request."""
+
+    def find_open_import(self, administrator_user_id: str, client_id: str) -> SupportWorkspaceImportRecord | None:
+        """Return a pending or approved import for this pair, if any."""
+
+    def add_import(self, record: SupportWorkspaceImportRecord) -> None:
+        """Insert an import request."""
+
+    def save_import_status(self, import_id: str, status: str, *, resolved_at: str) -> None:
+        """Update import status and resolution time."""
+
 
 class SqlSupportRepository:
     """SQLAlchemy adapter for support tables."""
@@ -42,9 +71,18 @@ class SqlSupportRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def list_tickets(self, *, client_id: str | None = None) -> list[SupportTicketRecord]:
+    def list_tickets(
+        self,
+        *,
+        client_id: str | None = None,
+        client_ids: list[str] | None = None,
+    ) -> list[SupportTicketRecord]:
         query = select(SupportTicketModel).order_by(SupportTicketModel.updated_at.desc())
-        if client_id is not None:
+        if client_ids is not None:
+            if not client_ids:
+                return []
+            query = query.where(SupportTicketModel.client_id.in_(client_ids))
+        elif client_id is not None:
             query = query.where(SupportTicketModel.client_id == client_id)
         rows = self._session.execute(query).scalars().all()
         return [self._ticket(row, include_messages=False) for row in rows]
@@ -139,6 +177,88 @@ class SqlSupportRepository:
             body=row.body,
             created_at=row.created_at.isoformat() if row.created_at else "",
             from_staff=row.from_staff,
+        )
+
+    def list_approved_client_ids(self, administrator_user_id: str) -> list[str]:
+        rows = self._session.execute(
+            select(SupportWorkspaceImportModel.client_id).where(
+                SupportWorkspaceImportModel.administrator_user_id == administrator_user_id,
+                SupportWorkspaceImportModel.status == IMPORT_STATUS_APPROVED,
+            ),
+        ).scalars().all()
+        return list(rows)
+
+    def list_imports_for_administrator(self, administrator_user_id: str) -> list[SupportWorkspaceImportRecord]:
+        rows = self._session.execute(
+            select(SupportWorkspaceImportModel)
+            .where(SupportWorkspaceImportModel.administrator_user_id == administrator_user_id)
+            .order_by(SupportWorkspaceImportModel.created_at.desc()),
+        ).scalars().all()
+        return [self._import(row) for row in rows]
+
+    def list_pending_imports_for_client(self, client_id: str) -> list[SupportWorkspaceImportRecord]:
+        rows = self._session.execute(
+            select(SupportWorkspaceImportModel)
+            .where(
+                SupportWorkspaceImportModel.client_id == client_id,
+                SupportWorkspaceImportModel.status == IMPORT_STATUS_PENDING,
+            )
+            .order_by(SupportWorkspaceImportModel.created_at.desc()),
+        ).scalars().all()
+        return [self._import(row) for row in rows]
+
+    def get_import(self, import_id: str) -> SupportWorkspaceImportRecord | None:
+        row = self._session.get(SupportWorkspaceImportModel, import_id)
+        if row is None:
+            return None
+        return self._import(row)
+
+    def find_open_import(self, administrator_user_id: str, client_id: str) -> SupportWorkspaceImportRecord | None:
+        row = self._session.execute(
+            select(SupportWorkspaceImportModel)
+            .where(
+                SupportWorkspaceImportModel.administrator_user_id == administrator_user_id,
+                SupportWorkspaceImportModel.client_id == client_id,
+                SupportWorkspaceImportModel.status.in_((IMPORT_STATUS_PENDING, IMPORT_STATUS_APPROVED)),
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return self._import(row)
+
+    def add_import(self, record: SupportWorkspaceImportRecord) -> None:
+        self._session.add(
+            SupportWorkspaceImportModel(
+                id=record.id,
+                administrator_user_id=record.administrator_user_id,
+                client_id=record.client_id,
+                status=record.status or IMPORT_STATUS_PENDING,
+            ),
+        )
+        self._session.flush()
+
+    def save_import_status(self, import_id: str, status: str, *, resolved_at: str) -> None:
+        row = self._session.get(SupportWorkspaceImportModel, import_id)
+        if row is None:
+            raise KeyError(import_id)
+        row.status = status
+        row.resolved_at = datetime.fromisoformat(resolved_at)
+        self._session.flush()
+
+    def _import(self, row: SupportWorkspaceImportModel) -> SupportWorkspaceImportRecord:
+        admin = self._session.get(UserModel, row.administrator_user_id)
+        client = self._session.get(ClientModel, row.client_id)
+        return SupportWorkspaceImportRecord(
+            id=row.id,
+            administrator_user_id=row.administrator_user_id,
+            administrator_name=admin.full_name if admin is not None else "",
+            administrator_email=admin.email if admin is not None else "",
+            client_id=row.client_id,
+            client_name=client.name if client is not None else "",
+            status=row.status,
+            created_at=row.created_at.isoformat() if row.created_at else "",
+            resolved_at=row.resolved_at.isoformat() if row.resolved_at else None,
         )
 
 

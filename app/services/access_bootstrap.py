@@ -46,7 +46,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
-    # Building owner. Hidden from the roles list; can do everything except Gestión (support).
+    # Building owner. Full building tools plus approval of Gestión import requests.
     "client": frozenset(
         {
             "agreements.view",
@@ -64,6 +64,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "roles.create",
             "roles.update",
             "roles.delete",
+            "support.approve_import",
         }
     ),
 }

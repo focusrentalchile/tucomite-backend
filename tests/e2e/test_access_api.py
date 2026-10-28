@@ -25,7 +25,7 @@ def test_catalog_lists_modules_as_rows_of_functionalities() -> None:
     assert modules["progress"] == ["view", "update"]
     assert modules["documents"] == ["view"]
     assert modules["notifications"] == ["receive"]
-    assert modules["support"] == ["view", "create", "reply", "update"]
+    assert modules["support"] == ["view", "create", "reply", "update", "approve_import"]
 
 
 def test_checkbox_persists_a_permission_without_a_second_save() -> None:

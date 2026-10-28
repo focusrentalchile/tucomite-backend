@@ -56,7 +56,12 @@ def catalog() -> AccessCatalog:
     registered.register(ModuleDefinition(key="progress", functionalities=("view", "update")))
     registered.register(ModuleDefinition(key="documents", functionalities=("view",)))
     registered.register(ModuleDefinition(key="notifications", functionalities=("receive",)))
-    registered.register(ModuleDefinition(key="support", functionalities=("view", "create", "reply", "update")))
+    registered.register(
+        ModuleDefinition(
+            key="support",
+            functionalities=("view", "create", "reply", "update", "approve_import"),
+        ),
+    )
     return registered
 
 

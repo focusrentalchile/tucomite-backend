@@ -29,6 +29,10 @@ def test_v1_router_includes_health_path() -> None:
     assert "/support/tickets/{ticket_id}" in paths
     assert "/support/tickets/{ticket_id}/messages" in paths
     assert "/support/tickets/{ticket_id}/status" in paths
+    assert "/support/workspace/clients" in paths
+    assert "/support/workspace/imports" in paths
+    assert "/support/workspace/imports/{import_id}/approve" in paths
+    assert "/support/workspace/imports/{import_id}/reject" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:
