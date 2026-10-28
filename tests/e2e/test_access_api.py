@@ -57,9 +57,9 @@ def test_building_roles_hide_super_admin_and_custom_role_can_be_deleted() -> Non
     assert "administrator" in names
     assert "committee" in names
     assert "resident" in names
-    assert "client" not in names
+    assert "client" in names
     assert all(item["system"] is False for item in items)
-    assert not any(item["name"].casefold() in {"super admin", "super administrador", "client"} for item in items)
+    assert not any(item["name"].casefold() in {"super admin", "super administrador"} for item in items)
 
     starter = next(item for item in items if item["name"] == "administrator")
     blocked = client.delete(f"/api/v1/roles/{starter['id']}")

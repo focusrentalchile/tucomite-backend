@@ -64,8 +64,9 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
     ),
 }
 
-# Starter roles that exist in the catalog but stay out of the Roles screen.
-HIDDEN_ROLES: frozenset[str] = frozenset({"client"})
+# No longer hidden from /roles for user assignment. The admin Roles screen may
+# still filter starters separately for permission editing.
+HIDDEN_ROLES: frozenset[str] = frozenset()
 
 
 def bootstrap_access(
@@ -183,6 +184,7 @@ def upsert_platform_accounts(
                 license_ends_at=ends,
             ),
         )
+        _ensure_demo_building_users(repository, client_id, demo_hash)
         return
 
     user_id = demo_user.id if demo_user is not None else str(uuid.uuid4())
@@ -217,6 +219,50 @@ def upsert_platform_accounts(
             license_ends_at=client.license_ends_at or ends,
         ),
     )
+    _ensure_demo_building_users(repository, client.id, demo_hash)
+
+
+def _ensure_demo_building_users(
+    repository: AccessRepository,
+    client_id: str,
+    password_hash: str,
+) -> None:
+    """Ensure one demo user for administrator, committee, and resident."""
+    by_name = {role.name.casefold(): role for role in repository.list_roles()}
+    seeds = (
+        ("administrator", "Administrador demo", "administrador@demo.tucomite.local"),
+        ("committee", "Comité demo", "comite@demo.tucomite.local"),
+        ("resident", "Residente demo", "residente@demo.tucomite.local"),
+    )
+    for role_name, full_name, email in seeds:
+        role = by_name.get(role_name)
+        if role is None:
+            continue
+        existing = repository.get_user_by_email(email)
+        if existing is not None:
+            if existing.client_id == client_id and existing.role_id == role.id:
+                continue
+            repository.save_user(
+                UserRecord(
+                    id=existing.id,
+                    full_name=existing.full_name or full_name,
+                    email=email,
+                    password_hash=existing.password_hash or password_hash,
+                    role_id=role.id,
+                    client_id=client_id,
+                ),
+            )
+            continue
+        repository.add_user(
+            UserRecord(
+                id=str(uuid.uuid4()),
+                full_name=full_name,
+                email=email,
+                password_hash=password_hash,
+                role_id=role.id,
+                client_id=client_id,
+            ),
+        )
 
 
 def _ensure_building_owners_use_client_role(

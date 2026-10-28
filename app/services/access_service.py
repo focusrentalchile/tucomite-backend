@@ -42,7 +42,7 @@ class RoleService:
         return self._repository.list_modules()
 
     def list_roles(self) -> list[RoleRecord]:
-        """Return building roles. System and hidden starters (e.g. client) stay out."""
+        """Return building roles (starters included). System role stays out."""
         hidden = {name.casefold() for name in HIDDEN_ROLES}
         return [
             role
