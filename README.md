@@ -38,7 +38,7 @@ Este repositorio contiene el **backend** (API REST) que alimenta:
 |---|---|---|
 | `frontend/` | Sitio público | `5173` |
 | `admin/` | Panel de administración | `5174` |
-| `backend/` | API FastAPI | `8000` |
+| `backend/` | API FastAPI | `9345` |
 
 ---
 
@@ -133,15 +133,15 @@ Al arrancar, la API crea la base `tu_comite` si no existe, sincroniza el catálo
 
 ```bash
 cd backend
-.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 9345
 ```
 
 | Recurso | URL |
 |---|---|
-| API | http://127.0.0.1:8000 |
-| Health | http://127.0.0.1:8000/api/v1/health |
-| OpenAPI | http://127.0.0.1:8000/docs |
-| ReDoc | http://127.0.0.1:8000/redoc |
+| API | http://127.0.0.1:9345 |
+| Health | http://127.0.0.1:9345/api/v1/health |
+| OpenAPI | http://127.0.0.1:9345/docs |
+| ReDoc | http://127.0.0.1:9345/redoc |
 
 ### Endpoints principales (v1)
 

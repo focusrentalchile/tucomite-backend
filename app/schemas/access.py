@@ -55,9 +55,11 @@ class UserResponse(BaseModel):
 
 
 class MeResponse(UserResponse):
-    """The current actor, including committee membership."""
+    """The current actor, including committee membership and scope."""
 
     is_committee_member: bool
+    is_super_admin: bool = False
+    client_id: str | None = None
 
 
 class UserListResponse(BaseModel):
@@ -71,7 +73,7 @@ class CreateUserRequest(BaseModel):
 
     full_name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=6, max_length=128)
     role_id: str | None = Field(default=None, max_length=36)
 
 
@@ -80,4 +82,4 @@ class UpdateUserRequest(BaseModel):
 
     full_name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=3, max_length=255)
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password: str | None = Field(default=None, min_length=6, max_length=128)

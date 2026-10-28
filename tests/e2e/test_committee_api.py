@@ -3,11 +3,13 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers.auth import login_as_super_admin
 
 client = TestClient(app)
 
 
 def test_committee_member_can_be_added_listed_and_removed() -> None:
+    login_as_super_admin(client)
     users = client.get("/api/v1/users")
     assert users.status_code == 200
     user = users.json()["items"][0]

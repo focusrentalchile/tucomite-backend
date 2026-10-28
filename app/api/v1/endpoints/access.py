@@ -67,6 +67,8 @@ def read_me(
         email=user.email,
         role_id=user.role_id,
         is_committee_member=SqlCommitteeRepository(db).get_member(user.id) is not None,
+        is_super_admin=actor.is_super_admin,
+        client_id=user.client_id,
     )
 
 

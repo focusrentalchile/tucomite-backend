@@ -3,11 +3,13 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers.auth import login_as_super_admin
 
 client = TestClient(app)
 
 
 def test_report_summary_returns_counts() -> None:
+    login_as_super_admin(client)
     response = client.get("/api/v1/reports/summary")
     assert response.status_code == 200
     body = response.json()

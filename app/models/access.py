@@ -58,6 +58,16 @@ class RolePermissionModel(Base):
     role: Mapped[RoleModel] = relationship(back_populates="permissions")
 
 
+class ClientModel(Base):
+    """A paying client (building) created by the platform super admin."""
+
+    __tablename__ = "clients"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(160))
+    admin_user_id: Mapped[str] = mapped_column(String(36))
+
+
 class UserModel(Base):
     """A person assigned to one role."""
 
@@ -68,3 +78,4 @@ class UserModel(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"))
+    client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

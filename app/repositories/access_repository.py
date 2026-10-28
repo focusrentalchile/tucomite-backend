@@ -163,6 +163,7 @@ class SqlAccessRepository:
                 email=user.email,
                 password_hash=user.password_hash,
                 role_id=user.role_id,
+                client_id=user.client_id,
             ),
         )
         self._session.flush()
@@ -175,6 +176,7 @@ class SqlAccessRepository:
         row.email = user.email
         row.password_hash = user.password_hash
         row.role_id = user.role_id
+        row.client_id = user.client_id
         self._session.flush()
 
     def delete_user(self, user_id: str) -> None:
@@ -222,4 +224,5 @@ class SqlAccessRepository:
             email=row.email,
             password_hash=row.password_hash,
             role_id=row.role_id,
+            client_id=getattr(row, "client_id", None),
         )

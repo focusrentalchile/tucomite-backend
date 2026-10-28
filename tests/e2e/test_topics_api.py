@@ -3,11 +3,13 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers.auth import login_as_super_admin
 
 client = TestClient(app)
 
 
 def _ensure_actor_on_committee() -> str:
+    login_as_super_admin(client)
     me = client.get("/api/v1/access/me")
     assert me.status_code == 200
     user_id = me.json()["id"]
@@ -19,6 +21,7 @@ def _ensure_actor_on_committee() -> str:
 
 
 def test_non_member_cannot_create_a_topic() -> None:
+    login_as_super_admin(client)
     me = client.get("/api/v1/access/me")
     assert me.status_code == 200
     user_id = me.json()["id"]

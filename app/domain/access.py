@@ -41,6 +41,17 @@ class UserRecord:
     email: str
     password_hash: str
     role_id: str
+    client_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ClientRecord:
+    """A building client managed by the platform super admin."""
+
+    id: str
+    name: str
+    admin_user_id: str
+
 
 
 class RoleNotFound(Exception):

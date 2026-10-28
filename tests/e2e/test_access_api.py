@@ -5,17 +5,20 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers.auth import login_as_super_admin
 
 client = TestClient(app)
 
 
 def test_catalog_lists_modules_as_rows_of_functionalities() -> None:
+    login_as_super_admin(client)
     response = client.get("/api/v1/access/catalog")
 
     assert response.status_code == 200
     modules = {item["key"]: item["functionalities"] for item in response.json()["modules"]}
     assert modules["users"] == ["view", "create"]
     assert modules["roles"] == ["view", "create", "update"]
+    assert modules["clients"] == ["view", "create"]
     assert modules["agreements"] == ["view", "vote"]
     assert modules["matters"] == ["create", "comment"]
     assert modules["tasks"] == ["assign"]
@@ -25,6 +28,7 @@ def test_catalog_lists_modules_as_rows_of_functionalities() -> None:
 
 
 def test_checkbox_persists_a_permission_without_a_second_save() -> None:
+    login_as_super_admin(client)
     created = client.post("/api/v1/roles", json={"name": f"role {uuid.uuid4().hex[:8]}"})
     assert created.status_code == 201
     role_id = created.json()["id"]
@@ -44,6 +48,7 @@ def test_checkbox_persists_a_permission_without_a_second_save() -> None:
 
 
 def test_system_role_cannot_be_edited_and_user_can_be_created() -> None:
+    login_as_super_admin(client)
     roles = client.get("/api/v1/roles")
     system_role = next(item for item in roles.json()["items"] if item["system"] is True)
 

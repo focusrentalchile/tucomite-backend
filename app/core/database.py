@@ -67,10 +67,28 @@ def init_database() -> None:
         if not has_priority:
             connection.execute(text("DROP TABLE IF EXISTS `topic_votes`"))
             connection.execute(text("DROP TABLE IF EXISTS `topics`"))
+        has_client_id = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'client_id'"
+            ),
+        ).scalar()
+        if not has_client_id:
+            users_exist = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+                ),
+            ).scalar()
+            if users_exist:
+                connection.execute(text("ALTER TABLE `users` ADD COLUMN `client_id` VARCHAR(36) NULL"))
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:
-        bootstrap_access(SqlAccessRepository(session), access_catalog)
+        from app.repositories.client_repository import SqlClientRepository
+
+        bootstrap_access(SqlAccessRepository(session), access_catalog, SqlClientRepository(session))
         ensure_topic_statuses(SqlTopicRepository(session))
         ensure_topic_priorities(session)
         session.commit()

@@ -109,6 +109,7 @@ class UserService:
             email=normalized,
             password_hash=hash_password(password),
             role_id=assigned_role_id,
+            client_id=None,
         )
         self._repository.add_user(user)
         return user
@@ -134,6 +135,7 @@ class UserService:
             email=normalized,
             password_hash=hash_password(password) if password else current.password_hash,
             role_id=current.role_id,
+            client_id=current.client_id,
         )
         self._repository.save_user(updated)
         return updated
