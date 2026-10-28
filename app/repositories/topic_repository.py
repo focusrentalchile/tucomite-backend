@@ -65,6 +65,7 @@ class SqlTopicRepository:
                 due_date=date.fromisoformat(topic.due_date) if topic.due_date else None,
                 created_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 closed_at=None,
+                period_id=topic.period_id,
             ),
         )
     def get_topic(self, topic_id: str) -> TopicRecord | None:
@@ -93,6 +94,7 @@ class SqlTopicRepository:
         row.priority_id = topic.priority_id
         row.assignee_user_id = topic.assignee_user_id
         row.due_date = date.fromisoformat(topic.due_date) if topic.due_date else None
+        row.period_id = topic.period_id
     def save_topic_assignment(self, topic_id: str, assignee_user_id: str, due_date: str) -> None:
         """Store the person responsible and the completion date."""
         row = self._session.get(TopicModel, topic_id)
@@ -167,6 +169,7 @@ class SqlTopicRepository:
             due_date=row.due_date.isoformat() if row.due_date else None,
             created_at=row.created_at.isoformat() if getattr(row, "created_at", None) else None,
             closed_at=row.closed_at.isoformat() if getattr(row, "closed_at", None) else None,
+            period_id=getattr(row, "period_id", None),
         )
     def _vote(self, row: TopicVoteModel) -> TopicVoteRecord:
         return TopicVoteRecord(

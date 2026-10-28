@@ -83,3 +83,4 @@ class UserModel(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"))
     client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    period_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("periods.id"), nullable=True, index=True)

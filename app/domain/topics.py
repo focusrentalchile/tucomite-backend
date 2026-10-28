@@ -59,6 +59,7 @@ class TopicRecord:
     due_date: str | None = None
     created_at: str | None = None
     closed_at: str | None = None
+    period_id: str | None = None
 
 
 @dataclass(frozen=True)

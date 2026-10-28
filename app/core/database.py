@@ -113,6 +113,7 @@ def init_database() -> None:
                 ("due_date", "ALTER TABLE `topics` ADD COLUMN `due_date` DATE NULL"),
                 ("created_at", "ALTER TABLE `topics` ADD COLUMN `created_at` DATETIME NULL"),
                 ("closed_at", "ALTER TABLE `topics` ADD COLUMN `closed_at` DATETIME NULL"),
+                ("period_id", "ALTER TABLE `topics` ADD COLUMN `period_id` VARCHAR(36) NULL"),
             ):
                 has_column = connection.execute(
                     text(
@@ -123,6 +124,22 @@ def init_database() -> None:
                 ).scalar()
                 if not has_column:
                     connection.execute(text(ddl))
+        users_exist_for_period = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+            ),
+        ).scalar()
+        if users_exist_for_period:
+            has_user_period = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'period_id'"
+                ),
+            ).scalar()
+            if not has_user_period:
+                connection.execute(text("ALTER TABLE `users` ADD COLUMN `period_id` VARCHAR(36) NULL"))
         support_exist = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.TABLES "

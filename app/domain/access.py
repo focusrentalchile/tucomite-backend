@@ -39,6 +39,7 @@ class UserRecord:
     password_hash: str
     role_id: str
     client_id: str | None = None
+    period_id: str | None = None
 
 
 @dataclass(frozen=True)

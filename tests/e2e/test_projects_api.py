@@ -57,3 +57,17 @@ def test_period_must_be_opened_before_creating_projects() -> None:
 
     removed = client.delete(f"/api/v1/projects/{project_id}")
     assert removed.status_code == 204
+
+
+def test_close_period_endpoint_closes_the_open_period() -> None:
+    _ensure_actor_on_committee()
+    opened = client.post("/api/v1/periods", json={"name": "close-me-2027"})
+    assert opened.status_code == 201
+    period_id = opened.json()["id"]
+    closed = client.post(f"/api/v1/periods/{period_id}/close")
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "closed"
+    assert closed.json()["id"] == period_id
+    listed = client.get("/api/v1/periods")
+    assert listed.status_code == 200
+    assert all(item["id"] != period_id or item["status"] == "closed" for item in listed.json()["items"])

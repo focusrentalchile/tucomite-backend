@@ -123,6 +123,8 @@ class TopicService:
 
         priority_id: int = MEDIUM_PRIORITY_ID,
 
+        period_id: str | None = None,
+
     ) -> TopicRecord:
 
         """Store a topic in the open status."""
@@ -148,6 +150,8 @@ class TopicService:
             status_id=OPEN_STATUS_ID,
 
             priority_id=priority_id,
+
+            period_id=period_id,
 
         )
 

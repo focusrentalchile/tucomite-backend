@@ -111,6 +111,7 @@ class UserService:
         password: str,
         role_id: str | None = None,
         client_id: str | None = None,
+        period_id: str | None = None,
     ) -> UserRecord:
         """Create a user when the email is free and the role exists."""
         normalized = email.strip().lower()
@@ -129,6 +130,7 @@ class UserService:
             password_hash=hash_password(password),
             role_id=assigned_role_id,
             client_id=client_id,
+            period_id=period_id,
         )
         self._repository.add_user(user)
         return user
@@ -166,6 +168,7 @@ class UserService:
             password_hash=hash_password(password) if password else current.password_hash,
             role_id=assigned_role_id,
             client_id=current.client_id,
+            period_id=current.period_id,
         )
         self._repository.save_user(updated)
         return updated

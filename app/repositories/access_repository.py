@@ -193,6 +193,7 @@ class SqlAccessRepository:
                 password_hash=user.password_hash,
                 role_id=user.role_id,
                 client_id=user.client_id,
+                period_id=user.period_id,
             ),
         )
         self._session.flush()
@@ -206,6 +207,7 @@ class SqlAccessRepository:
         row.password_hash = user.password_hash
         row.role_id = user.role_id
         row.client_id = user.client_id
+        row.period_id = user.period_id
         self._session.flush()
 
     def delete_user(self, user_id: str) -> None:
@@ -254,4 +256,5 @@ class SqlAccessRepository:
             password_hash=row.password_hash,
             role_id=row.role_id,
             client_id=getattr(row, "client_id", None),
+            period_id=getattr(row, "period_id", None),
         )

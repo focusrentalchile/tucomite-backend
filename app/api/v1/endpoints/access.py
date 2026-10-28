@@ -20,6 +20,7 @@ from app.domain.access import (
 )
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.client_repository import SqlClientRepository
+from app.repositories.period_repository import SqlPeriodRepository
 from app.schemas.access import (
     CatalogModule,
     CatalogResponse,
@@ -65,6 +66,22 @@ def _client_admin_id(db: Session, client_id: str | None) -> str | None:
     return None if client is None else client.admin_user_id
 
 
+def _backfill_user_period(access: SqlAccessRepository, user: UserRecord, period_id: str) -> UserRecord:
+    if user.period_id is not None:
+        return user
+    updated = UserRecord(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        password_hash=user.password_hash,
+        role_id=user.role_id,
+        client_id=user.client_id,
+        period_id=period_id,
+    )
+    access.save_user(updated)
+    return updated
+
+
 def _scoped_users(
     service: UserService,
     actor: Actor,
@@ -75,6 +92,8 @@ def _scoped_users(
     roles = {role.id: role for role in access.list_roles()}
     admin_id = _client_admin_id(db, actor.client_id)
     protected_ids = frozenset({admin_id} if admin_id else ())
+    open_period = SqlPeriodRepository(db).get_open_period()
+    open_period_id = open_period.id if open_period is not None else None
     users: list[UserRecord] = []
     for user in service.list_users():
         role = roles.get(user.role_id)
@@ -84,7 +103,12 @@ def _scoped_users(
             users.append(user)
             continue
         if actor.client_id and user.client_id == actor.client_id:
-            users.append(user)
+            if open_period_id is None:
+                continue
+            if user.period_id is None:
+                user = _backfill_user_period(access, user, open_period_id)
+            if user.period_id == open_period_id or user.id == admin_id:
+                users.append(user)
     return users, protected_ids
 
 
@@ -220,6 +244,12 @@ def create_user(
     """Create a user in the actor's building and assign a non-system role."""
     if not actor.is_super_admin and not actor.client_id:
         raise HTTPException(status_code=403, detail="Forbidden.")
+    period_id: str | None = None
+    if not actor.is_super_admin:
+        open_period = SqlPeriodRepository(db).get_open_period()
+        if open_period is None:
+            raise HTTPException(status_code=409, detail="Period is not open.") from None
+        period_id = open_period.id
     try:
         user = service.create_user(
             body.full_name,
@@ -227,6 +257,7 @@ def create_user(
             body.password,
             body.role_id,
             client_id=None if actor.is_super_admin else actor.client_id,
+            period_id=period_id,
         )
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already exists.") from None

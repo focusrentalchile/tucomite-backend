@@ -125,3 +125,13 @@ def require_committee_member(
     if not ensure_committee_access(db, actor.user_id, role_name, actor.permissions):
         raise HTTPException(status_code=403, detail="Committee membership required.")
     return actor
+
+
+def require_period_access(
+    actor: Actor = Depends(get_current_actor),
+    db: Session = Depends(get_db),
+) -> Actor:
+    """Settings managers (users/roles) or committee members may use periods."""
+    if "users.view" in actor.permissions or "roles.view" in actor.permissions:
+        return actor
+    return require_committee_member(actor, db)

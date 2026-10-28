@@ -21,6 +21,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/committee/members" in paths
     assert "/committee/members/{user_id}" in paths
     assert "/periods" in paths
+    assert "/periods/{period_id}/close" in paths
     assert "/projects" in paths
     assert "/projects/{project_id}" in paths
     assert "/reports/summary" in paths

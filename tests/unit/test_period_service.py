@@ -18,3 +18,13 @@ def test_open_period_closes_the_previous_open_period() -> None:
     listed = {period.name: period.status for period in service.list_periods()}
     assert listed["2025"] == PERIOD_STATUS_CLOSED
     assert listed["2026"] == PERIOD_STATUS_OPEN
+
+
+def test_close_period_marks_the_open_period_closed() -> None:
+    service = PeriodService(InMemoryPeriodRepository())
+    opened = service.open_period("2026")
+
+    closed = service.close_period(opened.id)
+
+    assert closed.status == PERIOD_STATUS_CLOSED
+    assert service.get_open_period() is None
