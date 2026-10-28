@@ -16,7 +16,9 @@ def register_builtin_modules() -> None:
     access_catalog.register(
         ModuleDefinition(key="roles", functionalities=("view", "create", "update")),
     )
-    access_catalog.register(ModuleDefinition(key="clients", functionalities=("view", "create")))
+    access_catalog.register(
+        ModuleDefinition(key="clients", functionalities=("view", "create", "update", "delete")),
+    )
     access_catalog.register(ModuleDefinition(key="agreements", functionalities=("view", "vote")))
     access_catalog.register(ModuleDefinition(key="matters", functionalities=("create", "comment")))
     access_catalog.register(ModuleDefinition(key="tasks", functionalities=("assign",)))

@@ -51,6 +51,8 @@ class ClientRecord:
     id: str
     name: str
     admin_user_id: str
+    license_starts_at: str | None = None
+    license_ends_at: str | None = None
 
 
 

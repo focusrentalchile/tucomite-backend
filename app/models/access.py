@@ -1,6 +1,8 @@
 """MySQL tables for modules, roles, permissions, and users."""
 
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
+from datetime import date
+
+from sqlalchemy import Boolean, Date, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -66,6 +68,8 @@ class ClientModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
     admin_user_id: Mapped[str] = mapped_column(String(36))
+    license_starts_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    license_ends_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class UserModel(Base):

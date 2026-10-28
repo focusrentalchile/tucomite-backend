@@ -43,10 +43,33 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
             "name": f"Cliente {uuid.uuid4().hex[:6]}",
             "email": f"admin.{uuid.uuid4().hex[:8]}@demo.local",
             "password": SEED_PASSWORD,
+            "license_starts_at": "2026-01-01",
+            "license_ends_at": "2027-01-01",
         },
     )
     assert created.status_code == 201
-    assert created.json()["admin_email"].endswith("@demo.local")
+    body = created.json()
+    assert body["admin_email"].endswith("@demo.local")
+    assert body["license_starts_at"] == "2026-01-01"
+    assert body["license_ends_at"] == "2027-01-01"
+
+    client_id = body["id"]
+    updated = client.put(
+        f"/api/v1/clients/{client_id}",
+        json={
+            "name": body["name"],
+            "email": body["admin_email"],
+            "license_starts_at": "2026-02-01",
+            "license_ends_at": "2027-02-01",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["license_starts_at"] == "2026-02-01"
+
+    removed = client.delete(f"/api/v1/clients/{client_id}")
+    assert removed.status_code == 204
+    listed_again = client.get("/api/v1/clients")
+    assert client_id not in {item["id"] for item in listed_again.json()["items"]}
 
 
 def test_demo_admin_cannot_list_clients() -> None:

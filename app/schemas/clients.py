@@ -4,12 +4,15 @@ from pydantic import BaseModel, Field
 
 
 class ClientResponse(BaseModel):
-    """One client and the email of its administrator."""
+    """One client, its administrator email, and license window."""
 
     id: str
     name: str
     admin_user_id: str
     admin_email: str
+    license_starts_at: str | None = None
+    license_ends_at: str | None = None
+    license_status: str | None = None
 
 
 class ClientListResponse(BaseModel):
@@ -24,3 +27,15 @@ class CreateClientRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=6, max_length=128)
+    license_starts_at: str = Field(min_length=10, max_length=10)
+    license_ends_at: str = Field(min_length=10, max_length=10)
+
+
+class UpdateClientRequest(BaseModel):
+    """Fields to update a client and optionally its administrator credentials."""
+
+    name: str = Field(min_length=1, max_length=160)
+    email: str = Field(min_length=3, max_length=255)
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+    license_starts_at: str = Field(min_length=10, max_length=10)
+    license_ends_at: str = Field(min_length=10, max_length=10)

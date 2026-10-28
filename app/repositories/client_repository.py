@@ -1,5 +1,6 @@
 """MySQL repository for platform clients."""
 
+from datetime import date
 from typing import Protocol
 
 from sqlalchemy import select
@@ -7,6 +8,16 @@ from sqlalchemy.orm import Session
 
 from app.domain.access import ClientRecord
 from app.models.access import ClientModel
+
+
+def _day(value: date | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _parse_day(value: str | None) -> date | None:
+    if not value:
+        return None
+    return date.fromisoformat(value[:10])
 
 
 class ClientRepository(Protocol):
@@ -23,6 +34,12 @@ class ClientRepository(Protocol):
 
     def add_client(self, client: ClientRecord) -> None:
         """Insert a client."""
+
+    def save_client(self, client: ClientRecord) -> None:
+        """Update an existing client."""
+
+    def delete_client(self, client_id: str) -> None:
+        """Remove a client row."""
 
 
 class SqlClientRepository:
@@ -49,9 +66,38 @@ class SqlClientRepository:
 
     def add_client(self, client: ClientRecord) -> None:
         self._session.add(
-            ClientModel(id=client.id, name=client.name, admin_user_id=client.admin_user_id),
+            ClientModel(
+                id=client.id,
+                name=client.name,
+                admin_user_id=client.admin_user_id,
+                license_starts_at=_parse_day(client.license_starts_at),
+                license_ends_at=_parse_day(client.license_ends_at),
+            ),
         )
         self._session.flush()
 
+    def save_client(self, client: ClientRecord) -> None:
+        row = self._session.get(ClientModel, client.id)
+        if row is None:
+            raise KeyError(client.id)
+        row.name = client.name
+        row.admin_user_id = client.admin_user_id
+        row.license_starts_at = _parse_day(client.license_starts_at)
+        row.license_ends_at = _parse_day(client.license_ends_at)
+        self._session.flush()
+
+    def delete_client(self, client_id: str) -> None:
+        row = self._session.get(ClientModel, client_id)
+        if row is None:
+            raise KeyError(client_id)
+        self._session.delete(row)
+        self._session.flush()
+
     def _client(self, row: ClientModel) -> ClientRecord:
-        return ClientRecord(id=row.id, name=row.name, admin_user_id=row.admin_user_id)
+        return ClientRecord(
+            id=row.id,
+            name=row.name,
+            admin_user_id=row.admin_user_id,
+            license_starts_at=_day(getattr(row, "license_starts_at", None)),
+            license_ends_at=_day(getattr(row, "license_ends_at", None)),
+        )

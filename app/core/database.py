@@ -83,6 +83,23 @@ def init_database() -> None:
             ).scalar()
             if users_exist:
                 connection.execute(text("ALTER TABLE `users` ADD COLUMN `client_id` VARCHAR(36) NULL"))
+        clients_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'clients'"
+            ),
+        ).scalar()
+        if clients_exist:
+            has_license_start = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'clients' AND COLUMN_NAME = 'license_starts_at'"
+                ),
+            ).scalar()
+            if not has_license_start:
+                connection.execute(text("ALTER TABLE `clients` ADD COLUMN `license_starts_at` DATE NULL"))
+                connection.execute(text("ALTER TABLE `clients` ADD COLUMN `license_ends_at` DATE NULL"))
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

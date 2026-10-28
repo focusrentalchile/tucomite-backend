@@ -1,6 +1,7 @@
 """Seeds the super admin, demo client, and keeps the MySQL catalog aligned with code."""
 
 import uuid
+from datetime import date, timedelta
 
 from app.core.access_catalog import AccessCatalog
 from app.domain.access import SUPER_ADMIN_EMAIL, ClientRecord, RoleRecord, UserRecord
@@ -133,7 +134,21 @@ def _ensure_starter_roles(repository: AccessRepository, keys: frozenset[str]) ->
 
 def _ensure_demo_client(repository: AccessRepository, clients: ClientRepository) -> None:
     """Seed one demo client and its administrator when missing."""
-    if clients.get_client_by_name(DEMO_CLIENT_NAME) is not None:
+    today = date.today()
+    starts = today.isoformat()
+    ends = (today + timedelta(days=365)).isoformat()
+    existing = clients.get_client_by_name(DEMO_CLIENT_NAME)
+    if existing is not None:
+        if not existing.license_starts_at or not existing.license_ends_at:
+            clients.save_client(
+                ClientRecord(
+                    id=existing.id,
+                    name=existing.name,
+                    admin_user_id=existing.admin_user_id,
+                    license_starts_at=starts,
+                    license_ends_at=ends,
+                ),
+            )
         return
     if repository.get_user_by_email(DEMO_ADMIN_EMAIL) is not None:
         return
@@ -155,4 +170,12 @@ def _ensure_demo_client(repository: AccessRepository, clients: ClientRepository)
             client_id=client_id,
         ),
     )
-    clients.add_client(ClientRecord(id=client_id, name=DEMO_CLIENT_NAME, admin_user_id=user_id))
+    clients.add_client(
+        ClientRecord(
+            id=client_id,
+            name=DEMO_CLIENT_NAME,
+            admin_user_id=user_id,
+            license_starts_at=starts,
+            license_ends_at=ends,
+        ),
+    )
