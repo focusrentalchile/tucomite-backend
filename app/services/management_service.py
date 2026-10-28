@@ -1,55 +1,59 @@
-"""Use cases for platform support tickets and Gestión workspace imports."""
+"""Use cases for platform management tasks and Gestión workspace imports."""
 
 import uuid
 from datetime import datetime, timezone
 
-from app.domain.support import (
-    ALLOWED_SUPPORT_STATUSES,
+from app.domain.management import (
+    ALLOWED_MANAGEMENT_STATUSES,
     IMPORT_STATUS_APPROVED,
     IMPORT_STATUS_PENDING,
     IMPORT_STATUS_REJECTED,
-    SUPPORT_STATUS_TODO,
-    SupportMessageRecord,
-    SupportTicketRecord,
-    SupportWorkspaceClientRecord,
-    SupportWorkspaceImportRecord,
-    TicketNotFound,
+    MANAGEMENT_STATUS_TODO,
+    ManagementMessageRecord,
+    ManagementTaskRecord,
+    ManagementWorkspaceClientRecord,
+    ManagementWorkspaceImportRecord,
+    TaskNotFound,
 )
+from app.domain.notifications import NotificationRecord
 from app.domain.topics import MEDIUM_PRIORITY_ID, PRIORITY_IDS
-from app.repositories.client_repository import ClientRepository
 from app.repositories.access_repository import AccessRepository
-from app.repositories.support_repository import SupportRepository
+from app.repositories.client_repository import ClientRepository
+from app.repositories.management_repository import ManagementRepository
+from app.repositories.notification_repository import NotificationRepository
 
 
-class SupportService:
-    """Creates tickets and keeps the conversation thread."""
+class ManagementService:
+    """Creates management tasks and workspace import requests."""
 
     def __init__(
         self,
-        repository: SupportRepository,
+        repository: ManagementRepository,
         *,
         clients: ClientRepository | None = None,
         access: AccessRepository | None = None,
+        notifications: NotificationRepository | None = None,
     ) -> None:
         self._repository = repository
         self._clients = clients
         self._access = access
+        self._notifications = notifications
 
-    def list_tickets(
+    def list_tasks(
         self,
         *,
         client_id: str | None = None,
         client_ids: list[str] | None = None,
-    ) -> list[SupportTicketRecord]:
+    ) -> list[ManagementTaskRecord]:
         """Return tickets for one building, a workspace set, or every ticket."""
-        return self._repository.list_tickets(client_id=client_id, client_ids=client_ids)
+        return self._repository.list_tasks(client_id=client_id, client_ids=client_ids)
 
-    def get_ticket(self, ticket_id: str) -> SupportTicketRecord:
+    def get_task(self, task_id: str) -> ManagementTaskRecord:
         """Return one ticket with messages."""
-        ticket = self._repository.get_ticket(ticket_id)
-        if ticket is None:
-            raise TicketNotFound()
-        return ticket
+        task = self._repository.get_task(task_id)
+        if task is None:
+            raise TaskNotFound()
+        return task
 
     def workspace_client_ids(self, *, user_id: str, home_client_id: str | None) -> list[str]:
         """Home building plus approved imports for this administrator."""
@@ -66,17 +70,17 @@ class SupportService:
         *,
         user_id: str,
         home_client_id: str | None,
-    ) -> list[SupportWorkspaceClientRecord]:
+    ) -> list[ManagementWorkspaceClientRecord]:
         """Buildings the administrator may work on in Gestión."""
         if self._clients is None:
             return []
-        items: list[SupportWorkspaceClientRecord] = []
+        items: list[ManagementWorkspaceClientRecord] = []
         for index, client_id in enumerate(self.workspace_client_ids(user_id=user_id, home_client_id=home_client_id)):
             client = self._clients.get_client(client_id)
             if client is None:
                 continue
             items.append(
-                SupportWorkspaceClientRecord(
+                ManagementWorkspaceClientRecord(
                     client_id=client.id,
                     client_name=client.name,
                     home=index == 0 and client_id == home_client_id,
@@ -84,11 +88,11 @@ class SupportService:
             )
         return items
 
-    def list_outgoing_imports(self, administrator_user_id: str) -> list[SupportWorkspaceImportRecord]:
+    def list_outgoing_imports(self, administrator_user_id: str) -> list[ManagementWorkspaceImportRecord]:
         """Import requests opened by this administrator."""
         return self._repository.list_imports_for_administrator(administrator_user_id)
 
-    def list_incoming_imports(self, client_id: str) -> list[SupportWorkspaceImportRecord]:
+    def list_incoming_imports(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
         """Pending import requests for a building owner to approve."""
         return self._repository.list_pending_imports_for_client(client_id)
 
@@ -98,7 +102,7 @@ class SupportService:
         administrator_user_id: str,
         home_client_id: str | None,
         owner_email: str,
-    ) -> SupportWorkspaceImportRecord:
+    ) -> ManagementWorkspaceImportRecord:
         """Ask a building owner to allow this administrator into their Gestión board."""
         if self._access is None or self._clients is None:
             raise ValueError("Workspace imports are not available.")
@@ -127,7 +131,7 @@ class SupportService:
                 raise ValueError("That building is already in your Gestión board.")
             raise ValueError("A permission request is already pending for that building.")
         now = datetime.now(timezone.utc).isoformat()
-        record = SupportWorkspaceImportRecord(
+        record = ManagementWorkspaceImportRecord(
             id=str(uuid.uuid4()),
             administrator_user_id=administrator_user_id,
             administrator_name="",
@@ -141,7 +145,25 @@ class SupportService:
         self._repository.add_import(record)
         stored = self._repository.get_import(record.id)
         if stored is None:
-            raise TicketNotFound()
+            raise TaskNotFound()
+        if self._notifications is not None and self._access is not None:
+            admin = self._access.get_user(administrator_user_id)
+            admin_label = admin.full_name if admin is not None else stored.administrator_name
+            admin_email = admin.email if admin is not None else stored.administrator_email
+            self._notifications.add(
+                NotificationRecord(
+                    id=str(uuid.uuid4()),
+                    user_id=owner.id,
+                    kind="management_import_request",
+                    title="Solicitud para importar tu edificio",
+                    body=(
+                        f"El administrador {admin_label} ({admin_email}) quiere importar "
+                        f"«{client.name}» a su tablero de Gestión. Entrá a Gestión para aprobar o rechazar."
+                    ),
+                    created_at=now,
+                    read_at=None,
+                ),
+            )
         return stored
 
     def resolve_import(
@@ -150,13 +172,13 @@ class SupportService:
         *,
         approve: bool,
         owner_user_id: str,
-    ) -> SupportWorkspaceImportRecord:
+    ) -> ManagementWorkspaceImportRecord:
         """Approve or reject a pending import when the actor owns the building."""
         if self._clients is None:
             raise ValueError("Workspace imports are not available.")
         record = self._repository.get_import(import_id)
         if record is None:
-            raise TicketNotFound()
+            raise TaskNotFound()
         if record.status != IMPORT_STATUS_PENDING:
             raise ValueError("That request was already resolved.")
         client = self._clients.get_client(record.client_id)
@@ -167,10 +189,10 @@ class SupportService:
         self._repository.save_import_status(import_id, status, resolved_at=now)
         stored = self._repository.get_import(import_id)
         if stored is None:
-            raise TicketNotFound()
+            raise TaskNotFound()
         return stored
 
-    def create_ticket(
+    def create_task(
         self,
         *,
         subject: str,
@@ -184,7 +206,7 @@ class SupportService:
         due_date: str | None = None,
         assignee_user_id: str | None = None,
         topic_id: str | None = None,
-    ) -> SupportTicketRecord:
+    ) -> ManagementTaskRecord:
         """Open a ticket in the Tareas column with the first message."""
         cleaned_subject = subject.strip()
         cleaned_body = body.strip()
@@ -193,24 +215,24 @@ class SupportService:
         if priority_id not in PRIORITY_IDS:
             raise ValueError("Unknown ticket priority.")
         now = datetime.now(timezone.utc).isoformat()
-        ticket_id = str(uuid.uuid4())
-        message = SupportMessageRecord(
+        task_id = str(uuid.uuid4())
+        message = ManagementMessageRecord(
             id=str(uuid.uuid4()),
-            ticket_id=ticket_id,
+            task_id=task_id,
             author_user_id=created_by_user_id,
             author_name=created_by_name,
             body=cleaned_body,
             created_at=now,
             from_staff=from_staff,
         )
-        ticket = SupportTicketRecord(
-            id=ticket_id,
+        ticket = ManagementTaskRecord(
+            id=task_id,
             client_id=client_id,
             client_name=client_name,
             created_by_user_id=created_by_user_id,
             created_by_name=created_by_name,
             subject=cleaned_subject,
-            status=SUPPORT_STATUS_TODO,
+            status=MANAGEMENT_STATUS_TODO,
             priority_id=priority_id,
             due_date=due_date,
             assignee_user_id=assignee_user_id,
@@ -219,26 +241,26 @@ class SupportService:
             updated_at=now,
             messages=(message,),
         )
-        self._repository.add_ticket(ticket)
-        return self.get_ticket(ticket_id)
+        self._repository.add_task(ticket)
+        return self.get_task(task_id)
 
     def add_message(
         self,
-        ticket_id: str,
+        task_id: str,
         *,
         body: str,
         author_user_id: str,
         author_name: str,
         from_staff: bool,
-    ) -> SupportTicketRecord:
+    ) -> ManagementTaskRecord:
         """Append a reply to an existing ticket."""
-        ticket = self.get_ticket(ticket_id)
+        task = self.get_task(task_id)
         cleaned_body = body.strip()
         if not cleaned_body:
             raise ValueError("Message body is required.")
-        message = SupportMessageRecord(
+        message = ManagementMessageRecord(
             id=str(uuid.uuid4()),
-            ticket_id=ticket.id,
+            task_id=task.id,
             author_user_id=author_user_id,
             author_name=author_name,
             body=cleaned_body,
@@ -246,15 +268,15 @@ class SupportService:
             from_staff=from_staff,
         )
         self._repository.add_message(message)
-        if ticket.status == SUPPORT_STATUS_TODO and from_staff:
-            self._repository.save_ticket_status(ticket.id, "in_progress")
-        return self.get_ticket(ticket_id)
+        if task.status == MANAGEMENT_STATUS_TODO and from_staff:
+            self._repository.save_task_status(task.id, "in_progress")
+        return self.get_task(task_id)
 
-    def set_status(self, ticket_id: str, status: str) -> SupportTicketRecord:
+    def set_status(self, task_id: str, status: str) -> ManagementTaskRecord:
         """Change ticket board column when the value is allowed."""
         cleaned = status.strip().lower()
-        if cleaned not in ALLOWED_SUPPORT_STATUSES:
+        if cleaned not in ALLOWED_MANAGEMENT_STATUSES:
             raise ValueError("Unknown ticket status.")
-        self.get_ticket(ticket_id)
-        self._repository.save_ticket_status(ticket_id, cleaned)
-        return self.get_ticket(ticket_id)
+        self.get_task(task_id)
+        self._repository.save_task_status(task_id, cleaned)
+        return self.get_task(task_id)

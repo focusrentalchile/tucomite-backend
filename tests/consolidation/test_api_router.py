@@ -25,14 +25,16 @@ def test_v1_router_includes_health_path() -> None:
     assert "/projects" in paths
     assert "/projects/{project_id}" in paths
     assert "/reports/summary" in paths
-    assert "/support/tickets" in paths
-    assert "/support/tickets/{ticket_id}" in paths
-    assert "/support/tickets/{ticket_id}/messages" in paths
-    assert "/support/tickets/{ticket_id}/status" in paths
-    assert "/support/workspace/clients" in paths
-    assert "/support/workspace/imports" in paths
-    assert "/support/workspace/imports/{import_id}/approve" in paths
-    assert "/support/workspace/imports/{import_id}/reject" in paths
+    assert "/management/tasks" in paths
+    assert "/management/tasks/{task_id}" in paths
+    assert "/management/tasks/{task_id}/messages" in paths
+    assert "/management/tasks/{task_id}/status" in paths
+    assert "/management/workspace/clients" in paths
+    assert "/management/workspace/imports" in paths
+    assert "/management/workspace/imports/{import_id}/approve" in paths
+    assert "/management/workspace/imports/{import_id}/reject" in paths
+    assert "/notifications" in paths
+    assert "/notifications/{notification_id}/read" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:

@@ -184,7 +184,7 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
 
     # Building owner (client role) cannot open Gestión; staff verifies the auto ticket.
     login_as_super_admin(client)
-    tickets = client.get("/api/v1/support/tickets")
+    tickets = client.get("/api/v1/management/tasks")
     assert tickets.status_code == 200
     match = next(
         (item for item in tickets.json()["items"] if item.get("topic_id") == topic_id),

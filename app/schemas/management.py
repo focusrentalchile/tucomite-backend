@@ -1,9 +1,9 @@
-"""HTTP schemas for support tickets and Gestión workspace imports."""
+"""HTTP schemas for management tasks and Gestión workspace imports."""
 
 from pydantic import BaseModel, Field
 
 
-class SupportMessageResponse(BaseModel):
+class ManagementMessageResponse(BaseModel):
     """One message in a ticket thread."""
 
     id: str
@@ -14,8 +14,8 @@ class SupportMessageResponse(BaseModel):
     from_staff: bool
 
 
-class SupportTicketResponse(BaseModel):
-    """A support ticket, optionally with its messages."""
+class ManagementTaskResponse(BaseModel):
+    """A management task, optionally with its messages."""
 
     id: str
     client_id: str | None
@@ -30,17 +30,17 @@ class SupportTicketResponse(BaseModel):
     topic_id: str | None = None
     created_at: str
     updated_at: str
-    messages: list[SupportMessageResponse] = []
+    messages: list[ManagementMessageResponse] = []
 
 
-class SupportTicketListResponse(BaseModel):
+class ManagementTaskListResponse(BaseModel):
     """Ticket collection."""
 
-    items: list[SupportTicketResponse]
+    items: list[ManagementTaskResponse]
 
 
-class CreateSupportTicketRequest(BaseModel):
-    """Open a new support ticket in Pendientes."""
+class CreateManagementTaskRequest(BaseModel):
+    """Open a new management task in Pendientes."""
 
     subject: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=5000)
@@ -49,19 +49,19 @@ class CreateSupportTicketRequest(BaseModel):
     client_id: str | None = Field(default=None, max_length=36)
 
 
-class CreateSupportMessageRequest(BaseModel):
+class CreateManagementMessageRequest(BaseModel):
     """Reply inside a ticket."""
 
     body: str = Field(min_length=1, max_length=5000)
 
 
-class UpdateSupportTicketStatusRequest(BaseModel):
+class UpdateManagementTaskStatusRequest(BaseModel):
     """Move a ticket across board columns."""
 
     status: str = Field(min_length=1, max_length=32)
 
 
-class SupportWorkspaceClientResponse(BaseModel):
+class ManagementWorkspaceClientResponse(BaseModel):
     """One building on the Gestión workspace."""
 
     client_id: str
@@ -69,13 +69,13 @@ class SupportWorkspaceClientResponse(BaseModel):
     home: bool
 
 
-class SupportWorkspaceClientListResponse(BaseModel):
+class ManagementWorkspaceClientListResponse(BaseModel):
     """Workspace buildings for the signed-in administrator."""
 
-    items: list[SupportWorkspaceClientResponse]
+    items: list[ManagementWorkspaceClientResponse]
 
 
-class SupportWorkspaceImportResponse(BaseModel):
+class ManagementWorkspaceImportResponse(BaseModel):
     """Permission request to import a building into Gestión."""
 
     id: str
@@ -89,13 +89,13 @@ class SupportWorkspaceImportResponse(BaseModel):
     resolved_at: str | None = None
 
 
-class SupportWorkspaceImportListResponse(BaseModel):
+class ManagementWorkspaceImportListResponse(BaseModel):
     """Import request collection."""
 
-    items: list[SupportWorkspaceImportResponse]
+    items: list[ManagementWorkspaceImportResponse]
 
 
-class CreateSupportWorkspaceImportRequest(BaseModel):
+class CreateManagementWorkspaceImportRequest(BaseModel):
     """Ask a building owner (by email) to approve Gestión access."""
 
     owner_email: str = Field(min_length=3, max_length=255)

@@ -171,9 +171,9 @@ def move_topic(
     """Move one topic. Going to execution requires a responsible person and due date."""
     from app.domain.topics import DOING_STATUS_ID
     from app.repositories.client_repository import SqlClientRepository
-    from app.repositories.support_repository import SqlSupportRepository
+    from app.repositories.management_repository import SqlManagementRepository
     from app.repositories.topic_repository import SqlTopicRepository
-    from app.services.support_service import SupportService
+    from app.services.management_service import ManagementService
 
     if body.status_id == DOING_STATUS_ID:
         if not body.assignee_user_id or not body.start_date or not body.due_date:
@@ -206,7 +206,7 @@ def move_topic(
         if client is not None and body.assignee_user_id == client.admin_user_id:
             access = SqlAccessRepository(db)
             actor_user = access.get_user(actor.user_id)
-            SupportService(SqlSupportRepository(db)).create_ticket(
+            ManagementService(SqlManagementRepository(db)).create_task(
                 subject=topic.title,
                 body=topic.description or topic.decision,
                 created_by_user_id=actor.user_id,

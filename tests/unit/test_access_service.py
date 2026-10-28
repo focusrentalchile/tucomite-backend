@@ -58,7 +58,7 @@ def catalog() -> AccessCatalog:
     registered.register(ModuleDefinition(key="notifications", functionalities=("receive",)))
     registered.register(
         ModuleDefinition(
-            key="support",
+            key="management",
             functionalities=("view", "create", "reply", "update", "approve_import"),
         ),
     )
@@ -88,7 +88,7 @@ def test_bootstrap_creates_the_building_groups_once() -> None:
     assert roles["committee"].permissions == STARTER_ROLES["committee"]
     assert "users.view" not in roles["administrator"].permissions
     assert "agreements.view" in roles["administrator"].permissions
-    assert "support.view" in roles["administrator"].permissions
+    assert "management.view" in roles["administrator"].permissions
     assert roles["resident"].permissions == STARTER_ROLES["resident"]
     assert "client" in roles
     assert sum(1 for role in repository.list_roles() if role.name == "committee") == 1

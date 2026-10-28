@@ -34,10 +34,10 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
     "administrator": frozenset(
         {
             "agreements.view",
-            "support.view",
-            "support.create",
-            "support.reply",
-            "support.update",
+            "management.view",
+            "management.create",
+            "management.reply",
+            "management.update",
             "notifications.receive",
         }
     ),
@@ -64,7 +64,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "roles.create",
             "roles.update",
             "roles.delete",
-            "support.approve_import",
+            "management.approve_import",
         }
     ),
 }
@@ -80,6 +80,7 @@ def bootstrap_access(
     clients: ClientRepository | None = None,
 ) -> None:
     """Sync modules and starter roles. Platform users are stored only in the database."""
+    _migrate_legacy_management_permissions(repository)
     repository.replace_catalog(catalog.modules())
     keys = catalog.permission_keys()
     role = repository.get_system_role()
@@ -323,6 +324,25 @@ def _ensure_building_owners_use_client_role(
                 role_id=owner_role.id,
                 client_id=user.client_id or client.id,
             ),
+        )
+
+
+def _migrate_legacy_management_permissions(repository: AccessRepository) -> None:
+    """Rewrite legacy support.* / gestion.* grants to management.* before catalog sync."""
+
+    def rewrite(permission: str) -> str:
+        if permission.startswith("support."):
+            return "management." + permission[len("support.") :]
+        if permission.startswith("gestion."):
+            return "management." + permission[len("gestion.") :]
+        return permission
+
+    for role in repository.list_roles():
+        rewritten = frozenset(rewrite(permission) for permission in role.permissions)
+        if rewritten == role.permissions:
+            continue
+        repository.save_role(
+            RoleRecord(id=role.id, name=role.name, system=role.system, permissions=rewritten),
         )
 
 

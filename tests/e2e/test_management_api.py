@@ -1,4 +1,4 @@
-"""End-to-end HTTP tests for platform support tickets."""
+"""End-to-end HTTP tests for platform management tasks."""
 
 import uuid
 
@@ -40,27 +40,27 @@ def _login_as_building_administrator() -> tuple[str, str]:
 def test_building_admin_opens_ticket_and_staff_replies() -> None:
     _login_as_building_administrator()
     created = client.post(
-        "/api/v1/support/tickets",
+        "/api/v1/management/tasks",
         json={"subject": "No puedo votar", "body": "Al abrir acuerdos aparece un error."},
     )
     assert created.status_code == 201
-    ticket_id = created.json()["id"]
+    task_id = created.json()["id"]
     assert created.json()["status"] == "todo"
     assert created.json()["priority_id"] == 2
     assert created.json()["messages"][0]["from_staff"] is False
 
-    listed = client.get("/api/v1/support/tickets")
+    listed = client.get("/api/v1/management/tasks")
     assert listed.status_code == 200
-    assert ticket_id in {item["id"] for item in listed.json()["items"]}
+    assert task_id in {item["id"] for item in listed.json()["items"]}
 
     client.post("/api/v1/auth/logout")
     login_as_super_admin(client)
-    staff_list = client.get("/api/v1/support/tickets")
+    staff_list = client.get("/api/v1/management/tasks")
     assert staff_list.status_code == 200
-    assert ticket_id in {item["id"] for item in staff_list.json()["items"]}
+    assert task_id in {item["id"] for item in staff_list.json()["items"]}
 
     replied = client.post(
-        f"/api/v1/support/tickets/{ticket_id}/messages",
+        f"/api/v1/management/tasks/{task_id}/messages",
         json={"body": "Revisamos el acceso y ya quedó corregido."},
     )
     assert replied.status_code == 201
@@ -68,7 +68,7 @@ def test_building_admin_opens_ticket_and_staff_replies() -> None:
     assert any(message["from_staff"] for message in replied.json()["messages"])
 
     closed = client.patch(
-        f"/api/v1/support/tickets/{ticket_id}/status",
+        f"/api/v1/management/tasks/{task_id}/status",
         json={"status": "done"},
     )
     assert closed.status_code == 200
@@ -93,12 +93,12 @@ def test_administrator_imports_client_with_owner_approval() -> None:
     client.post("/api/v1/auth/logout")
 
     admin_email, admin_password = _login_as_building_administrator()
-    workspace = client.get("/api/v1/support/workspace/clients")
+    workspace = client.get("/api/v1/management/workspace/clients")
     assert workspace.status_code == 200
     assert imported_client_id not in {item["client_id"] for item in workspace.json()["items"]}
 
     requested = client.post(
-        "/api/v1/support/workspace/imports",
+        "/api/v1/management/workspace/imports",
         json={"owner_email": owner_email},
     )
     assert requested.status_code == 201, requested.text
@@ -111,10 +111,13 @@ def test_administrator_imports_client_with_owner_approval() -> None:
         json={"email": owner_email, "password": "secreto-1"},
     )
     assert signed_owner.status_code == 200, signed_owner.text
-    incoming = client.get("/api/v1/support/workspace/imports", params={"scope": "incoming"})
+    notices = client.get("/api/v1/notifications")
+    assert notices.status_code == 200
+    assert any(item["kind"] == "management_import_request" for item in notices.json()["items"])
+    incoming = client.get("/api/v1/management/workspace/imports", params={"scope": "incoming"})
     assert incoming.status_code == 200
     assert import_id in {item["id"] for item in incoming.json()["items"]}
-    approved = client.post(f"/api/v1/support/workspace/imports/{import_id}/approve")
+    approved = client.post(f"/api/v1/management/workspace/imports/{import_id}/approve")
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
     client.post("/api/v1/auth/logout")
@@ -124,12 +127,12 @@ def test_administrator_imports_client_with_owner_approval() -> None:
         json={"email": admin_email, "password": admin_password},
     )
     assert signed_admin.status_code == 200, signed_admin.text
-    workspace_after = client.get("/api/v1/support/workspace/clients")
+    workspace_after = client.get("/api/v1/management/workspace/clients")
     assert workspace_after.status_code == 200
     assert imported_client_id in {item["client_id"] for item in workspace_after.json()["items"]}
 
     created = client.post(
-        "/api/v1/support/tickets",
+        "/api/v1/management/tasks",
         json={
             "subject": "Tarea del edificio importado",
             "body": "Detalle para el cliente importado.",
@@ -139,6 +142,6 @@ def test_administrator_imports_client_with_owner_approval() -> None:
     assert created.status_code == 201, created.text
     assert created.json()["client_id"] == imported_client_id
 
-    filtered = client.get("/api/v1/support/tickets", params={"client_id": imported_client_id})
+    filtered = client.get("/api/v1/management/tasks", params={"client_id": imported_client_id})
     assert filtered.status_code == 200
     assert created.json()["id"] in {item["id"] for item in filtered.json()["items"]}

@@ -1,28 +1,28 @@
-"""Support ticket records shared by services and repositories."""
+"""Management task records shared by services and repositories."""
 
 from dataclasses import dataclass
 
-# Board columns. New tickets always start in todo.
-SUPPORT_STATUS_TODO = "todo"
-SUPPORT_STATUS_IN_PROGRESS = "in_progress"
-SUPPORT_STATUS_DONE = "done"
-ALLOWED_SUPPORT_STATUSES = frozenset(
-    {SUPPORT_STATUS_TODO, SUPPORT_STATUS_IN_PROGRESS, SUPPORT_STATUS_DONE},
+# Board columns. New tasks always start in todo.
+MANAGEMENT_STATUS_TODO = "todo"
+MANAGEMENT_STATUS_IN_PROGRESS = "in_progress"
+MANAGEMENT_STATUS_DONE = "done"
+ALLOWED_MANAGEMENT_STATUSES = frozenset(
+    {MANAGEMENT_STATUS_TODO, MANAGEMENT_STATUS_IN_PROGRESS, MANAGEMENT_STATUS_DONE},
 )
-LEGACY_SUPPORT_STATUS_MAP = {
-    "open": SUPPORT_STATUS_TODO,
-    "pending": SUPPORT_STATUS_IN_PROGRESS,
-    "resolved": SUPPORT_STATUS_DONE,
-    "closed": SUPPORT_STATUS_DONE,
+LEGACY_MANAGEMENT_STATUS_MAP = {
+    "open": MANAGEMENT_STATUS_TODO,
+    "pending": MANAGEMENT_STATUS_IN_PROGRESS,
+    "resolved": MANAGEMENT_STATUS_DONE,
+    "closed": MANAGEMENT_STATUS_DONE,
 }
 
 
 @dataclass(frozen=True)
-class SupportMessageRecord:
-    """One message inside a support ticket."""
+class ManagementMessageRecord:
+    """One message inside a management task."""
 
     id: str
-    ticket_id: str
+    task_id: str
     author_user_id: str
     author_name: str
     body: str
@@ -31,8 +31,8 @@ class SupportMessageRecord:
 
 
 @dataclass(frozen=True)
-class SupportTicketRecord:
-    """A building support task handled on the three-column board."""
+class ManagementTaskRecord:
+    """A building management task handled on the three-column board."""
 
     id: str
     client_id: str | None
@@ -47,11 +47,11 @@ class SupportTicketRecord:
     topic_id: str | None
     created_at: str
     updated_at: str
-    messages: tuple[SupportMessageRecord, ...] = ()
+    messages: tuple[ManagementMessageRecord, ...] = ()
 
 
-class TicketNotFound(Exception):
-    """Raised when a support ticket id does not exist."""
+class TaskNotFound(Exception):
+    """Raised when a management task id does not exist."""
 
 
 IMPORT_STATUS_PENDING = "pending"
@@ -63,7 +63,7 @@ ALLOWED_IMPORT_STATUSES = frozenset(
 
 
 @dataclass(frozen=True)
-class SupportWorkspaceClientRecord:
+class ManagementWorkspaceClientRecord:
     """One building available on an administrator's Gestión board."""
 
     client_id: str
@@ -72,7 +72,7 @@ class SupportWorkspaceClientRecord:
 
 
 @dataclass(frozen=True)
-class SupportWorkspaceImportRecord:
+class ManagementWorkspaceImportRecord:
     """Request to import a building into an administrator's Gestión workspace."""
 
     id: str

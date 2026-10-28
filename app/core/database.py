@@ -47,7 +47,8 @@ def init_database() -> None:
     from app.models import committee as committee_models  # noqa: F401
     from app.models import periods as period_models  # noqa: F401
     from app.models import projects as project_models  # noqa: F401
-    from app.models import support as support_models  # noqa: F401
+    from app.models import management as management_models  # noqa: F401
+    from app.models import notifications as notification_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
     from app.repositories.access_repository import SqlAccessRepository
     from app.repositories.topic_repository import SqlTopicRepository
@@ -141,16 +142,9 @@ def init_database() -> None:
             ).scalar()
             if not has_user_period:
                 connection.execute(text("ALTER TABLE `users` ADD COLUMN `period_id` VARCHAR(36) NULL"))
-        support_exist = connection.execute(
-            text(
-                "SELECT COUNT(*) FROM information_schema.TABLES "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'support_tickets'"
-            ),
-        ).scalar()
-        if support_exist:
-            from app.repositories.support_repository import ensure_support_schema
+        from app.repositories.management_repository import ensure_management_schema
 
-            ensure_support_schema(connection)
+        ensure_management_schema(connection)
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:
