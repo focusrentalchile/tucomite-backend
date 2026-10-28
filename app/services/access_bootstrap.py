@@ -10,6 +10,8 @@ from app.repositories.client_repository import ClientRepository
 from app.utils.passwords import hash_password
 
 DEMO_CLIENT_NAME = "Cliente de prueba"
+# Shared by demo building accounts (administrator / committee / resident).
+DEMO_BUILDING_PASSWORD = "123456"
 
 # English role keys. The admin site translates them in the Spanish locale.
 STARTER_ROLES: dict[str, frozenset[str]] = {
@@ -92,6 +94,13 @@ def bootstrap_access(
     _ensure_starter_roles(repository, keys)
     if clients is not None:
         _ensure_building_owners_use_client_role(repository, clients)
+        demo_client = clients.get_client_by_name(DEMO_CLIENT_NAME)
+        if demo_client is not None:
+            _ensure_demo_building_users(
+                repository,
+                demo_client.id,
+                hash_password(DEMO_BUILDING_PASSWORD),
+            )
 
 
 def upsert_platform_accounts(

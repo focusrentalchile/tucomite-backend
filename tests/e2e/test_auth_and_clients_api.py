@@ -81,3 +81,14 @@ def test_demo_admin_cannot_list_clients() -> None:
 
     forbidden = client.get("/api/v1/clients")
     assert forbidden.status_code == 403
+
+
+def test_demo_building_users_exist_for_starter_roles() -> None:
+    login_as_demo_admin(client)
+    roles = {item["name"]: item["id"] for item in client.get("/api/v1/roles").json()["items"]}
+    users = client.get("/api/v1/users")
+    assert users.status_code == 200
+    by_email = {item["email"]: item for item in users.json()["items"]}
+    assert by_email["administrador@demo.tucomite.local"]["role_id"] == roles["administrator"]
+    assert by_email["comite@demo.tucomite.local"]["role_id"] == roles["committee"]
+    assert by_email["residente@demo.tucomite.local"]["role_id"] == roles["resident"]

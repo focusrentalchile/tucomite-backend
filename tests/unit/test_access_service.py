@@ -4,6 +4,7 @@ import pytest
 
 from app.core.access_catalog import AccessCatalog
 from app.domain.access import (
+    ClientRecord,
     DuplicateEmail,
     DuplicateRoleName,
     ModuleDefinition,
@@ -13,10 +14,35 @@ from app.domain.access import (
     UnknownRole,
     UserRecord,
 )
-from app.services.access_bootstrap import STARTER_ROLES, bootstrap_access
+from app.services.access_bootstrap import DEMO_CLIENT_NAME, STARTER_ROLES, bootstrap_access
 from app.services.access_service import PermissionPolicy, RoleService, UserService
 from app.utils.passwords import hash_password
 from tests.support.memory_access_repository import InMemoryAccessRepository
+
+
+class _MemoryClients:
+    """Minimal client store for bootstrap unit tests."""
+
+    def __init__(self, clients: list[ClientRecord] | None = None) -> None:
+        self._clients = list(clients or [])
+
+    def list_clients(self) -> list[ClientRecord]:
+        return list(self._clients)
+
+    def get_client(self, client_id: str) -> ClientRecord | None:
+        return next((item for item in self._clients if item.id == client_id), None)
+
+    def get_client_by_name(self, name: str) -> ClientRecord | None:
+        return next((item for item in self._clients if item.name == name), None)
+
+    def add_client(self, client: ClientRecord) -> None:
+        self._clients.append(client)
+
+    def save_client(self, client: ClientRecord) -> None:
+        self._clients = [client if item.id == client.id else item for item in self._clients]
+
+    def delete_client(self, client_id: str) -> None:
+        self._clients = [item for item in self._clients if item.id != client_id]
 
 
 def catalog() -> AccessCatalog:
@@ -60,6 +86,45 @@ def test_bootstrap_creates_the_building_groups_once() -> None:
     assert roles["resident"].permissions == STARTER_ROLES["resident"]
     assert "client" in roles
     assert sum(1 for role in repository.list_roles() if role.name == "committee") == 1
+
+
+def test_bootstrap_seeds_demo_users_for_each_building_role() -> None:
+    repository = InMemoryAccessRepository()
+    registered = catalog()
+    bootstrap_access(repository, registered)
+    owner = next(role for role in repository.list_roles() if role.name == "client")
+    repository.add_user(
+        UserRecord(
+            id="owner-1",
+            full_name="Admin de prueba",
+            email="admin@tucomite.cl",
+            password_hash=hash_password("123456"),
+            role_id=owner.id,
+            client_id="client-demo",
+        ),
+    )
+    clients = _MemoryClients(
+        [
+            ClientRecord(
+                id="client-demo",
+                name=DEMO_CLIENT_NAME,
+                admin_user_id="owner-1",
+                license_starts_at="2026-01-01",
+                license_ends_at="2027-01-01",
+            ),
+        ],
+    )
+
+    bootstrap_access(repository, registered, clients)
+    bootstrap_access(repository, registered, clients)
+
+    by_email = {user.email: user for user in repository.list_users()}
+    roles = {role.id: role.name for role in repository.list_roles()}
+    assert roles[by_email["administrador@demo.tucomite.local"].role_id] == "administrator"
+    assert roles[by_email["comite@demo.tucomite.local"].role_id] == "committee"
+    assert roles[by_email["residente@demo.tucomite.local"].role_id] == "resident"
+    assert by_email["administrador@demo.tucomite.local"].client_id == "client-demo"
+    assert sum(1 for user in repository.list_users() if user.email.endswith("@demo.tucomite.local")) == 3
 
 
 def test_checkbox_grants_and_removes_one_permission() -> None:
