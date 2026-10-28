@@ -34,7 +34,7 @@ from app.schemas.access import (
     UserListResponse,
     UserResponse,
 )
-from app.services.access_service import RoleService, UserService
+from app.services.access_service import PermissionPolicy, RoleService, UserService
 from app.services.committee_access import ensure_committee_access
 
 router = APIRouter(tags=["access"])
@@ -135,9 +135,18 @@ def read_catalog(
 @router.get("/roles", response_model=RoleListResponse)
 def read_roles(
     service: RoleService = Depends(get_role_service),
-    _: object = Depends(require_permission("roles", "view")),
+    actor: Actor = Depends(get_current_actor),
 ) -> RoleListResponse:
-    """Return every role."""
+    """Return every assignable role. Needs roles.view or users.create/view."""
+    policy = PermissionPolicy()
+    allowed = (
+        actor.is_super_admin
+        or policy.allows(actor.permissions, "roles", "view")
+        or policy.allows(actor.permissions, "users", "view")
+        or policy.allows(actor.permissions, "users", "create")
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Forbidden.")
     return RoleListResponse(items=[_role_response(role) for role in service.list_roles()])
 
 
@@ -238,7 +247,7 @@ def update_user(
     actor: Actor = Depends(require_permission("users", "create")),
     db: Session = Depends(get_db),
 ) -> UserResponse:
-    """Update a user's name, email, and optional password."""
+    """Update a user's name, email, optional password, and optional role."""
     _, protected_ids = _scoped_users(service, actor, db)
     try:
         user = service.update_user(
@@ -246,6 +255,7 @@ def update_user(
             body.full_name,
             body.email,
             body.password,
+            body.role_id,
             protected_user_ids=protected_ids,
         )
     except UserNotFound:
@@ -254,6 +264,8 @@ def update_user(
         raise HTTPException(status_code=409, detail="Email already exists.") from None
     except ProtectedUser:
         raise HTTPException(status_code=409, detail="The building admin cannot be changed.") from None
+    except UnknownRole:
+        raise HTTPException(status_code=422, detail="Role not found.") from None
     return _user_response(user, protected=user.id in protected_ids)
 
 

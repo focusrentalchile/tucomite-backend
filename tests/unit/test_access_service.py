@@ -158,9 +158,11 @@ def test_update_and_delete_user() -> None:
     users = UserService(repository)
     created = users.create_user("Ana Pérez", "ana@example.com", "secreto-1", role.id)
 
-    updated = users.update_user(created.id, "Ana María", "ana@example.com", None)
+    other = RoleService(repository, registered).create_role("guards")
+    updated = users.update_user(created.id, "Ana María", "ana@example.com", None, other.id)
     assert updated.full_name == "Ana María"
     assert updated.password_hash == created.password_hash
+    assert updated.role_id == other.id
 
     users.delete_user(created.id)
     assert all(user.id != created.id for user in users.list_users())

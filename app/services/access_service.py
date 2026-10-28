@@ -141,10 +141,11 @@ class UserService:
         full_name: str,
         email: str,
         password: str | None = None,
+        role_id: str | None = None,
         *,
         protected_user_ids: frozenset[str] | None = None,
     ) -> UserRecord:
-        """Update name, email, and optionally the password."""
+        """Update name, email, optional password, and optional role."""
         current = self._repository.get_user(user_id)
         if current is None:
             raise UserNotFound()
@@ -154,12 +155,18 @@ class UserService:
         other = self._repository.get_user_by_email(normalized)
         if other is not None and other.id != user_id:
             raise DuplicateEmail(normalized)
+        assigned_role_id = current.role_id
+        if role_id is not None:
+            role = self._repository.get_role(role_id)
+            if role is None or role.system:
+                raise UnknownRole(role_id)
+            assigned_role_id = role_id
         updated = UserRecord(
             id=current.id,
             full_name=full_name.strip(),
             email=normalized,
             password_hash=hash_password(password) if password else current.password_hash,
-            role_id=current.role_id,
+            role_id=assigned_role_id,
             client_id=current.client_id,
         )
         self._repository.save_user(updated)

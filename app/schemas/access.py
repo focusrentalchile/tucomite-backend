@@ -86,3 +86,4 @@ class UpdateUserRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=3, max_length=255)
     password: str | None = Field(default=None, min_length=6, max_length=128)
+    role_id: str | None = Field(default=None, max_length=36)
