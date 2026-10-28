@@ -3,9 +3,6 @@
 from dataclasses import dataclass
 
 
-SUPER_ADMIN_EMAIL = "admin@tucomite.local"
-
-
 @dataclass(frozen=True)
 class ModuleDefinition:
     """One product module and the functionalities it exposes."""

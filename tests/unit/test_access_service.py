@@ -11,9 +11,11 @@ from app.domain.access import (
     ProtectedUser,
     UnknownPermission,
     UnknownRole,
+    UserRecord,
 )
 from app.services.access_bootstrap import STARTER_ROLES, bootstrap_access
 from app.services.access_service import PermissionPolicy, RoleService, UserService
+from app.utils.passwords import hash_password
 from tests.support.memory_access_repository import InMemoryAccessRepository
 
 
@@ -140,6 +142,17 @@ def test_update_and_delete_user() -> None:
     users.delete_user(created.id)
     assert all(user.id != created.id for user in users.list_users())
 
-    admin = next(user for user in users.list_users() if user.email == "admin@tucomite.local")
+    system_role = repository.get_system_role()
+    assert system_role is not None
+    repository.add_user(
+        UserRecord(
+            id="system-user-1",
+            full_name="Super admin",
+            email="system@example.com",
+            password_hash=hash_password("secret"),
+            role_id=system_role.id,
+            client_id=None,
+        ),
+    )
     with pytest.raises(ProtectedUser):
-        users.delete_user(admin.id)
+        users.delete_user("system-user-1")

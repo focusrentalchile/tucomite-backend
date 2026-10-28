@@ -4,10 +4,10 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from app.domain.access import SUPER_ADMIN_EMAIL
 from app.main import app
-from app.services.access_bootstrap import DEMO_ADMIN_EMAIL, DEMO_CLIENT_NAME, SEED_PASSWORD
+from app.services.access_bootstrap import DEMO_CLIENT_NAME
 from tests.helpers.auth import login_as_demo_admin, login_as_super_admin
+from tests.helpers.platform_accounts import DEMO_ADMIN_EMAIL, SEED_PASSWORD, SUPER_ADMIN_EMAIL
 
 client = TestClient(app)
 

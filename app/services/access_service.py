@@ -4,7 +4,6 @@ import uuid
 
 from app.core.access_catalog import AccessCatalog
 from app.domain.access import (
-    SUPER_ADMIN_EMAIL,
     DuplicateEmail,
     DuplicateRoleName,
     ProtectedRole,
@@ -145,7 +144,8 @@ class UserService:
         current = self._repository.get_user(user_id)
         if current is None:
             raise UserNotFound()
-        if current.email == SUPER_ADMIN_EMAIL:
+        role = self._repository.get_role(current.role_id)
+        if role is not None and role.system:
             raise ProtectedUser()
         self._repository.delete_user(user_id)
 
