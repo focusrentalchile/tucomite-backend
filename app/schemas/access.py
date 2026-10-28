@@ -52,6 +52,7 @@ class UserResponse(BaseModel):
     full_name: str
     email: str
     role_id: str
+    protected: bool = False
 
 
 class MeResponse(UserResponse):

@@ -203,16 +203,22 @@ def upsert_platform_accounts(
 
 
 def _ensure_starter_roles(repository: AccessRepository, keys: frozenset[str]) -> None:
-    """Add each building group when it is missing and the catalog knows its actions."""
-    existing = {role.name.casefold() for role in repository.list_roles()}
+    """Add or refresh each building group so catalog actions stay available."""
+    by_name = {role.name.casefold(): role for role in repository.list_roles()}
     for name, permissions in STARTER_ROLES.items():
-        if name.casefold() in existing:
-            continue
         allowed = frozenset(permission for permission in permissions if permission in keys)
         if not allowed:
             continue
-        repository.add_role(
-            RoleRecord(id=str(uuid.uuid4()), name=name, system=False, permissions=allowed),
+        current = by_name.get(name.casefold())
+        if current is None:
+            repository.add_role(
+                RoleRecord(id=str(uuid.uuid4()), name=name, system=False, permissions=allowed),
+            )
+            continue
+        if current.system or current.permissions == allowed:
+            continue
+        repository.save_role(
+            RoleRecord(id=current.id, name=current.name, system=False, permissions=allowed),
         )
 
 

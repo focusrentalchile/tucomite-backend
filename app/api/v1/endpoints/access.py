@@ -19,6 +19,7 @@ from app.domain.access import (
     UserRecord,
 )
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.client_repository import SqlClientRepository
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.schemas.access import (
     CatalogModule,
@@ -47,8 +48,44 @@ def _role_response(role: RoleRecord) -> RoleResponse:
     )
 
 
-def _user_response(user: UserRecord) -> UserResponse:
-    return UserResponse(id=user.id, full_name=user.full_name, email=user.email, role_id=user.role_id)
+def _user_response(user: UserRecord, *, protected: bool = False) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        role_id=user.role_id,
+        protected=protected,
+    )
+
+
+def _client_admin_id(db: Session, client_id: str | None) -> str | None:
+    if not client_id:
+        return None
+    client = SqlClientRepository(db).get_client(client_id)
+    return None if client is None else client.admin_user_id
+
+
+def _scoped_users(
+    service: UserService,
+    actor: Actor,
+    db: Session,
+) -> tuple[list[UserRecord], frozenset[str]]:
+    """Return users visible to the actor and the set of protected user ids."""
+    access = SqlAccessRepository(db)
+    roles = {role.id: role for role in access.list_roles()}
+    admin_id = _client_admin_id(db, actor.client_id)
+    protected_ids = frozenset({admin_id} if admin_id else ())
+    users: list[UserRecord] = []
+    for user in service.list_users():
+        role = roles.get(user.role_id)
+        if role is not None and role.system:
+            continue
+        if actor.is_super_admin:
+            users.append(user)
+            continue
+        if actor.client_id and user.client_id == actor.client_id:
+            users.append(user)
+    return users, protected_ids
 
 
 @router.get("/access/me", response_model=MeResponse)
@@ -129,26 +166,40 @@ def set_permission(
 @router.get("/users", response_model=UserListResponse)
 def read_users(
     service: UserService = Depends(get_user_service),
-    _: object = Depends(require_permission("users", "view")),
+    actor: Actor = Depends(require_permission("users", "view")),
+    db: Session = Depends(get_db),
 ) -> UserListResponse:
-    """Return every user."""
-    return UserListResponse(items=[_user_response(user) for user in service.list_users()])
+    """Return users in the actor's building. The building admin is marked protected."""
+    users, protected_ids = _scoped_users(service, actor, db)
+    return UserListResponse(
+        items=[_user_response(user, protected=user.id in protected_ids) for user in users],
+    )
 
 
 @router.post("/users", response_model=UserResponse, status_code=201)
 def create_user(
     body: CreateUserRequest,
     service: UserService = Depends(get_user_service),
-    _: object = Depends(require_permission("users", "create")),
+    actor: Actor = Depends(require_permission("users", "create")),
+    db: Session = Depends(get_db),
 ) -> UserResponse:
-    """Create a user and assign a role."""
+    """Create a user in the actor's building and assign a non-system role."""
+    if not actor.is_super_admin and not actor.client_id:
+        raise HTTPException(status_code=403, detail="Forbidden.")
     try:
-        user = service.create_user(body.full_name, body.email, body.password, body.role_id)
+        user = service.create_user(
+            body.full_name,
+            body.email,
+            body.password,
+            body.role_id,
+            client_id=None if actor.is_super_admin else actor.client_id,
+        )
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already exists.") from None
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
-    return _user_response(user)
+    admin_id = _client_admin_id(db, actor.client_id)
+    return _user_response(user, protected=user.id == admin_id)
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
@@ -156,28 +207,40 @@ def update_user(
     user_id: str,
     body: UpdateUserRequest,
     service: UserService = Depends(get_user_service),
-    _: object = Depends(require_permission("users", "create")),
+    actor: Actor = Depends(require_permission("users", "create")),
+    db: Session = Depends(get_db),
 ) -> UserResponse:
     """Update a user's name, email, and optional password."""
+    _, protected_ids = _scoped_users(service, actor, db)
     try:
-        user = service.update_user(user_id, body.full_name, body.email, body.password)
+        user = service.update_user(
+            user_id,
+            body.full_name,
+            body.email,
+            body.password,
+            protected_user_ids=protected_ids,
+        )
     except UserNotFound:
         raise HTTPException(status_code=404, detail="User not found.") from None
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already exists.") from None
-    return _user_response(user)
+    except ProtectedUser:
+        raise HTTPException(status_code=409, detail="The building admin cannot be changed.") from None
+    return _user_response(user, protected=user.id in protected_ids)
 
 
 @router.delete("/users/{user_id}", status_code=204)
 def delete_user(
     user_id: str,
     service: UserService = Depends(get_user_service),
-    _: object = Depends(require_permission("users", "create")),
+    actor: Actor = Depends(require_permission("users", "create")),
+    db: Session = Depends(get_db),
 ) -> None:
-    """Delete a user that is not the seeded super admin."""
+    """Delete a user that is not the building admin or a system account."""
+    _, protected_ids = _scoped_users(service, actor, db)
     try:
-        service.delete_user(user_id)
+        service.delete_user(user_id, protected_user_ids=protected_ids)
     except UserNotFound:
         raise HTTPException(status_code=404, detail="User not found.") from None
     except ProtectedUser:
-        raise HTTPException(status_code=409, detail="The super admin cannot be deleted.") from None
+        raise HTTPException(status_code=409, detail="The building admin cannot be deleted.") from None

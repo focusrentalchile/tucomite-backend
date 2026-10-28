@@ -58,15 +58,17 @@ def test_system_role_cannot_be_edited_and_user_can_be_created() -> None:
     )
     assert rejected.status_code == 409
 
+    building_role = next(item for item in roles.json()["items"] if item["system"] is False)
     created = client.post(
         "/api/v1/users",
         json={
             "full_name": "Ana Pérez",
             "email": f"ana.{uuid.uuid4().hex[:8]}@tucomite.local",
             "password": "secreto-1",
-            "role_id": system_role["id"],
+            "role_id": building_role["id"],
         },
     )
     assert created.status_code == 201
     assert "password" not in created.json()
     assert created.json()["email"].endswith("@tucomite.local")
+    assert created.json()["protected"] is False

@@ -94,13 +94,17 @@ class UserService:
         email: str,
         password: str,
         role_id: str | None = None,
+        client_id: str | None = None,
     ) -> UserRecord:
         """Create a user when the email is free and the role exists."""
         normalized = email.strip().lower()
         if self._repository.get_user_by_email(normalized) is not None:
             raise DuplicateEmail(normalized)
         assigned_role_id = role_id or self._default_role_id()
-        if self._repository.get_role(assigned_role_id) is None:
+        role = self._repository.get_role(assigned_role_id)
+        if role is None:
+            raise UnknownRole(assigned_role_id)
+        if role.system:
             raise UnknownRole(assigned_role_id)
         user = UserRecord(
             id=str(uuid.uuid4()),
@@ -108,7 +112,7 @@ class UserService:
             email=normalized,
             password_hash=hash_password(password),
             role_id=assigned_role_id,
-            client_id=None,
+            client_id=client_id,
         )
         self._repository.add_user(user)
         return user
@@ -119,11 +123,15 @@ class UserService:
         full_name: str,
         email: str,
         password: str | None = None,
+        *,
+        protected_user_ids: frozenset[str] | None = None,
     ) -> UserRecord:
         """Update name, email, and optionally the password."""
         current = self._repository.get_user(user_id)
         if current is None:
             raise UserNotFound()
+        if self._is_protected(current, protected_user_ids):
+            raise ProtectedUser()
         normalized = email.strip().lower()
         other = self._repository.get_user_by_email(normalized)
         if other is not None and other.id != user_id:
@@ -139,15 +147,31 @@ class UserService:
         self._repository.save_user(updated)
         return updated
 
-    def delete_user(self, user_id: str) -> None:
-        """Delete a user that is not the seeded super admin."""
+    def delete_user(
+        self,
+        user_id: str,
+        *,
+        protected_user_ids: frozenset[str] | None = None,
+    ) -> None:
+        """Delete a user that is not protected (system or building admin)."""
         current = self._repository.get_user(user_id)
         if current is None:
             raise UserNotFound()
-        role = self._repository.get_role(current.role_id)
-        if role is not None and role.system:
+        if self._is_protected(current, protected_user_ids):
             raise ProtectedUser()
         self._repository.delete_user(user_id)
+
+    def _is_protected(
+        self,
+        user: UserRecord,
+        protected_user_ids: frozenset[str] | None,
+    ) -> bool:
+        role = self._repository.get_role(user.role_id)
+        if role is not None and role.system:
+            return True
+        if protected_user_ids and user.id in protected_user_ids:
+            return True
+        return False
 
     def _default_role_id(self) -> str:
         roles = self._repository.list_roles()
