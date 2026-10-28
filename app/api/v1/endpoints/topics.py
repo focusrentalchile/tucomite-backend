@@ -51,6 +51,7 @@ def _topic_response(topic: TopicRecord, votes: list[TopicVoteRecord]) -> TopicRe
         status_id=topic.status_id,
         priority_id=topic.priority_id,
         assignee_user_id=topic.assignee_user_id,
+        start_date=topic.start_date,
         due_date=topic.due_date,
         votes=[_vote_response(vote) for vote in votes],
     )
@@ -78,6 +79,7 @@ def _topics_for_open_period(
                 status_id=topic.status_id,
                 priority_id=topic.priority_id,
                 assignee_user_id=topic.assignee_user_id,
+                start_date=topic.start_date,
                 due_date=topic.due_date,
                 created_at=topic.created_at,
                 closed_at=topic.closed_at,
@@ -174,10 +176,15 @@ def move_topic(
     from app.services.support_service import SupportService
 
     if body.status_id == DOING_STATUS_ID:
-        if not body.assignee_user_id or not body.due_date:
+        if not body.assignee_user_id or not body.start_date or not body.due_date:
             raise HTTPException(
                 status_code=422,
-                detail="Assignee and due date are required to start execution.",
+                detail="Assignee, start date, and due date are required to start execution.",
+            )
+        if body.due_date < body.start_date:
+            raise HTTPException(
+                status_code=422,
+                detail="Due date cannot be before start date.",
             )
     try:
         topic = service.move_topic(topic_id, body.status_id)
@@ -186,8 +193,13 @@ def move_topic(
     except InvalidTopicStatus as error:
         raise HTTPException(status_code=422, detail="Invalid topic status.") from error
 
-    if body.status_id == DOING_STATUS_ID and body.assignee_user_id and body.due_date:
-        SqlTopicRepository(db).save_topic_assignment(topic_id, body.assignee_user_id, body.due_date)
+    if body.status_id == DOING_STATUS_ID and body.assignee_user_id and body.start_date and body.due_date:
+        SqlTopicRepository(db).save_topic_assignment(
+            topic_id,
+            body.assignee_user_id,
+            body.due_date,
+            start_date=body.start_date,
+        )
         topic = service.list_topics()
         topic = next(item for item in topic if item.id == topic_id)
         client = SqlClientRepository(db).get_client(actor.client_id) if actor.client_id else None

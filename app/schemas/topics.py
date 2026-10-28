@@ -28,10 +28,11 @@ class UpdateTopicRequest(BaseModel):
 
 
 class MoveTopicRequest(BaseModel):
-    """Board column for one topic. Moving to execution requires assignee and due date."""
+    """Board column for one topic. Moving to execution requires assignee and dates."""
 
     status_id: int = Field(ge=1, le=4)
     assignee_user_id: str | None = Field(default=None, max_length=36)
+    start_date: str | None = Field(default=None, max_length=10)
     due_date: str | None = Field(default=None, max_length=10)
 
 
@@ -62,6 +63,7 @@ class TopicResponse(BaseModel):
     status_id: int
     priority_id: int
     assignee_user_id: str | None = None
+    start_date: str | None = None
     due_date: str | None = None
     votes: list[TopicVoteResponse]
 

@@ -62,6 +62,7 @@ class SqlTopicRepository:
                 status_id=topic.status_id,
                 priority_id=topic.priority_id,
                 assignee_user_id=topic.assignee_user_id,
+                start_date=date.fromisoformat(topic.start_date) if topic.start_date else None,
                 due_date=date.fromisoformat(topic.due_date) if topic.due_date else None,
                 created_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 closed_at=None,
@@ -93,14 +94,22 @@ class SqlTopicRepository:
         row.status_id = topic.status_id
         row.priority_id = topic.priority_id
         row.assignee_user_id = topic.assignee_user_id
+        row.start_date = date.fromisoformat(topic.start_date) if topic.start_date else None
         row.due_date = date.fromisoformat(topic.due_date) if topic.due_date else None
         row.period_id = topic.period_id
-    def save_topic_assignment(self, topic_id: str, assignee_user_id: str, due_date: str) -> None:
-        """Store the person responsible and the completion date."""
+    def save_topic_assignment(
+        self,
+        topic_id: str,
+        assignee_user_id: str,
+        due_date: str,
+        start_date: str | None = None,
+    ) -> None:
+        """Store the person responsible and the execution dates."""
         row = self._session.get(TopicModel, topic_id)
         if row is None:
             return
         row.assignee_user_id = assignee_user_id
+        row.start_date = date.fromisoformat(start_date) if start_date else None
         row.due_date = date.fromisoformat(due_date)
     def delete_topic(self, topic_id: str) -> None:
         votes = self._session.scalars(
@@ -166,6 +175,7 @@ class SqlTopicRepository:
             status_id=row.status_id,
             priority_id=row.priority_id,
             assignee_user_id=row.assignee_user_id,
+            start_date=row.start_date.isoformat() if getattr(row, "start_date", None) else None,
             due_date=row.due_date.isoformat() if row.due_date else None,
             created_at=row.created_at.isoformat() if getattr(row, "created_at", None) else None,
             closed_at=row.closed_at.isoformat() if getattr(row, "closed_at", None) else None,

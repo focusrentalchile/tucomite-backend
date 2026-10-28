@@ -123,12 +123,14 @@ def test_topic_update_move_and_delete_survive_reload() -> None:
         json={
             "status_id": 3,
             "assignee_user_id": me.json()["id"],
+            "start_date": "2026-12-01",
             "due_date": "2026-12-31",
         },
     )
     assert moved.status_code == 200
     assert moved.json()["status_id"] == 3
     assert moved.json()["assignee_user_id"] == me.json()["id"]
+    assert moved.json()["start_date"] == "2026-12-01"
     assert moved.json()["due_date"] == "2026-12-31"
 
     listed = client.get("/api/v1/topics")
@@ -173,6 +175,7 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
         json={
             "status_id": 3,
             "assignee_user_id": admin_id,
+            "start_date": "2026-11-01",
             "due_date": "2026-11-15",
         },
     )

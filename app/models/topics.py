@@ -41,6 +41,7 @@ class TopicModel(Base):
     status_id: Mapped[int] = mapped_column(ForeignKey("statuses.id"), default=OPEN_STATUS_ID)
     priority_id: Mapped[int] = mapped_column(ForeignKey("priorities.id"), default=MEDIUM_PRIORITY_ID)
     assignee_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -56,6 +56,7 @@ class TopicRecord:
     status_id: int
     priority_id: int
     assignee_user_id: str | None = None
+    start_date: str | None = None
     due_date: str | None = None
     created_at: str | None = None
     closed_at: str | None = None

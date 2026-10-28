@@ -110,6 +110,7 @@ def init_database() -> None:
         if topics_exist:
             for column, ddl in (
                 ("assignee_user_id", "ALTER TABLE `topics` ADD COLUMN `assignee_user_id` VARCHAR(36) NULL"),
+                ("start_date", "ALTER TABLE `topics` ADD COLUMN `start_date` DATE NULL"),
                 ("due_date", "ALTER TABLE `topics` ADD COLUMN `due_date` DATE NULL"),
                 ("created_at", "ALTER TABLE `topics` ADD COLUMN `created_at` DATETIME NULL"),
                 ("closed_at", "ALTER TABLE `topics` ADD COLUMN `closed_at` DATETIME NULL"),
