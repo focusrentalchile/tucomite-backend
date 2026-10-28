@@ -1,0 +1,1 @@
+"""Product access catalog registration."""
