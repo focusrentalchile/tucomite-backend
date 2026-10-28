@@ -6,6 +6,7 @@ from dataclasses import dataclass
 OPEN_STATUS_ID = 1
 WAITING_STATUS_ID = 2
 DOING_STATUS_ID = 3
+CLOSED_STATUS_ID = 4
 
 TOPIC_STATUSES: tuple[tuple[int, str], ...] = (
     (1, "open"),
@@ -56,6 +57,8 @@ class TopicRecord:
     priority_id: int
     assignee_user_id: str | None = None
     due_date: str | None = None
+    created_at: str | None = None
+    closed_at: str | None = None
 
 
 @dataclass(frozen=True)

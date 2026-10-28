@@ -22,7 +22,15 @@ from tests.support.memory_access_repository import InMemoryAccessRepository
 def catalog() -> AccessCatalog:
     registered = AccessCatalog()
     registered.register(ModuleDefinition(key="users", functionalities=("view", "create")))
-    registered.register(ModuleDefinition(key="roles", functionalities=("view", "update")))
+    registered.register(ModuleDefinition(key="roles", functionalities=("view", "create", "update", "delete")))
+    registered.register(ModuleDefinition(key="clients", functionalities=("view", "create", "update", "delete")))
+    registered.register(ModuleDefinition(key="agreements", functionalities=("view", "vote")))
+    registered.register(ModuleDefinition(key="matters", functionalities=("create", "comment")))
+    registered.register(ModuleDefinition(key="tasks", functionalities=("assign",)))
+    registered.register(ModuleDefinition(key="progress", functionalities=("view", "update")))
+    registered.register(ModuleDefinition(key="documents", functionalities=("view",)))
+    registered.register(ModuleDefinition(key="notifications", functionalities=("receive",)))
+    registered.register(ModuleDefinition(key="support", functionalities=("view", "create", "reply", "update")))
     return registered
 
 
@@ -41,12 +49,6 @@ def test_bootstrap_grants_every_catalog_permission_to_the_system_role() -> None:
 def test_bootstrap_creates_the_building_groups_once() -> None:
     repository = InMemoryAccessRepository()
     registered = catalog()
-    registered.register(ModuleDefinition(key="agreements", functionalities=("view", "vote")))
-    registered.register(ModuleDefinition(key="matters", functionalities=("create", "comment")))
-    registered.register(ModuleDefinition(key="tasks", functionalities=("assign",)))
-    registered.register(ModuleDefinition(key="progress", functionalities=("view", "update")))
-    registered.register(ModuleDefinition(key="documents", functionalities=("view",)))
-    registered.register(ModuleDefinition(key="notifications", functionalities=("receive",)))
 
     bootstrap_access(repository, registered)
     bootstrap_access(repository, registered)
@@ -54,9 +56,9 @@ def test_bootstrap_creates_the_building_groups_once() -> None:
     roles = {role.name: role for role in repository.list_roles()}
     assert roles["committee"].permissions == STARTER_ROLES["committee"]
     assert "agreements.vote" not in roles["administrator"].permissions
-    assert roles["resident"].permissions == frozenset(
-        {"agreements.view", "progress.view", "documents.view", "notifications.receive"}
-    )
+    assert "support.view" in roles["administrator"].permissions
+    assert roles["resident"].permissions == STARTER_ROLES["resident"]
+    assert "client" in roles
     assert sum(1 for role in repository.list_roles() if role.name == "committee") == 1
 
 

@@ -115,6 +115,6 @@ def require_committee_member(
     user = repository.get_user(actor.user_id)
     role = repository.get_role(user.role_id) if user is not None else None
     role_name = role.name if role is not None else ""
-    if not ensure_committee_access(db, actor.user_id, role_name):
+    if not ensure_committee_access(db, actor.user_id, role_name, actor.permissions):
         raise HTTPException(status_code=403, detail="Committee membership required.")
     return actor

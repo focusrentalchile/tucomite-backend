@@ -19,6 +19,7 @@ def _login_response(
     *,
     user,
     role_key: str,
+    permissions: list[str],
     is_super_admin: bool,
     is_committee_member: bool,
     client,
@@ -34,6 +35,7 @@ def _login_response(
         email=user.email,
         role_id=user.role_id,
         role_key=role_key,
+        permissions=permissions,
         is_super_admin=is_super_admin,
         client_id=user.client_id,
         is_committee_member=is_committee_member,
@@ -66,11 +68,18 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
     request.session.clear()
     request.session[SESSION_USER_KEY] = user.id
     role_key = "super_admin" if role.system else role.name
+    permissions = sorted(role.permissions)
     return _login_response(
         user=user,
         role_key=role_key,
+        permissions=permissions,
         is_super_admin=role.system,
-        is_committee_member=ensure_committee_access(db, user.id, role.name),
+        is_committee_member=ensure_committee_access(
+            db,
+            user.id,
+            role.name,
+            frozenset(role.permissions),
+        ),
         client=client,
     )
 
@@ -101,10 +110,17 @@ def read_session(
     access_role = access.get_role(user.role_id)
     role_name = access_role.name if access_role is not None else ""
     role_key = "super_admin" if actor.is_super_admin else role_name
+    permissions = sorted(actor.permissions)
     return _login_response(
         user=user,
         role_key=role_key,
+        permissions=permissions,
         is_super_admin=actor.is_super_admin,
-        is_committee_member=ensure_committee_access(db, user.id, role_name),
+        is_committee_member=ensure_committee_access(
+            db,
+            user.id,
+            role_name,
+            actor.permissions,
+        ),
         client=client,
     )

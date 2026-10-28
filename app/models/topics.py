@@ -1,8 +1,8 @@
 """MySQL tables for topic statuses, priorities, topics, and votes."""
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -42,6 +42,8 @@ class TopicModel(Base):
     priority_id: Mapped[int] = mapped_column(ForeignKey("priorities.id"), default=MEDIUM_PRIORITY_ID)
     assignee_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class TopicVoteModel(Base):

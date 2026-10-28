@@ -111,6 +111,8 @@ def init_database() -> None:
             for column, ddl in (
                 ("assignee_user_id", "ALTER TABLE `topics` ADD COLUMN `assignee_user_id` VARCHAR(36) NULL"),
                 ("due_date", "ALTER TABLE `topics` ADD COLUMN `due_date` DATE NULL"),
+                ("created_at", "ALTER TABLE `topics` ADD COLUMN `created_at` DATETIME NULL"),
+                ("closed_at", "ALTER TABLE `topics` ADD COLUMN `closed_at` DATETIME NULL"),
             ):
                 has_column = connection.execute(
                     text(

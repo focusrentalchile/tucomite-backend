@@ -108,7 +108,13 @@ def read_me(
         email=user.email,
         role_id=user.role_id,
         role_key=role_key,
-        is_committee_member=ensure_committee_access(db, user.id, role_name),
+        permissions=sorted(actor.permissions),
+        is_committee_member=ensure_committee_access(
+            db,
+            user.id,
+            role_name,
+            actor.permissions,
+        ),
         is_super_admin=actor.is_super_admin,
         client_id=user.client_id,
     )

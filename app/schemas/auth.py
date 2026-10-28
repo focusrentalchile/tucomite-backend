@@ -18,6 +18,7 @@ class LoginResponse(BaseModel):
     email: str
     role_id: str
     role_key: str = ""
+    permissions: list[str] = []
     is_super_admin: bool
     client_id: str | None
     is_committee_member: bool
