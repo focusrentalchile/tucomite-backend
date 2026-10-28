@@ -15,6 +15,8 @@ class Settings(BaseSettings):
         "http://localhost:5174",
         "https://tucomite-admin.web.app",
         "https://tucomite-admin.firebaseapp.com",
+        "https://tucomite-frontend.web.app",
+        "https://tucomite-frontend.firebaseapp.com",
     ]
     database_url: str = "mysql+pymysql://root:@127.0.0.1:3306/tu_comite?charset=utf8mb4"
     session_secret: str = "tu-comite-dev-session-secret-change-me"
