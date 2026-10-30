@@ -74,6 +74,18 @@ class TopicVoteRecord:
     choice: str
 
 
+@dataclass(frozen=True)
+class TopicOpinionRecord:
+    """One person's written opinion on a topic."""
+
+    id: str
+    topic_id: str
+    author_id: str
+    author_name: str
+    body: str
+    created_at: str
+
+
 class TopicNotFound(Exception):
     """Raised when a topic id does not exist."""
 

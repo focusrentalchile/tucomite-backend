@@ -2,17 +2,12 @@
 
 
 
-from app.domain.topics import StatusRecord, TopicRecord, TopicVoteRecord
-
-
-
+from app.domain.topics import StatusRecord, TopicOpinionRecord, TopicRecord, TopicVoteRecord
 
 
 class InMemoryTopicRepository:
 
-    """Stores statuses, topics, and votes without MySQL."""
-
-
+    """Stores statuses, topics, votes, and opinions without MySQL."""
 
     def __init__(self) -> None:
 
@@ -21,6 +16,8 @@ class InMemoryTopicRepository:
         self.topics: list[TopicRecord] = []
 
         self.votes: list[TopicVoteRecord] = []
+
+        self.opinions: list[TopicOpinionRecord] = []
 
 
 
@@ -98,6 +95,8 @@ class InMemoryTopicRepository:
 
         self.votes = [vote for vote in self.votes if vote.topic_id != topic_id]
 
+        self.opinions = [opinion for opinion in self.opinions if opinion.topic_id != topic_id]
+
         self.topics = [topic for topic in self.topics if topic.id != topic_id]
 
 
@@ -163,4 +162,27 @@ class InMemoryTopicRepository:
     def save_vote(self, vote: TopicVoteRecord) -> None:
 
         self.votes = [vote if item.id == vote.id else item for item in self.votes]
+
+    def list_opinions_for_topics(self, topic_ids: list[str]) -> list[TopicOpinionRecord]:
+        wanted = set(topic_ids)
+        return sorted(
+            [opinion for opinion in self.opinions if opinion.topic_id in wanted],
+            key=lambda opinion: opinion.created_at,
+        )
+
+    def get_opinion(self, topic_id: str, author_id: str) -> TopicOpinionRecord | None:
+        return next(
+            (
+                opinion
+                for opinion in self.opinions
+                if opinion.topic_id == topic_id and opinion.author_id == author_id
+            ),
+            None,
+        )
+
+    def add_opinion(self, opinion: TopicOpinionRecord) -> None:
+        self.opinions.append(opinion)
+
+    def save_opinion(self, opinion: TopicOpinionRecord) -> None:
+        self.opinions = [opinion if item.id == opinion.id else item for item in self.opinions]
 

@@ -9,7 +9,7 @@ from app.domain.license import evaluate_license
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.client_repository import SqlClientRepository
 from app.schemas.auth import LoginRequest, LoginResponse
-from app.services.committee_access import ensure_committee_access
+from app.services.committee_access import ensure_committee_access, is_listed_committee_member
 from app.utils.passwords import verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -74,12 +74,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
         role_key=role_key,
         permissions=permissions,
         is_super_admin=role.system,
-        is_committee_member=ensure_committee_access(
-            db,
-            user.id,
-            role.name,
-            frozenset(role.permissions),
-        ),
+        is_committee_member=is_listed_committee_member(db, user.id),
         client=client,
     )
 
@@ -116,11 +111,6 @@ def read_session(
         role_key=role_key,
         permissions=permissions,
         is_super_admin=actor.is_super_admin,
-        is_committee_member=ensure_committee_access(
-            db,
-            user.id,
-            role_name,
-            actor.permissions,
-        ),
+        is_committee_member=is_listed_committee_member(db, user.id),
         client=client,
     )

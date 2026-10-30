@@ -9,6 +9,7 @@ from app.domain.topics import (
     InvalidTopicStatus,
     InvalidVoteChoice,
     TopicNotFound,
+    TopicOpinionRecord,
     TopicRecord,
     TopicVoteRecord,
     VoteAlreadyCast,
@@ -17,6 +18,8 @@ from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
+from app.services.committee_access import is_listed_committee_member
+from app.services.period_service import PeriodService
 
 MIN_COMMITTEE_FOR_VOTE = 3
 from app.schemas.topics import (
@@ -25,9 +28,12 @@ from app.schemas.topics import (
     CreateTopicRequest,
     MoveTopicRequest,
     TopicListResponse,
+    TopicOpinionResponse,
     TopicResponse,
     TopicVoteResponse,
     UpdateTopicRequest,
+    UpsertOpinionRequest,
+    UpsertOpinionResponse,
 )
 from app.services.topic_service import TopicService
 
@@ -43,7 +49,21 @@ def _vote_response(vote: TopicVoteRecord) -> TopicVoteResponse:
     )
 
 
-def _topic_response(topic: TopicRecord, votes: list[TopicVoteRecord]) -> TopicResponse:
+def _opinion_response(opinion: TopicOpinionRecord) -> TopicOpinionResponse:
+    return TopicOpinionResponse(
+        id=opinion.id,
+        author_id=opinion.author_id,
+        author_name=opinion.author_name,
+        body=opinion.body,
+        created_at=opinion.created_at,
+    )
+
+
+def _topic_response(
+    topic: TopicRecord,
+    votes: list[TopicVoteRecord],
+    opinions: list[TopicOpinionRecord] | None = None,
+) -> TopicResponse:
     return TopicResponse(
         id=topic.id,
         title=topic.title,
@@ -57,6 +77,7 @@ def _topic_response(topic: TopicRecord, votes: list[TopicVoteRecord]) -> TopicRe
         start_date=topic.start_date,
         due_date=topic.due_date,
         votes=[_vote_response(vote) for vote in votes],
+        opinions=[_opinion_response(item) for item in (opinions or [])],
     )
 
 
@@ -65,7 +86,7 @@ def _topics_for_open_period(
     db: Session,
 ) -> list[TopicRecord]:
     """Return topics for the open period, backfilling legacy rows without period_id."""
-    open_period = SqlPeriodRepository(db).get_open_period()
+    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open()
     topics = service.list_topics()
     if open_period is None:
         return []
@@ -102,14 +123,22 @@ def read_topics(
     _: Actor = Depends(get_current_actor),
     db: Session = Depends(get_db),
 ) -> TopicListResponse:
-    """Return open-period topics with votes. Any signed-in person may look."""
+    """Return open-period topics with votes and opinions. Any signed-in person may look."""
     topics = _topics_for_open_period(service, db)
-    votes = service.list_votes_for_topics([topic.id for topic in topics])
+    topic_ids = [topic.id for topic in topics]
+    votes = service.list_votes_for_topics(topic_ids)
+    opinions = service.list_opinions_for_topics(topic_ids)
     by_topic: dict[str, list[TopicVoteRecord]] = {topic.id: [] for topic in topics}
+    opinions_by_topic: dict[str, list[TopicOpinionRecord]] = {topic.id: [] for topic in topics}
     for vote in votes:
         by_topic.setdefault(vote.topic_id, []).append(vote)
+    for opinion in opinions:
+        opinions_by_topic.setdefault(opinion.topic_id, []).append(opinion)
     return TopicListResponse(
-        items=[_topic_response(topic, by_topic.get(topic.id, [])) for topic in topics],
+        items=[
+            _topic_response(topic, by_topic.get(topic.id, []), opinions_by_topic.get(topic.id, []))
+            for topic in topics
+        ],
     )
 
 
@@ -122,7 +151,7 @@ def create_topic(
     db: Session = Depends(get_db),
 ) -> TopicResponse:
     """Create a topic in status 1 (open). Only committee members may create."""
-    open_period = SqlPeriodRepository(db).get_open_period()
+    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open()
     if open_period is None:
         raise HTTPException(status_code=409, detail="Period is not open.")
     topic = service.create_topic(
@@ -251,7 +280,9 @@ def cast_vote(
     _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> CastVoteResponse:
-    """Store the actor's first vote. Only committee members may vote."""
+    """Store the actor's first vote. Only listed committee voters may vote."""
+    if not is_listed_committee_member(db, actor.user_id):
+        raise HTTPException(status_code=403, detail="Only committee voters may vote.")
     access = SqlAccessRepository(db)
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
@@ -280,3 +311,31 @@ def cast_vote(
         status_id=topic.status_id,
         vote=_vote_response(vote),
     )
+
+
+@router.post("/topics/{topic_id}/opinions", response_model=UpsertOpinionResponse)
+def upsert_opinion(
+    topic_id: str,
+    body: UpsertOpinionRequest,
+    service: TopicService = Depends(get_topic_service),
+    actor: Actor = Depends(require_permission("matters", "comment")),
+    _: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
+) -> UpsertOpinionResponse:
+    """Create or replace the actor's opinion. Listed voters and the client may write."""
+    access = SqlAccessRepository(db)
+    user = next((item for item in access.list_users() if item.id == actor.user_id), None)
+    if user is None:
+        raise HTTPException(status_code=503, detail="Current user is not available.")
+    try:
+        opinion = service.upsert_opinion(
+            topic_id,
+            author_id=actor.user_id,
+            author_name=user.full_name,
+            body=body.body,
+        )
+    except TopicNotFound as error:
+        raise HTTPException(status_code=404, detail="Topic not found.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return UpsertOpinionResponse(topic_id=topic_id, opinion=_opinion_response(opinion))

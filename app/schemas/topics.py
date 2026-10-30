@@ -42,6 +42,12 @@ class CastVoteRequest(BaseModel):
     choice: Literal["yes", "no", "abstain"]
 
 
+class UpsertOpinionRequest(BaseModel):
+    """Written opinion body for one topic."""
+
+    body: str = Field(min_length=1, max_length=500)
+
+
 class TopicVoteResponse(BaseModel):
     """One stored vote."""
 
@@ -51,8 +57,18 @@ class TopicVoteResponse(BaseModel):
     choice: Literal["yes", "no", "abstain"]
 
 
+class TopicOpinionResponse(BaseModel):
+    """One stored opinion."""
+
+    id: str
+    author_id: str
+    author_name: str
+    body: str
+    created_at: str
+
+
 class TopicResponse(BaseModel):
-    """A stored topic, including status, priority, and votes."""
+    """A stored topic, including status, priority, votes, and opinions."""
 
     id: str
     title: str
@@ -66,6 +82,7 @@ class TopicResponse(BaseModel):
     start_date: str | None = None
     due_date: str | None = None
     votes: list[TopicVoteResponse]
+    opinions: list[TopicOpinionResponse] = []
 
 
 class TopicListResponse(BaseModel):
@@ -80,3 +97,10 @@ class CastVoteResponse(BaseModel):
     topic_id: str
     status_id: int
     vote: TopicVoteResponse
+
+
+class UpsertOpinionResponse(BaseModel):
+    """The saved opinion for one topic."""
+
+    topic_id: str
+    opinion: TopicOpinionResponse

@@ -34,7 +34,7 @@ from app.schemas.access import (
     UserResponse,
 )
 from app.services.access_service import PermissionPolicy, RoleService, UserService
-from app.services.committee_access import ensure_committee_access
+from app.services.committee_access import is_listed_committee_member
 
 router = APIRouter(tags=["access"])
 
@@ -112,12 +112,7 @@ def read_me(
         role_id=user.role_id,
         role_key=role_key,
         permissions=sorted(actor.permissions),
-        is_committee_member=ensure_committee_access(
-            db,
-            user.id,
-            role_name,
-            actor.permissions,
-        ),
+        is_committee_member=is_listed_committee_member(db, user.id),
         is_super_admin=actor.is_super_admin,
         client_id=user.client_id,
     )

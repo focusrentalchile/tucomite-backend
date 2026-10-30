@@ -3,8 +3,8 @@ from datetime import date, datetime, timezone
 from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.domain.topics import CLOSED_STATUS_ID, StatusRecord, TopicRecord, TopicVoteRecord
-from app.models.topics import StatusModel, TopicModel, TopicVoteModel
+from app.domain.topics import CLOSED_STATUS_ID, StatusRecord, TopicOpinionRecord, TopicRecord, TopicVoteRecord
+from app.models.topics import StatusModel, TopicModel, TopicOpinionModel, TopicVoteModel
 
 class TopicRepository(Protocol):
     """Persistence port used by the topic service."""
@@ -36,6 +36,18 @@ class TopicRepository(Protocol):
         """Insert one vote."""
     def save_vote(self, vote: TopicVoteRecord) -> None:
         """Update the choice stored for one vote."""
+
+    def list_opinions_for_topics(self, topic_ids: list[str]) -> list[TopicOpinionRecord]:
+        """Return every opinion belonging to the given topics."""
+
+    def get_opinion(self, topic_id: str, author_id: str) -> TopicOpinionRecord | None:
+        """Return the opinion written by one author on one topic."""
+
+    def add_opinion(self, opinion: TopicOpinionRecord) -> None:
+        """Insert one opinion."""
+
+    def save_opinion(self, opinion: TopicOpinionRecord) -> None:
+        """Update the body stored for one opinion."""
 
 class SqlTopicRepository:
     """SQLAlchemy adapter for the MySQL topic tables."""
@@ -117,6 +129,11 @@ class SqlTopicRepository:
         ).all()
         for vote in votes:
             self._session.delete(vote)
+        opinions = self._session.scalars(
+            select(TopicOpinionModel).where(TopicOpinionModel.topic_id == topic_id),
+        ).all()
+        for opinion in opinions:
+            self._session.delete(opinion)
         row = self._session.get(TopicModel, topic_id)
         if row is not None:
             self._session.delete(row)
@@ -164,6 +181,46 @@ class SqlTopicRepository:
         if row is not None:
             row.choice = vote.choice
             row.author_name = vote.author_name
+
+    def list_opinions_for_topics(self, topic_ids: list[str]) -> list[TopicOpinionRecord]:
+        if not topic_ids:
+            return []
+        rows = self._session.scalars(
+            select(TopicOpinionModel)
+            .where(TopicOpinionModel.topic_id.in_(topic_ids))
+            .order_by(TopicOpinionModel.created_at),
+        ).all()
+        return [self._opinion(row) for row in rows]
+
+    def get_opinion(self, topic_id: str, author_id: str) -> TopicOpinionRecord | None:
+        row = self._session.scalar(
+            select(TopicOpinionModel).where(
+                TopicOpinionModel.topic_id == topic_id,
+                TopicOpinionModel.author_id == author_id,
+            ),
+        )
+        if row is None:
+            return None
+        return self._opinion(row)
+
+    def add_opinion(self, opinion: TopicOpinionRecord) -> None:
+        self._session.add(
+            TopicOpinionModel(
+                id=opinion.id,
+                topic_id=opinion.topic_id,
+                author_id=opinion.author_id,
+                author_name=opinion.author_name,
+                body=opinion.body,
+                created_at=datetime.fromisoformat(opinion.created_at),
+            ),
+        )
+
+    def save_opinion(self, opinion: TopicOpinionRecord) -> None:
+        row = self._session.get(TopicOpinionModel, opinion.id)
+        if row is not None:
+            row.body = opinion.body
+            row.author_name = opinion.author_name
+
     def _topic(self, row: TopicModel) -> TopicRecord:
         return TopicRecord(
             id=row.id,
@@ -188,4 +245,14 @@ class SqlTopicRepository:
             author_id=row.author_id,
             author_name=row.author_name,
             choice=row.choice,
+        )
+
+    def _opinion(self, row: TopicOpinionModel) -> TopicOpinionRecord:
+        return TopicOpinionRecord(
+            id=row.id,
+            topic_id=row.topic_id,
+            author_id=row.author_id,
+            author_name=row.author_name,
+            body=row.body,
+            created_at=row.created_at.isoformat(),
         )

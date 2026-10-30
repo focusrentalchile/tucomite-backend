@@ -59,3 +59,17 @@ class TopicVoteModel(Base):
     author_id: Mapped[str] = mapped_column(String(36), index=True)
     author_name: Mapped[str] = mapped_column(String(160))
     choice: Mapped[str] = mapped_column(String(8))
+
+
+class TopicOpinionModel(Base):
+    """One written opinion per person on a topic."""
+
+    __tablename__ = "topic_opinions"
+    __table_args__ = (UniqueConstraint("topic_id", "author_id", name="uq_topic_opinions_author"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
+    author_id: Mapped[str] = mapped_column(String(36), index=True)
+    author_name: Mapped[str] = mapped_column(String(160))
+    body: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime)

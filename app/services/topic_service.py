@@ -6,6 +6,8 @@ import uuid
 
 
 
+from datetime import datetime, timezone
+
 from app.domain.topics import (
 
     MEDIUM_PRIORITY_ID,
@@ -27,6 +29,8 @@ from app.domain.topics import (
     StatusRecord,
 
     TopicNotFound,
+
+    TopicOpinionRecord,
 
     TopicRecord,
 
@@ -105,7 +109,46 @@ class TopicService:
 
         return self._repository.list_votes_for_topics(topic_ids)
 
+    def list_opinions_for_topics(self, topic_ids: list[str]) -> list[TopicOpinionRecord]:
+        """Return every opinion for the given topics."""
+        return self._repository.list_opinions_for_topics(topic_ids)
 
+    def upsert_opinion(
+        self,
+        topic_id: str,
+        author_id: str,
+        author_name: str,
+        body: str,
+    ) -> TopicOpinionRecord:
+        """Create or replace one person's opinion on a topic."""
+        topic = self._repository.get_topic(topic_id)
+        if topic is None:
+            raise TopicNotFound()
+        text = body.strip()
+        if not text:
+            raise ValueError("Opinion body is required.")
+        existing = self._repository.get_opinion(topic_id, author_id)
+        if existing is not None:
+            updated = TopicOpinionRecord(
+                id=existing.id,
+                topic_id=existing.topic_id,
+                author_id=existing.author_id,
+                author_name=author_name.strip(),
+                body=text,
+                created_at=existing.created_at,
+            )
+            self._repository.save_opinion(updated)
+            return updated
+        opinion = TopicOpinionRecord(
+            id=str(uuid.uuid4()),
+            topic_id=topic_id,
+            author_id=author_id,
+            author_name=author_name.strip(),
+            body=text,
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+        )
+        self._repository.add_opinion(opinion)
+        return opinion
 
     def create_topic(
 

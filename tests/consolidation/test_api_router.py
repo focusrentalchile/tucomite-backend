@@ -17,6 +17,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/users/{user_id}" in paths
     assert "/topics" in paths
     assert "/topics/{topic_id}/votes" in paths
+    assert "/topics/{topic_id}/opinions" in paths
     assert "/access/me" in paths
     assert "/committee/members" in paths
     assert "/committee/members/{user_id}" in paths

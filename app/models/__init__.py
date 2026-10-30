@@ -6,7 +6,7 @@ from app.models.management import ManagementMessageModel, ManagementTaskModel, M
 from app.models.notifications import NotificationModel
 from app.models.periods import PeriodModel
 from app.models.projects import ProjectModel
-from app.models.topics import PriorityModel, StatusModel, TopicModel, TopicVoteModel
+from app.models.topics import PriorityModel, StatusModel, TopicModel, TopicOpinionModel, TopicVoteModel
 
 __all__ = [
     "CommitteeMemberModel",
@@ -23,6 +23,7 @@ __all__ = [
     "RolePermissionModel",
     "StatusModel",
     "TopicModel",
+    "TopicOpinionModel",
     "TopicVoteModel",
     "UserModel",
 ]

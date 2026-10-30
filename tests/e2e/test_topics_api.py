@@ -145,6 +145,47 @@ def test_topic_update_move_and_delete_survive_reload() -> None:
     assert all(item["id"] != topic_id for item in listed_after.json()["items"])
 
 
+def test_opinion_is_stored_and_visible_to_everyone() -> None:
+    _ensure_actor_on_committee()
+    created = client.post(
+        "/api/v1/topics",
+        json={
+            "title": "Ascensor",
+            "description": "Hace ruido.",
+            "category_key": "maintenance",
+            "attachment_name": "",
+            "decision": "¿Llamamos al técnico?",
+            "priority_id": 2,
+        },
+    )
+    assert created.status_code == 201
+    topic_id = created.json()["id"]
+
+    written = client.post(
+        f"/api/v1/topics/{topic_id}/opinions",
+        json={"body": "Hay que cotizar dos proveedores."},
+    )
+    assert written.status_code == 200
+    assert written.json()["opinion"]["body"] == "Hay que cotizar dos proveedores."
+
+    listed = client.get("/api/v1/topics")
+    assert listed.status_code == 200
+    stored = next(item for item in listed.json()["items"] if item["id"] == topic_id)
+    assert len(stored["opinions"]) == 1
+    assert stored["opinions"][0]["body"] == "Hay que cotizar dos proveedores."
+    assert stored["opinions"][0]["author_name"]
+
+    updated = client.post(
+        f"/api/v1/topics/{topic_id}/opinions",
+        json={"body": "Mejor tres proveedores."},
+    )
+    assert updated.status_code == 200
+    listed_again = client.get("/api/v1/topics")
+    stored_again = next(item for item in listed_again.json()["items"] if item["id"] == topic_id)
+    assert len(stored_again["opinions"]) == 1
+    assert stored_again["opinions"][0]["body"] == "Mejor tres proveedores."
+
+
 def test_assigning_building_admin_opens_support_task_with_same_priority() -> None:
     login_as_demo_admin(client)
     me = client.get("/api/v1/access/me")

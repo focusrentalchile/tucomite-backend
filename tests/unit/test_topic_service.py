@@ -240,6 +240,30 @@ def test_vote_on_missing_topic_raises() -> None:
 
 
 
+def test_upsert_opinion_creates_and_updates() -> None:
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Luminarias",
+        description="Están apagadas.",
+        category_key="security",
+        attachment_name="",
+        decision="¿Pedimos cotizaciones?",
+    )
+
+    first = service.upsert_opinion(topic.id, "user-1", "Ana Pérez", "Hay que cotizar")
+    second = service.upsert_opinion(topic.id, "user-2", "Luis Soto", "Mejor esperar")
+    updated = service.upsert_opinion(topic.id, "user-1", "Ana Pérez", "Cotizar ya")
+
+    listed = service.list_opinions_for_topics([topic.id])
+    assert len(listed) == 2
+    assert first.id == updated.id
+    assert updated.body == "Cotizar ya"
+    assert {item.author_id for item in listed} == {"user-1", "user-2"}
+    assert second.body == "Mejor esperar"
+
+
 def test_update_move_and_delete_topic_persist() -> None:
 
     repository = InMemoryTopicRepository()
