@@ -1,7 +1,7 @@
 """Persistence for topic statuses, topics, and votes."""
 from datetime import date, datetime, timezone
 from typing import Protocol
-from sqlalchemy import select
+from sqlalchemy import delete, inspect, select
 from sqlalchemy.orm import Session
 from app.domain.topics import CLOSED_STATUS_ID, StatusRecord, TopicOpinionRecord, TopicRecord, TopicVoteRecord
 from app.models.topics import StatusModel, TopicModel, TopicOpinionModel, TopicVoteModel
@@ -124,16 +124,12 @@ class SqlTopicRepository:
         row.start_date = date.fromisoformat(start_date) if start_date else None
         row.due_date = date.fromisoformat(due_date)
     def delete_topic(self, topic_id: str) -> None:
-        votes = self._session.scalars(
-            select(TopicVoteModel).where(TopicVoteModel.topic_id == topic_id),
-        ).all()
-        for vote in votes:
-            self._session.delete(vote)
-        opinions = self._session.scalars(
-            select(TopicOpinionModel).where(TopicOpinionModel.topic_id == topic_id),
-        ).all()
-        for opinion in opinions:
-            self._session.delete(opinion)
+        self._session.execute(delete(TopicVoteModel).where(TopicVoteModel.topic_id == topic_id))
+        bind = self._session.get_bind()
+        if bind is not None and inspect(bind).has_table("topic_opinions"):
+            self._session.execute(
+                delete(TopicOpinionModel).where(TopicOpinionModel.topic_id == topic_id),
+            )
         row = self._session.get(TopicModel, topic_id)
         if row is not None:
             self._session.delete(row)
