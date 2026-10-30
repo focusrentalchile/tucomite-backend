@@ -14,8 +14,11 @@ from app.domain.topics import (
     VoteAlreadyCast,
 )
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
+
+MIN_COMMITTEE_FOR_VOTE = 3
 from app.schemas.topics import (
     CastVoteRequest,
     CastVoteResponse,
@@ -253,6 +256,12 @@ def cast_vote(
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
+    member_count = len(SqlCommitteeRepository(db).list_members())
+    if member_count < MIN_COMMITTEE_FOR_VOTE:
+        raise HTTPException(
+            status_code=409,
+            detail="At least three committee members are required to vote.",
+        )
     try:
         topic, vote = service.cast_vote(
             topic_id,
