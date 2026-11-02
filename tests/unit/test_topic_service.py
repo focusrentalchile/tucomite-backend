@@ -346,3 +346,55 @@ def test_update_move_and_delete_topic_persist() -> None:
 
     assert repository.get_topic(topic.id) is None
 
+
+def test_completion_and_confirmations_gate_close() -> None:
+    from app.domain.topics import (
+        CompletionNotSubmitted,
+        CompletionQuorumNotMet,
+        ConfirmationAlreadyCast,
+    )
+
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Luminarias",
+        description="Están apagadas.",
+        category_key="security",
+        attachment_name="",
+        decision="¿Pedimos cotizaciones?",
+    )
+    service.move_topic(topic.id, 3)
+
+    try:
+        service.move_topic(topic.id, 4, committee_size=3)
+        raise AssertionError("expected CompletionNotSubmitted")
+    except CompletionNotSubmitted:
+        pass
+
+    completed = service.submit_completion(
+        topic.id,
+        note="Ya se cambió la luminaria.",
+        attachments=[{"kind": "image", "name": "foto.jpg", "url": "data:image/jpeg;base64,abc"}],
+    )
+    assert completed.completion_note == "Ya se cambió la luminaria."
+    assert completed.completion_submitted_at
+    assert len(repository.list_completion_attachments_for_topics([topic.id])) == 1
+
+    try:
+        service.move_topic(topic.id, 4, committee_size=3)
+        raise AssertionError("expected CompletionQuorumNotMet")
+    except CompletionQuorumNotMet:
+        pass
+
+    service.confirm_completion(topic.id, "user-1", "Ana")
+    service.confirm_completion(topic.id, "user-2", "Luis")
+    try:
+        service.confirm_completion(topic.id, "user-1", "Ana")
+        raise AssertionError("expected ConfirmationAlreadyCast")
+    except ConfirmationAlreadyCast:
+        pass
+
+    closed = service.move_topic(topic.id, 4, committee_size=3)
+    assert closed.status_id == 4
+

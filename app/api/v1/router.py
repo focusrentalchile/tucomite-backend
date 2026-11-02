@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     access,
+    agreements,
     auth,
     clients,
     committee,
@@ -28,3 +29,4 @@ api_router.include_router(reports.router)
 api_router.include_router(management.router)
 api_router.include_router(notifications.router)
 api_router.include_router(topics.router)
+api_router.include_router(agreements.router)

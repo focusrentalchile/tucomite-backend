@@ -237,3 +237,75 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
     assert match["subject"] == "Filtración en techo"
     assert match["due_date"] == "2026-11-15"
     assert match["assignee_user_id"] == admin_id
+
+
+def test_completion_requires_quorum_before_close() -> None:
+    from tests.helpers.platform_accounts import SEED_PASSWORD
+
+    def login(email: str) -> None:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": SEED_PASSWORD},
+        )
+        assert response.status_code == 200, response.text
+
+    login("comite@demo.tucomite.local")
+    me = client.get("/api/v1/access/me")
+    assert me.status_code == 200
+    assignee_id = me.json()["id"]
+
+    created = client.post(
+        "/api/v1/topics",
+        json={
+            "title": "Pintura hall",
+            "description": "Hay que pintar.",
+            "category_key": "maintenance",
+            "attachment_name": "",
+            "decision": "¿Contratamos pintor?",
+            "priority_id": 2,
+        },
+    )
+    assert created.status_code == 201
+    topic_id = created.json()["id"]
+
+    moved = client.patch(
+        f"/api/v1/topics/{topic_id}/status",
+        json={
+            "status_id": 3,
+            "assignee_user_id": assignee_id,
+            "start_date": "2026-11-01",
+            "due_date": "2026-11-20",
+        },
+    )
+    assert moved.status_code == 200
+
+    blocked = client.patch(f"/api/v1/topics/{topic_id}/status", json={"status_id": 4})
+    assert blocked.status_code == 409
+
+    completed = client.post(
+        f"/api/v1/topics/{topic_id}/completion",
+        json={
+            "note": "Ya se pintó el hall.",
+            "attachments": [
+                {"kind": "image", "name": "hall.jpg", "url": "data:image/jpeg;base64,abc"},
+            ],
+        },
+    )
+    assert completed.status_code == 200
+    assert completed.json()["topic"]["completion_note"] == "Ya se pintó el hall."
+    assert len(completed.json()["topic"]["completion_attachments"]) == 1
+
+    still_blocked = client.patch(f"/api/v1/topics/{topic_id}/status", json={"status_id": 4})
+    assert still_blocked.status_code == 409
+
+    first = client.post(f"/api/v1/topics/{topic_id}/confirmations")
+    assert first.status_code == 200
+
+    login("comite2@demo.tucomite.local")
+    second = client.post(f"/api/v1/topics/{topic_id}/confirmations")
+    assert second.status_code == 200
+
+    login("comite@demo.tucomite.local")
+    closed = client.patch(f"/api/v1/topics/{topic_id}/status", json={"status_id": 4})
+    assert closed.status_code == 200
+    assert closed.json()["status_id"] == 4

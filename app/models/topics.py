@@ -47,6 +47,8 @@ class TopicModel(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     period_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("periods.id"), nullable=True, index=True)
+    completion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    completion_submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class TopicVoteModel(Base):
@@ -76,10 +78,35 @@ class TopicOpinionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class TopicConfirmationModel(Base):
+    """One committee confirmation that execution work is finished."""
+
+    __tablename__ = "topic_confirmations"
+    __table_args__ = (UniqueConstraint("topic_id", "author_id", name="uq_topic_confirmations_author"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
+    author_id: Mapped[str] = mapped_column(String(36), index=True)
+    author_name: Mapped[str] = mapped_column(String(160))
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class TopicAttachmentModel(Base):
     """One image, video, or file attached to a topic (url may be a data URL)."""
 
     __tablename__ = "topic_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"))
+
+
+class TopicCompletionAttachmentModel(Base):
+    """Evidence files uploaded when execution work is marked complete."""
+
+    __tablename__ = "topic_completion_attachments"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)

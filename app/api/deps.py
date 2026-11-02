@@ -12,8 +12,10 @@ from app.repositories.client_repository import SqlClientRepository
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.project_repository import SqlProjectRepository
+from app.repositories.agreement_repository import SqlAgreementRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.access_service import PermissionPolicy, RoleService, UserService
+from app.services.agreement_service import AgreementService
 from app.services.client_service import ClientService
 from app.services.committee_access import ensure_committee_access
 from app.services.committee_service import CommitteeService
@@ -72,6 +74,15 @@ def get_project_service(db: Session = Depends(get_db)) -> ProjectService:
 def get_report_service(db: Session = Depends(get_db)) -> ReportService:
     """Build a report service bound to the request session."""
     return ReportService(SqlTopicRepository(db), SqlProjectRepository(db), SqlPeriodRepository(db))
+
+
+def get_agreement_service(db: Session = Depends(get_db)) -> AgreementService:
+    """Build an agreement service bound to the request session."""
+    return AgreementService(
+        SqlAgreementRepository(db),
+        SqlTopicRepository(db),
+        SqlClientRepository(db),
+    )
 
 
 def get_current_actor(request: Request, db: Session = Depends(get_db)) -> Actor:

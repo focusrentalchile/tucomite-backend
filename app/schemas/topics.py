@@ -58,6 +58,13 @@ class UpsertOpinionRequest(BaseModel):
     body: str = Field(min_length=1, max_length=500)
 
 
+class SubmitCompletionRequest(BaseModel):
+    """Solution note and evidence when execution work is finished."""
+
+    note: str = Field(min_length=1, max_length=500)
+    attachments: list[TopicAttachmentPayload] = []
+
+
 class TopicVoteResponse(BaseModel):
     """One stored vote."""
 
@@ -74,6 +81,15 @@ class TopicOpinionResponse(BaseModel):
     author_id: str
     author_name: str
     body: str
+    created_at: str
+
+
+class TopicConfirmationResponse(BaseModel):
+    """One stored completion confirmation."""
+
+    id: str
+    author_id: str
+    author_name: str
     created_at: str
 
 
@@ -103,6 +119,10 @@ class TopicResponse(BaseModel):
     votes: list[TopicVoteResponse]
     opinions: list[TopicOpinionResponse] = []
     attachments: list[TopicAttachmentResponse] = []
+    completion_note: str | None = None
+    completion_submitted_at: str | None = None
+    completion_attachments: list[TopicAttachmentResponse] = []
+    confirmations: list[TopicConfirmationResponse] = []
 
 
 class TopicListResponse(BaseModel):
@@ -124,3 +144,16 @@ class UpsertOpinionResponse(BaseModel):
 
     topic_id: str
     opinion: TopicOpinionResponse
+
+
+class SubmitCompletionResponse(BaseModel):
+    """The topic after completion evidence was stored."""
+
+    topic: TopicResponse
+
+
+class ConfirmCompletionResponse(BaseModel):
+    """The saved confirmation and topic id."""
+
+    topic_id: str
+    confirmation: TopicConfirmationResponse

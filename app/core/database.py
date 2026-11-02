@@ -115,6 +115,11 @@ def init_database() -> None:
                 ("created_at", "ALTER TABLE `topics` ADD COLUMN `created_at` DATETIME NULL"),
                 ("closed_at", "ALTER TABLE `topics` ADD COLUMN `closed_at` DATETIME NULL"),
                 ("period_id", "ALTER TABLE `topics` ADD COLUMN `period_id` VARCHAR(36) NULL"),
+                ("completion_note", "ALTER TABLE `topics` ADD COLUMN `completion_note` VARCHAR(500) NULL"),
+                (
+                    "completion_submitted_at",
+                    "ALTER TABLE `topics` ADD COLUMN `completion_submitted_at` DATETIME NULL",
+                ),
             ):
                 has_column = connection.execute(
                     text(

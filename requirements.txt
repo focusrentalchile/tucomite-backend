@@ -6,3 +6,4 @@ sqlalchemy==2.0.44
 pymysql==1.1.2
 cryptography==46.0.3
 itsdangerous==2.2.0
+reportlab==4.4.3

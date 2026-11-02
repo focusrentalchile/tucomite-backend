@@ -61,6 +61,8 @@ class TopicRecord:
     created_at: str | None = None
     closed_at: str | None = None
     period_id: str | None = None
+    completion_note: str | None = None
+    completion_submitted_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,17 @@ class TopicOpinionRecord:
     created_at: str
 
 
+@dataclass(frozen=True)
+class TopicConfirmationRecord:
+    """One committee member confirming that execution work is finished."""
+
+    id: str
+    topic_id: str
+    author_id: str
+    author_name: str
+    created_at: str
+
+
 ATTACHMENT_KINDS = frozenset({"image", "video", "file"})
 
 
@@ -100,6 +113,13 @@ class TopicAttachmentRecord:
     url: str
 
 
+def completion_quorum_met(confirmed_count: int, committee_size: int) -> bool:
+    """True when strictly more than half the committee has confirmed completion."""
+    if committee_size <= 0:
+        return False
+    return confirmed_count > (committee_size / 2)
+
+
 class TopicNotFound(Exception):
     """Raised when a topic id does not exist."""
 
@@ -110,6 +130,22 @@ class InvalidVoteChoice(Exception):
 
 class VoteAlreadyCast(Exception):
     """Raised when the person already voted on this topic."""
+
+
+class ConfirmationAlreadyCast(Exception):
+    """Raised when the person already confirmed topic completion."""
+
+
+class CompletionNotSubmitted(Exception):
+    """Raised when completion evidence is required but missing."""
+
+
+class CompletionAlreadySubmitted(Exception):
+    """Raised when completion evidence was already submitted."""
+
+
+class CompletionQuorumNotMet(Exception):
+    """Raised when closing requires more than 50% committee confirmations."""
 
 
 class InvalidTopicStatus(Exception):

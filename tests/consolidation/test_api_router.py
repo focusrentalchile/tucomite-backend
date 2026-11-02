@@ -36,6 +36,9 @@ def test_v1_router_includes_health_path() -> None:
     assert "/management/workspace/imports/{import_id}/reject" in paths
     assert "/notifications" in paths
     assert "/notifications/{notification_id}/read" in paths
+    assert "/agreements" in paths
+    assert "/agreements/{agreement_id}" in paths
+    assert "/agreements/{agreement_id}/pdf" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:
