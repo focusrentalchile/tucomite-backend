@@ -69,6 +69,8 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
     request.session[SESSION_USER_KEY] = user.id
     role_key = "super_admin" if role.system else role.name
     permissions = sorted(role.permissions)
+    if not role.system:
+        ensure_committee_access(db, user.id, role.name, role.permissions)
     return _login_response(
         user=user,
         role_key=role_key,
@@ -106,6 +108,8 @@ def read_session(
     role_name = access_role.name if access_role is not None else ""
     role_key = "super_admin" if actor.is_super_admin else role_name
     permissions = sorted(actor.permissions)
+    if not actor.is_super_admin:
+        ensure_committee_access(db, user.id, role_name, actor.permissions)
     return _login_response(
         user=user,
         role_key=role_key,
