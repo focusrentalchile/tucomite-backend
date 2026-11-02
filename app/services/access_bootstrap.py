@@ -10,13 +10,14 @@ from app.repositories.client_repository import ClientRepository
 from app.utils.passwords import hash_password
 
 DEMO_CLIENT_NAME = "Cliente de prueba"
-# Shared by demo building accounts (administrator / committee / resident).
+# Shared by demo building accounts (administrator / committee / caretaker).
 DEMO_BUILDING_PASSWORD = "123456"
 # Building owner login. Legacy seed used admin@; bootstrap renames it.
 DEMO_CLIENT_EMAIL = "client@tucomite.cl"
 LEGACY_DEMO_CLIENT_EMAIL = "admin@tucomite.cl"
 
 # English role keys. The admin site translates them in the Spanish locale.
+# Default building roles: committee, caretaker (Mayordomo), client, administrator.
 STARTER_ROLES: dict[str, frozenset[str]] = {
     "committee": frozenset(
         {
@@ -41,7 +42,8 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
-    "resident": frozenset(
+    # On-site building caretaker (Spanish UI: Mayordomo). Replaces legacy "resident".
+    "caretaker": frozenset(
         {
             "notifications.receive",
         }
@@ -64,6 +66,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "roles.create",
             "roles.update",
             "roles.delete",
+            "management.approve_import",
         }
     ),
 }
@@ -80,6 +83,7 @@ def bootstrap_access(
 ) -> None:
     """Sync modules and starter roles. Platform users are stored only in the database."""
     _migrate_legacy_management_permissions(repository)
+    _migrate_resident_role_to_caretaker(repository)
     repository.replace_catalog(catalog.modules())
     keys = catalog.permission_keys()
     role = repository.get_system_role()
@@ -235,17 +239,51 @@ def upsert_platform_accounts(
     _ensure_demo_building_users(repository, client.id, demo_hash)
 
 
+def _migrate_resident_role_to_caretaker(repository: AccessRepository) -> None:
+    """Rename legacy resident starter role to caretaker (Mayordomo)."""
+    roles = {role.name.casefold(): role for role in repository.list_roles()}
+    legacy = roles.get("resident")
+    if legacy is None or legacy.system:
+        return
+    if "caretaker" in roles:
+        return
+    repository.save_role(
+        RoleRecord(
+            id=legacy.id,
+            name="caretaker",
+            system=False,
+            permissions=legacy.permissions or STARTER_ROLES["caretaker"],
+        ),
+    )
+    # Point the demo caretaker email at the renamed role when still on the old address.
+    legacy_demo = repository.get_user_by_email("residente@demo.tucomite.local")
+    if legacy_demo is not None and repository.get_user_by_email("mayordomo@demo.tucomite.local") is None:
+        repository.save_user(
+            UserRecord(
+                id=legacy_demo.id,
+                full_name="Mayordomo demo",
+                email="mayordomo@demo.tucomite.local",
+                password_hash=legacy_demo.password_hash,
+                role_id=legacy.id,
+                client_id=legacy_demo.client_id,
+                period_id=legacy_demo.period_id,
+            ),
+        )
+
+
 def _ensure_demo_building_users(
     repository: AccessRepository,
     client_id: str,
     password_hash: str,
 ) -> None:
-    """Ensure one demo user for administrator, committee, and resident."""
+    """Ensure demo users for administrator, three committee voters, and caretaker."""
     by_name = {role.name.casefold(): role for role in repository.list_roles()}
     seeds = (
         ("administrator", "Administrador demo", "administrador@demo.tucomite.local"),
         ("committee", "Comité demo", "comite@demo.tucomite.local"),
-        ("resident", "Residente demo", "residente@demo.tucomite.local"),
+        ("committee", "Comité demo 2", "comite2@demo.tucomite.local"),
+        ("committee", "Comité demo 3", "comite3@demo.tucomite.local"),
+        ("caretaker", "Mayordomo demo", "mayordomo@demo.tucomite.local"),
     )
     for role_name, full_name, email in seeds:
         role = by_name.get(role_name)

@@ -335,3 +335,18 @@ def update_status(
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     return _task_response(ticket)
+
+
+@router.delete("/tasks/{task_id}", status_code=204)
+def delete_task(
+    task_id: str,
+    service: ManagementService = Depends(get_management_service),
+    actor: Actor = Depends(require_permission("management", "create")),
+) -> None:
+    """Remove a management ticket from the board."""
+    try:
+        existing = service.get_task(task_id)
+    except TaskNotFound:
+        raise HTTPException(status_code=404, detail="Ticket not found.") from None
+    _ensure_task_access(service, actor, existing.client_id)
+    service.delete_task(task_id)

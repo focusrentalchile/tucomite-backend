@@ -56,9 +56,8 @@ def init_database() -> None:
     from app.services.topic_service import ensure_topic_priorities, ensure_topic_statuses
 
     create_database()
-    # Local schema catch-up when columns were added after the first create_all.
+        # Local schema catch-up when columns were added after the first create_all.
     with engine.begin() as connection:
-        connection.execute(text("DROP TABLE IF EXISTS `projects`"))
         has_priority = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.COLUMNS "
@@ -145,6 +144,36 @@ def init_database() -> None:
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)
+        projects_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects'"
+            ),
+        ).scalar()
+        if projects_exist:
+            has_project_created = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'created_at'"
+                ),
+            ).scalar()
+            if not has_project_created:
+                connection.execute(
+                    text("ALTER TABLE `projects` ADD COLUMN `created_at` DATETIME NULL"),
+                )
+                connection.execute(
+                    text("UPDATE `projects` SET `created_at` = UTC_TIMESTAMP() WHERE `created_at` IS NULL"),
+                )
+            has_project_due = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'due_date'"
+                ),
+            ).scalar()
+            if not has_project_due:
+                connection.execute(text("ALTER TABLE `projects` ADD COLUMN `due_date` DATE NULL"))
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

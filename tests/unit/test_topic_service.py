@@ -240,6 +240,28 @@ def test_vote_on_missing_topic_raises() -> None:
 
 
 
+def test_create_topic_stores_attachments() -> None:
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+
+    topic = service.create_topic(
+        title="Luminarias",
+        description="Están apagadas.",
+        category_key="security",
+        attachment_name="luz.png",
+        decision="¿Pedimos cotizaciones?",
+        attachments=[
+            {"kind": "image", "name": "luz.png", "url": "data:image/png;base64,aaa"},
+            {"kind": "file", "name": "nota.pdf", "url": "data:application/pdf;base64,bbb"},
+        ],
+    )
+
+    stored = service.list_attachments_for_topics([topic.id])
+    assert len(stored) == 2
+    assert {item.kind for item in stored} == {"image", "file"}
+
+
 def test_upsert_opinion_creates_and_updates() -> None:
     repository = InMemoryTopicRepository()
     ensure_topic_statuses(repository)

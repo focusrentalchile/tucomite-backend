@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.domain.topics import (
     InvalidTopicStatus,
     InvalidVoteChoice,
+    TopicAttachmentRecord,
     TopicNotFound,
     TopicOpinionRecord,
     TopicRecord,
@@ -27,6 +28,7 @@ from app.schemas.topics import (
     CastVoteResponse,
     CreateTopicRequest,
     MoveTopicRequest,
+    TopicAttachmentResponse,
     TopicListResponse,
     TopicOpinionResponse,
     TopicResponse,
@@ -59,10 +61,20 @@ def _opinion_response(opinion: TopicOpinionRecord) -> TopicOpinionResponse:
     )
 
 
+def _attachment_response(attachment: TopicAttachmentRecord) -> TopicAttachmentResponse:
+    return TopicAttachmentResponse(
+        id=attachment.id,
+        kind=attachment.kind,  # type: ignore[arg-type]
+        name=attachment.name,
+        url=attachment.url,
+    )
+
+
 def _topic_response(
     topic: TopicRecord,
     votes: list[TopicVoteRecord],
     opinions: list[TopicOpinionRecord] | None = None,
+    attachments: list[TopicAttachmentRecord] | None = None,
 ) -> TopicResponse:
     return TopicResponse(
         id=topic.id,
@@ -78,6 +90,7 @@ def _topic_response(
         due_date=topic.due_date,
         votes=[_vote_response(vote) for vote in votes],
         opinions=[_opinion_response(item) for item in (opinions or [])],
+        attachments=[_attachment_response(item) for item in (attachments or [])],
     )
 
 
@@ -123,20 +136,29 @@ def read_topics(
     _: Actor = Depends(get_current_actor),
     db: Session = Depends(get_db),
 ) -> TopicListResponse:
-    """Return open-period topics with votes and opinions. Any signed-in person may look."""
+    """Return open-period topics with votes, opinions, and attachments."""
     topics = _topics_for_open_period(service, db)
     topic_ids = [topic.id for topic in topics]
     votes = service.list_votes_for_topics(topic_ids)
     opinions = service.list_opinions_for_topics(topic_ids)
+    attachments = service.list_attachments_for_topics(topic_ids)
     by_topic: dict[str, list[TopicVoteRecord]] = {topic.id: [] for topic in topics}
     opinions_by_topic: dict[str, list[TopicOpinionRecord]] = {topic.id: [] for topic in topics}
+    attachments_by_topic: dict[str, list[TopicAttachmentRecord]] = {topic.id: [] for topic in topics}
     for vote in votes:
         by_topic.setdefault(vote.topic_id, []).append(vote)
     for opinion in opinions:
         opinions_by_topic.setdefault(opinion.topic_id, []).append(opinion)
+    for attachment in attachments:
+        attachments_by_topic.setdefault(attachment.topic_id, []).append(attachment)
     return TopicListResponse(
         items=[
-            _topic_response(topic, by_topic.get(topic.id, []), opinions_by_topic.get(topic.id, []))
+            _topic_response(
+                topic,
+                by_topic.get(topic.id, []),
+                opinions_by_topic.get(topic.id, []),
+                attachments_by_topic.get(topic.id, []),
+            )
             for topic in topics
         ],
     )
@@ -162,8 +184,10 @@ def create_topic(
         body.decision,
         body.priority_id,
         period_id=open_period.id,
+        attachments=[item.model_dump() for item in body.attachments],
     )
-    return _topic_response(topic, [])
+    stored = service.list_attachments_for_topics([topic.id])
+    return _topic_response(topic, [], attachments=stored)
 
 
 @router.patch("/topics/{topic_id}", response_model=TopicResponse)
@@ -184,11 +208,14 @@ def update_topic(
             body.attachment_name,
             body.decision,
             body.priority_id,
+            attachments=[item.model_dump() for item in body.attachments],
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
     votes = service.list_votes_for_topics([topic.id])
-    return _topic_response(topic, votes)
+    opinions = service.list_opinions_for_topics([topic.id])
+    stored = service.list_attachments_for_topics([topic.id])
+    return _topic_response(topic, votes, opinions, stored)
 
 
 @router.patch("/topics/{topic_id}/status", response_model=TopicResponse)

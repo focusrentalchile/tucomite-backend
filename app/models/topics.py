@@ -2,7 +2,8 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -73,3 +74,15 @@ class TopicOpinionModel(Base):
     author_name: Mapped[str] = mapped_column(String(160))
     body: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class TopicAttachmentModel(Base):
+    """One image, video, or file attached to a topic (url may be a data URL)."""
+
+    __tablename__ = "topic_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"))

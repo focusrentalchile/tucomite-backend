@@ -2,12 +2,18 @@
 
 
 
-from app.domain.topics import StatusRecord, TopicOpinionRecord, TopicRecord, TopicVoteRecord
+from app.domain.topics import (
+    StatusRecord,
+    TopicAttachmentRecord,
+    TopicOpinionRecord,
+    TopicRecord,
+    TopicVoteRecord,
+)
 
 
 class InMemoryTopicRepository:
 
-    """Stores statuses, topics, votes, and opinions without MySQL."""
+    """Stores statuses, topics, votes, opinions, and attachments without MySQL."""
 
     def __init__(self) -> None:
 
@@ -18,6 +24,8 @@ class InMemoryTopicRepository:
         self.votes: list[TopicVoteRecord] = []
 
         self.opinions: list[TopicOpinionRecord] = []
+
+        self.attachments: list[TopicAttachmentRecord] = []
 
 
 
@@ -96,6 +104,8 @@ class InMemoryTopicRepository:
         self.votes = [vote for vote in self.votes if vote.topic_id != topic_id]
 
         self.opinions = [opinion for opinion in self.opinions if opinion.topic_id != topic_id]
+
+        self.attachments = [item for item in self.attachments if item.topic_id != topic_id]
 
         self.topics = [topic for topic in self.topics if topic.id != topic_id]
 
@@ -185,4 +195,15 @@ class InMemoryTopicRepository:
 
     def save_opinion(self, opinion: TopicOpinionRecord) -> None:
         self.opinions = [opinion if item.id == opinion.id else item for item in self.opinions]
+
+    def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
+        wanted = set(topic_ids)
+        return sorted(
+            [item for item in self.attachments if item.topic_id in wanted],
+            key=lambda item: item.name,
+        )
+
+    def replace_attachments(self, topic_id: str, attachments: list[TopicAttachmentRecord]) -> None:
+        self.attachments = [item for item in self.attachments if item.topic_id != topic_id]
+        self.attachments.extend(attachments)
 

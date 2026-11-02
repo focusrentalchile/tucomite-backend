@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import get_committee_service, require_permission
+from app.api.deps import get_committee_service, require_committee_roster_access, require_permission
 from app.domain.committee import (
     CommitteeMemberNotFound,
     CommitteeMemberRecord,
@@ -30,7 +30,7 @@ def _member_response(member: CommitteeMemberRecord) -> CommitteeMemberResponse:
 @router.get("/committee/members", response_model=CommitteeMemberListResponse)
 def read_committee_members(
     service: CommitteeService = Depends(get_committee_service),
-    _: object = Depends(require_permission("users", "view")),
+    _: object = Depends(require_committee_roster_access),
 ) -> CommitteeMemberListResponse:
     """Return every committee member."""
     return CommitteeMemberListResponse(items=[_member_response(member) for member in service.list_members()])

@@ -3,8 +3,15 @@ from datetime import date, datetime, timezone
 from typing import Protocol
 from sqlalchemy import delete, inspect, select
 from sqlalchemy.orm import Session
-from app.domain.topics import CLOSED_STATUS_ID, StatusRecord, TopicOpinionRecord, TopicRecord, TopicVoteRecord
-from app.models.topics import StatusModel, TopicModel, TopicOpinionModel, TopicVoteModel
+from app.domain.topics import (
+    CLOSED_STATUS_ID,
+    StatusRecord,
+    TopicAttachmentRecord,
+    TopicOpinionRecord,
+    TopicRecord,
+    TopicVoteRecord,
+)
+from app.models.topics import StatusModel, TopicAttachmentModel, TopicModel, TopicOpinionModel, TopicVoteModel
 
 class TopicRepository(Protocol):
     """Persistence port used by the topic service."""
@@ -48,6 +55,12 @@ class TopicRepository(Protocol):
 
     def save_opinion(self, opinion: TopicOpinionRecord) -> None:
         """Update the body stored for one opinion."""
+
+    def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
+        """Return every attachment belonging to the given topics."""
+
+    def replace_attachments(self, topic_id: str, attachments: list[TopicAttachmentRecord]) -> None:
+        """Replace every attachment for one topic."""
 
 class SqlTopicRepository:
     """SQLAlchemy adapter for the MySQL topic tables."""
@@ -129,6 +142,10 @@ class SqlTopicRepository:
         if bind is not None and inspect(bind).has_table("topic_opinions"):
             self._session.execute(
                 delete(TopicOpinionModel).where(TopicOpinionModel.topic_id == topic_id),
+            )
+        if bind is not None and inspect(bind).has_table("topic_attachments"):
+            self._session.execute(
+                delete(TopicAttachmentModel).where(TopicAttachmentModel.topic_id == topic_id),
             )
         row = self._session.get(TopicModel, topic_id)
         if row is not None:
@@ -217,6 +234,37 @@ class SqlTopicRepository:
             row.body = opinion.body
             row.author_name = opinion.author_name
 
+    def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
+        if not topic_ids:
+            return []
+        bind = self._session.get_bind()
+        if bind is None or not inspect(bind).has_table("topic_attachments"):
+            return []
+        rows = self._session.scalars(
+            select(TopicAttachmentModel)
+            .where(TopicAttachmentModel.topic_id.in_(topic_ids))
+            .order_by(TopicAttachmentModel.name),
+        ).all()
+        return [self._attachment(row) for row in rows]
+
+    def replace_attachments(self, topic_id: str, attachments: list[TopicAttachmentRecord]) -> None:
+        bind = self._session.get_bind()
+        if bind is None or not inspect(bind).has_table("topic_attachments"):
+            return
+        self._session.execute(
+            delete(TopicAttachmentModel).where(TopicAttachmentModel.topic_id == topic_id),
+        )
+        for attachment in attachments:
+            self._session.add(
+                TopicAttachmentModel(
+                    id=attachment.id,
+                    topic_id=attachment.topic_id,
+                    kind=attachment.kind,
+                    name=attachment.name,
+                    url=attachment.url,
+                ),
+            )
+
     def _topic(self, row: TopicModel) -> TopicRecord:
         return TopicRecord(
             id=row.id,
@@ -251,4 +299,13 @@ class SqlTopicRepository:
             author_name=row.author_name,
             body=row.body,
             created_at=row.created_at.isoformat(),
+        )
+
+    def _attachment(self, row: TopicAttachmentModel) -> TopicAttachmentRecord:
+        return TopicAttachmentRecord(
+            id=row.id,
+            topic_id=row.topic_id,
+            kind=row.kind,
+            name=row.name,
+            url=row.url,
         )

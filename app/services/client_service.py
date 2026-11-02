@@ -48,7 +48,7 @@ class ClientService:
         license_starts_at: str,
         license_ends_at: str,
     ) -> tuple[ClientRecord, UserRecord]:
-        """Create a client and an administrator user for that client."""
+        """Create a client owner and a default building administrator for that license."""
         cleaned_name = name.strip()
         if not cleaned_name:
             raise ValueError("Client name is required.")
@@ -69,11 +69,12 @@ class ClientService:
 
         client_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
+        password_hash = hash_password(password)
         user = UserRecord(
             id=user_id,
             full_name=cleaned_name,
             email=normalized,
-            password_hash=hash_password(password),
+            password_hash=password_hash,
             role_id=owner_role.id,
             client_id=client_id,
         )
@@ -86,7 +87,54 @@ class ClientService:
             license_ends_at=ends,
         )
         self._clients.add_client(client)
+        self.ensure_default_administrator(
+            client_id=client_id,
+            owner_email=normalized,
+            password_hash=password_hash,
+            building_name=cleaned_name,
+        )
         return client, user
+
+    def ensure_default_administrator(
+        self,
+        *,
+        client_id: str,
+        owner_email: str,
+        password_hash: str,
+        building_name: str,
+    ) -> UserRecord | None:
+        """Ensure one administrator user for the building when a license is opened.
+
+        The administrator keeps this building as home (`client_id`) and can later
+        import other buildings into the same account via Gestión workspace links.
+        """
+        admin_role = next(
+            (role for role in self._access.list_roles() if role.name.casefold() == "administrator"),
+            None,
+        )
+        if admin_role is None:
+            return None
+
+        for existing in self._access.list_users():
+            if existing.client_id == client_id and existing.role_id == admin_role.id:
+                return existing
+
+        admin_email = self._default_administrator_email(owner_email)
+        if self._access.get_user_by_email(admin_email) is not None:
+            suffix = client_id.replace("-", "")[:8]
+            local, _, domain = admin_email.partition("@")
+            admin_email = f"{local}.{suffix}@{domain}" if domain else f"{admin_email}.{suffix}"
+
+        record = UserRecord(
+            id=str(uuid.uuid4()),
+            full_name=f"Administrador · {building_name}"[:120],
+            email=admin_email,
+            password_hash=password_hash,
+            role_id=admin_role.id,
+            client_id=client_id,
+        )
+        self._access.add_user(record)
+        return record
 
     def update_client(
         self,
@@ -97,7 +145,7 @@ class ClientService:
         license_starts_at: str,
         license_ends_at: str,
     ) -> tuple[ClientRecord, UserRecord]:
-        """Update a client name, license, and administrator credentials."""
+        """Update a client name, license, and building-owner credentials."""
         client = self.get_client(client_id)
         cleaned_name = name.strip()
         if not cleaned_name:
@@ -142,6 +190,12 @@ class ClientService:
             if user.client_id == client_id:
                 self._access.delete_user(user.id)
         self._clients.delete_client(client_id)
+
+    def _default_administrator_email(self, owner_email: str) -> str:
+        local, sep, domain = owner_email.partition("@")
+        if not sep or not domain:
+            return f"administrador.{owner_email}@tucomite.local"
+        return f"administrador.{local}@{domain}"
 
     def _validated_license(self, starts_at: str, ends_at: str) -> tuple[str, str]:
         try:

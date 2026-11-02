@@ -135,3 +135,13 @@ def require_period_access(
     if "roles.view" in actor.permissions:
         return actor
     return require_committee_member(actor, db)
+
+
+def require_committee_roster_access(
+    actor: Actor = Depends(get_current_actor),
+    db: Session = Depends(get_db),
+) -> Actor:
+    """Building managers (users.view) or committee actors may read the roster."""
+    if "users.view" in actor.permissions:
+        return actor
+    return require_committee_member(actor, db)

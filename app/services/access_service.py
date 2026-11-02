@@ -201,7 +201,9 @@ class UserService:
 
     def _default_role_id(self) -> str:
         roles = self._repository.list_roles()
-        preferred = next((role for role in roles if role.name.casefold() == "resident"), None)
+        preferred = next((role for role in roles if role.name.casefold() == "caretaker"), None)
+        if preferred is None:
+            preferred = next((role for role in roles if role.name.casefold() == "resident"), None)
         if preferred is None:
             preferred = next((role for role in roles if not role.system), None)
         if preferred is not None:

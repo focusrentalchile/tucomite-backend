@@ -86,6 +86,20 @@ class TopicOpinionRecord:
     created_at: str
 
 
+ATTACHMENT_KINDS = frozenset({"image", "video", "file"})
+
+
+@dataclass(frozen=True)
+class TopicAttachmentRecord:
+    """One stored image, video, or file preview for a topic."""
+
+    id: str
+    topic_id: str
+    kind: str
+    name: str
+    url: str
+
+
 class TopicNotFound(Exception):
     """Raised when a topic id does not exist."""
 

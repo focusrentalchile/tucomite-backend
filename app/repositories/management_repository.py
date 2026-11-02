@@ -3,7 +3,7 @@
 from datetime import date, datetime, timezone
 from typing import Protocol
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.domain.management import (
@@ -42,6 +42,9 @@ class ManagementRepository(Protocol):
 
     def save_task_status(self, task_id: str, status: str) -> None:
         """Update ticket status."""
+
+    def delete_task(self, task_id: str) -> None:
+        """Remove one ticket and its messages."""
 
     def list_approved_client_ids(self, administrator_user_id: str) -> list[str]:
         """Return client ids approved for this administrator's Gestión board."""
@@ -134,6 +137,16 @@ class SqlManagementRepository:
             raise KeyError(task_id)
         row.status = status
         row.updated_at = datetime.now(timezone.utc)
+
+    def delete_task(self, task_id: str) -> None:
+        self._session.execute(
+            delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task_id),
+        )
+        row = self._session.get(ManagementTaskModel, task_id)
+        if row is None:
+            raise KeyError(task_id)
+        self._session.delete(row)
+        self._session.flush()
 
     def _task(self, row: ManagementTaskModel, *, include_messages: bool) -> ManagementTaskRecord:
         client_name = ""

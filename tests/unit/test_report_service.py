@@ -32,7 +32,14 @@ def test_report_summary_counts_topics_votes_and_projects() -> None:
     periods.create_period(PeriodRecord(id="per1", name="2026", status=PERIOD_STATUS_OPEN))
     projects = InMemoryProjectRepository()
     projects.create_project(
-        ProjectRecord(id="p1", period_id="per1", title="Fachada", description="Pintar", photo_names=""),
+        ProjectRecord(
+            id="p1",
+            period_id="per1",
+            title="Fachada",
+            description="Pintar",
+            photo_names="",
+            created_at="2026-01-01T12:00:00+00:00",
+        ),
     )
     service = ReportService(_TopicRepo(), projects, periods)
 

@@ -5,6 +5,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class TopicAttachmentPayload(BaseModel):
+    """One image, video, or file preview for a topic."""
+
+    kind: Literal["image", "video", "file"]
+    name: str = Field(min_length=1, max_length=255)
+    url: str = Field(min_length=1)
+
+
 class CreateTopicRequest(BaseModel):
     """Fields collected by the new-topic form. Status is not accepted from the client."""
 
@@ -14,6 +22,7 @@ class CreateTopicRequest(BaseModel):
     attachment_name: str = Field(default="", max_length=255)
     decision: str = Field(min_length=1, max_length=500)
     priority_id: int = Field(ge=1, le=3)
+    attachments: list[TopicAttachmentPayload] = []
 
 
 class UpdateTopicRequest(BaseModel):
@@ -25,6 +34,7 @@ class UpdateTopicRequest(BaseModel):
     attachment_name: str = Field(default="", max_length=255)
     decision: str = Field(min_length=1, max_length=500)
     priority_id: int = Field(ge=1, le=3)
+    attachments: list[TopicAttachmentPayload] = []
 
 
 class MoveTopicRequest(BaseModel):
@@ -67,6 +77,15 @@ class TopicOpinionResponse(BaseModel):
     created_at: str
 
 
+class TopicAttachmentResponse(BaseModel):
+    """One stored attachment preview."""
+
+    id: str
+    kind: Literal["image", "video", "file"]
+    name: str
+    url: str
+
+
 class TopicResponse(BaseModel):
     """A stored topic, including status, priority, votes, and opinions."""
 
@@ -83,6 +102,7 @@ class TopicResponse(BaseModel):
     due_date: str | None = None
     votes: list[TopicVoteResponse]
     opinions: list[TopicOpinionResponse] = []
+    attachments: list[TopicAttachmentResponse] = []
 
 
 class TopicListResponse(BaseModel):

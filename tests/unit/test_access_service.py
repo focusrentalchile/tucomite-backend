@@ -89,7 +89,8 @@ def test_bootstrap_creates_the_building_groups_once() -> None:
     assert "users.view" not in roles["administrator"].permissions
     assert "agreements.view" in roles["administrator"].permissions
     assert "management.view" in roles["administrator"].permissions
-    assert roles["resident"].permissions == STARTER_ROLES["resident"]
+    assert roles["caretaker"].permissions == STARTER_ROLES["caretaker"]
+    assert "resident" not in roles
     assert "client" in roles
     assert sum(1 for role in repository.list_roles() if role.name == "committee") == 1
 
@@ -128,7 +129,9 @@ def test_bootstrap_seeds_demo_users_for_each_building_role() -> None:
     roles = {role.id: role.name for role in repository.list_roles()}
     assert roles[by_email["administrador@demo.tucomite.local"].role_id] == "administrator"
     assert roles[by_email["comite@demo.tucomite.local"].role_id] == "committee"
-    assert roles[by_email["residente@demo.tucomite.local"].role_id] == "resident"
+    assert roles[by_email["comite2@demo.tucomite.local"].role_id] == "committee"
+    assert roles[by_email["comite3@demo.tucomite.local"].role_id] == "committee"
+    assert roles[by_email["mayordomo@demo.tucomite.local"].role_id] == "caretaker"
     assert by_email["administrador@demo.tucomite.local"].client_id == "client-demo"
     assert sum(1 for user in repository.list_users() if user.email.endswith("@demo.tucomite.local")) == 3
 
@@ -170,7 +173,7 @@ def test_list_roles_hides_system_and_delete_removes_users() -> None:
     assert "administrator" in {role.name for role in listed}
     assert "committee" in {role.name for role in listed}
     assert "client" in {role.name for role in listed}
-    assert "resident" in {role.name for role in listed}
+    assert "caretaker" in {role.name for role in listed}
 
     starter = next(role for role in listed if role.name == "committee")
     users.create_user("Ana Pérez", "ana@example.com", "secreto-1", starter.id)

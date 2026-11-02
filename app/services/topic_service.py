@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 
 from app.domain.topics import (
 
+    ATTACHMENT_KINDS,
+
     MEDIUM_PRIORITY_ID,
 
     OPEN_STATUS_ID,
@@ -27,6 +29,8 @@ from app.domain.topics import (
     InvalidVoteChoice,
 
     StatusRecord,
+
+    TopicAttachmentRecord,
 
     TopicNotFound,
 
@@ -113,6 +117,33 @@ class TopicService:
         """Return every opinion for the given topics."""
         return self._repository.list_opinions_for_topics(topic_ids)
 
+    def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
+        """Return every attachment for the given topics."""
+        return self._repository.list_attachments_for_topics(topic_ids)
+
+    def _normalize_attachments(
+        self,
+        topic_id: str,
+        attachments: list[dict[str, str]] | None,
+    ) -> list[TopicAttachmentRecord]:
+        stored: list[TopicAttachmentRecord] = []
+        for item in attachments or []:
+            kind = str(item.get("kind", "")).strip().lower()
+            name = str(item.get("name", "")).strip()
+            url = str(item.get("url", "")).strip()
+            if kind not in ATTACHMENT_KINDS or not name or not url:
+                continue
+            stored.append(
+                TopicAttachmentRecord(
+                    id=str(uuid.uuid4()),
+                    topic_id=topic_id,
+                    kind=kind,
+                    name=name[:255],
+                    url=url,
+                ),
+            )
+        return stored
+
     def upsert_opinion(
         self,
         topic_id: str,
@@ -168,6 +199,8 @@ class TopicService:
 
         period_id: str | None = None,
 
+        attachments: list[dict[str, str]] | None = None,
+
     ) -> TopicRecord:
 
         """Store a topic in the open status."""
@@ -199,6 +232,7 @@ class TopicService:
         )
 
         self._repository.add_topic(topic)
+        self._repository.replace_attachments(topic.id, self._normalize_attachments(topic.id, attachments))
 
         return topic
 
@@ -221,6 +255,8 @@ class TopicService:
         decision: str,
 
         priority_id: int = MEDIUM_PRIORITY_ID,
+
+        attachments: list[dict[str, str]] | None = None,
 
     ) -> TopicRecord:
 
@@ -257,6 +293,11 @@ class TopicService:
         )
 
         self._repository.save_topic(topic)
+        if attachments is not None:
+            self._repository.replace_attachments(
+                topic.id,
+                self._normalize_attachments(topic.id, attachments),
+            )
 
         return topic
 

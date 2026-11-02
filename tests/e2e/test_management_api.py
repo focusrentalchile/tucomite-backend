@@ -75,6 +75,22 @@ def test_building_admin_opens_ticket_and_staff_replies() -> None:
     assert closed.json()["status"] == "done"
 
 
+def test_building_admin_deletes_own_ticket() -> None:
+    _login_as_building_administrator()
+    created = client.post(
+        "/api/v1/management/tasks",
+        json={"subject": "Borrar esta tarea", "body": "Solo para probar el borrado."},
+    )
+    assert created.status_code == 201
+    task_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/v1/management/tasks/{task_id}")
+    assert deleted.status_code == 204
+
+    missing = client.get(f"/api/v1/management/tasks/{task_id}")
+    assert missing.status_code == 404
+
+
 def test_administrator_imports_client_with_owner_approval() -> None:
     login_as_super_admin(client)
     owner_email = f"owner.{uuid.uuid4().hex[:8]}@tucomite.local"

@@ -280,3 +280,8 @@ class ManagementService:
         self.get_task(task_id)
         self._repository.save_task_status(task_id, cleaned)
         return self.get_task(task_id)
+
+    def delete_task(self, task_id: str) -> None:
+        """Remove a ticket and its messages."""
+        self.get_task(task_id)
+        self._repository.delete_task(task_id)

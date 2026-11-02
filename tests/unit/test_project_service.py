@@ -16,14 +16,35 @@ def test_create_list_update_and_delete_project() -> None:
     open_period = period_service.open_period("2026")
     service = ProjectService(InMemoryProjectRepository(), periods)
 
-    created = service.create_project(open_period.id, "Jardin", "Arreglar el patio.", "patio.jpg")
+    created = service.create_project(
+        open_period.id,
+        "Jardin",
+        "Arreglar el patio.",
+        "patio.jpg",
+        due_date="2026-04-01",
+        attachments=[
+            {"kind": "image", "name": "patio.jpg", "url": "data:image/png;base64,aaa"},
+            {"kind": "file", "name": "plano.pdf", "url": "data:application/pdf;base64,bbb"},
+        ],
+    )
     assert created.period_id == open_period.id
     assert created.title == "Jardin"
+    assert created.due_date == "2026-04-01"
     assert service.list_projects(open_period.id) == [created]
+    assert len(service.list_attachments_for_projects([created.id])) == 2
 
-    updated = service.update_project(created.id, "Jardín", "Arreglar el patio común.", "patio.jpg,macetas.png")
+    updated = service.update_project(
+        created.id,
+        "Jardín",
+        "Arreglar el patio común.",
+        "patio.jpg,macetas.png",
+        due_date="2026-05-01",
+        attachments=[{"kind": "image", "name": "macetas.png", "url": "data:image/png;base64,ccc"}],
+    )
     assert updated.title == "Jardín"
+    assert updated.due_date == "2026-05-01"
     assert service.list_projects(open_period.id) == [updated]
+    assert len(service.list_attachments_for_projects([updated.id])) == 1
 
     service.delete_project(created.id)
     assert service.list_projects(open_period.id) == []

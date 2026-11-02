@@ -38,22 +38,49 @@ def test_period_must_be_opened_before_creating_projects() -> None:
             "title": "Fachada",
             "description": "Pintar la fachada.",
             "photo_names": "fachada.jpg",
+            "due_date": "2026-06-15",
+            "attachments": [
+                {
+                    "kind": "image",
+                    "name": "fachada.jpg",
+                    "url": "data:image/png;base64,aaa",
+                },
+                {
+                    "kind": "video",
+                    "name": "obra.mp4",
+                    "url": "data:video/mp4;base64,bbb",
+                },
+            ],
         },
     )
     assert created.status_code == 201
     project_id = created.json()["id"]
     assert created.json()["period_id"] == period_id
+    assert created.json()["due_date"] == "2026-06-15"
+    assert len(created.json()["attachments"]) == 2
 
     listed = client.get(f"/api/v1/projects?period_id={period_id}")
     assert listed.status_code == 200
-    assert any(item["id"] == project_id for item in listed.json()["items"])
+    match = next(item for item in listed.json()["items"] if item["id"] == project_id)
+    assert match["due_date"] == "2026-06-15"
+    assert len(match["attachments"]) == 2
 
     updated = client.patch(
         f"/api/v1/projects/{project_id}",
-        json={"title": "Fachada norte", "description": "Pintar la fachada norte.", "photo_names": "norte.jpg"},
+        json={
+            "title": "Fachada norte",
+            "description": "Pintar la fachada norte.",
+            "photo_names": "norte.jpg",
+            "due_date": "2026-07-01",
+            "attachments": [
+                {"kind": "file", "name": "presupuesto.pdf", "url": "data:application/pdf;base64,ccc"},
+            ],
+        },
     )
     assert updated.status_code == 200
     assert updated.json()["title"] == "Fachada norte"
+    assert updated.json()["due_date"] == "2026-07-01"
+    assert len(updated.json()["attachments"]) == 1
 
     removed = client.delete(f"/api/v1/projects/{project_id}")
     assert removed.status_code == 204
