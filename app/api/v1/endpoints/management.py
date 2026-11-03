@@ -11,6 +11,8 @@ from app.repositories.client_repository import SqlClientRepository
 from app.repositories.management_repository import SqlManagementRepository
 from app.repositories.notification_repository import SqlNotificationRepository
 from app.schemas.management import (
+    BuildingAdministratorListResponse,
+    BuildingAdministratorResponse,
     CreateManagementMessageRequest,
     CreateManagementTaskRequest,
     CreateManagementWorkspaceImportRequest,
@@ -143,6 +145,33 @@ def list_workspace_clients(
     )
 
 
+@router.get("/workspace/administrators", response_model=BuildingAdministratorListResponse)
+def list_building_administrators(
+    service: ManagementService = Depends(get_management_service),
+    actor: Actor = Depends(get_current_actor),
+    db: Session = Depends(get_db),
+) -> BuildingAdministratorListResponse:
+    """List administrators who manage the building owner's client."""
+    if "management.approve_import" not in actor.permissions:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    owned = _owned_client_id(db, actor)
+    if not owned:
+        return BuildingAdministratorListResponse(items=[])
+    items = service.list_building_administrators(owned)
+    return BuildingAdministratorListResponse(
+        items=[
+            BuildingAdministratorResponse(
+                user_id=item.user_id,
+                full_name=item.full_name,
+                email=item.email,
+                home=item.home,
+                import_id=item.import_id,
+            )
+            for item in items
+        ],
+    )
+
+
 @router.get("/workspace/imports", response_model=ManagementWorkspaceImportListResponse)
 def list_workspace_imports(
     scope: str = Query(default="outgoing"),
@@ -213,6 +242,26 @@ def reject_workspace_import(
     """Building owner rejects an administrator's Gestión import request."""
     try:
         record = service.resolve_import(import_id, approve=False, owner_user_id=actor.user_id)
+    except TaskNotFound:
+        raise HTTPException(status_code=404, detail="Import request not found.") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden.") from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    return _import_response(record)
+
+
+@router.post("/workspace/imports/{import_id}/revoke", response_model=ManagementWorkspaceImportResponse)
+def revoke_workspace_import(
+    import_id: str,
+    service: ManagementService = Depends(get_management_service),
+    actor: Actor = Depends(get_current_actor),
+) -> ManagementWorkspaceImportResponse:
+    """Building owner revokes an approved Gestión grant."""
+    if "management.approve_import" not in actor.permissions:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    try:
+        record = service.revoke_import(import_id, owner_user_id=actor.user_id)
     except TaskNotFound:
         raise HTTPException(status_code=404, detail="Import request not found.") from None
     except PermissionError:

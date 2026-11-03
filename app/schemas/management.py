@@ -99,3 +99,19 @@ class CreateManagementWorkspaceImportRequest(BaseModel):
     """Ask a building owner (by email) to approve Gestión access."""
 
     owner_email: str = Field(min_length=3, max_length=255)
+
+
+class BuildingAdministratorResponse(BaseModel):
+    """Administrator who manages the building owner's client."""
+
+    user_id: str
+    full_name: str
+    email: str
+    home: bool
+    import_id: str | None = None
+
+
+class BuildingAdministratorListResponse(BaseModel):
+    """Administrators visible on the Administración screen."""
+
+    items: list[BuildingAdministratorResponse]

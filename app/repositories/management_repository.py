@@ -55,6 +55,9 @@ class ManagementRepository(Protocol):
     def list_pending_imports_for_client(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
         """Return pending import requests targeting this building."""
 
+    def list_approved_imports_for_client(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
+        """Return approved import grants targeting this building."""
+
     def get_import(self, import_id: str) -> ManagementWorkspaceImportRecord | None:
         """Return one import request."""
 
@@ -215,6 +218,17 @@ class SqlManagementRepository:
             .where(
                 ManagementWorkspaceImportModel.client_id == client_id,
                 ManagementWorkspaceImportModel.status == IMPORT_STATUS_PENDING,
+            )
+            .order_by(ManagementWorkspaceImportModel.created_at.desc()),
+        ).scalars().all()
+        return [self._import(row) for row in rows]
+
+    def list_approved_imports_for_client(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
+        rows = self._session.execute(
+            select(ManagementWorkspaceImportModel)
+            .where(
+                ManagementWorkspaceImportModel.client_id == client_id,
+                ManagementWorkspaceImportModel.status == IMPORT_STATUS_APPROVED,
             )
             .order_by(ManagementWorkspaceImportModel.created_at.desc()),
         ).scalars().all()

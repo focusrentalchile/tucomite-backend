@@ -161,3 +161,40 @@ def test_administrator_imports_client_with_owner_approval() -> None:
     filtered = client.get("/api/v1/management/tasks", params={"client_id": imported_client_id})
     assert filtered.status_code == 200
     assert created.json()["id"] in {item["id"] for item in filtered.json()["items"]}
+    client.post("/api/v1/auth/logout")
+
+    signed_owner_again = client.post(
+        "/api/v1/auth/login",
+        json={"email": owner_email, "password": "secreto-1"},
+    )
+    assert signed_owner_again.status_code == 200, signed_owner_again.text
+    managers = client.get("/api/v1/management/workspace/administrators")
+    assert managers.status_code == 200, managers.text
+    manager_ids = {item["user_id"] for item in managers.json()["items"]}
+    imported_row = next(
+        item for item in managers.json()["items"] if item["import_id"] == import_id
+    )
+    assert imported_row["home"] is False
+    assert imported_row["email"] == admin_email
+    assert imported_row["user_id"] in manager_ids
+
+    revoked = client.post(f"/api/v1/management/workspace/imports/{import_id}/revoke")
+    assert revoked.status_code == 200, revoked.text
+    assert revoked.json()["status"] == "revoked"
+    managers_after = client.get("/api/v1/management/workspace/administrators")
+    assert managers_after.status_code == 200
+    assert import_id not in {
+        item["import_id"] for item in managers_after.json()["items"] if item["import_id"]
+    }
+    client.post("/api/v1/auth/logout")
+
+    signed_admin_again = client.post(
+        "/api/v1/auth/login",
+        json={"email": admin_email, "password": admin_password},
+    )
+    assert signed_admin_again.status_code == 200, signed_admin_again.text
+    workspace_revoked = client.get("/api/v1/management/workspace/clients")
+    assert workspace_revoked.status_code == 200
+    assert imported_client_id not in {
+        item["client_id"] for item in workspace_revoked.json()["items"]
+    }

@@ -57,8 +57,14 @@ class TaskNotFound(Exception):
 IMPORT_STATUS_PENDING = "pending"
 IMPORT_STATUS_APPROVED = "approved"
 IMPORT_STATUS_REJECTED = "rejected"
+IMPORT_STATUS_REVOKED = "revoked"
 ALLOWED_IMPORT_STATUSES = frozenset(
-    {IMPORT_STATUS_PENDING, IMPORT_STATUS_APPROVED, IMPORT_STATUS_REJECTED},
+    {
+        IMPORT_STATUS_PENDING,
+        IMPORT_STATUS_APPROVED,
+        IMPORT_STATUS_REJECTED,
+        IMPORT_STATUS_REVOKED,
+    },
 )
 
 
@@ -84,3 +90,14 @@ class ManagementWorkspaceImportRecord:
     status: str
     created_at: str
     resolved_at: str | None
+
+
+@dataclass(frozen=True)
+class BuildingAdministratorRecord:
+    """Administrator who manages a building (home account or approved import)."""
+
+    user_id: str
+    full_name: str
+    email: str
+    home: bool
+    import_id: str | None

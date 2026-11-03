@@ -5,9 +5,11 @@ from datetime import datetime, timezone
 
 from app.domain.management import (
     ALLOWED_MANAGEMENT_STATUSES,
+    BuildingAdministratorRecord,
     IMPORT_STATUS_APPROVED,
     IMPORT_STATUS_PENDING,
     IMPORT_STATUS_REJECTED,
+    IMPORT_STATUS_REVOKED,
     MANAGEMENT_STATUS_TODO,
     ManagementMessageRecord,
     ManagementTaskRecord,
@@ -96,6 +98,43 @@ class ManagementService:
         """Pending import requests for a building owner to approve."""
         return self._repository.list_pending_imports_for_client(client_id)
 
+    def list_building_administrators(self, client_id: str) -> list[BuildingAdministratorRecord]:
+        """Home administrators plus external admins with an approved Gestión import."""
+        items: list[BuildingAdministratorRecord] = []
+        seen: set[str] = set()
+        if self._access is not None:
+            roles = {role.id: role for role in self._access.list_roles()}
+            for user in self._access.list_users():
+                if user.client_id != client_id:
+                    continue
+                role = roles.get(user.role_id)
+                if role is None or role.name != "administrator":
+                    continue
+                seen.add(user.id)
+                items.append(
+                    BuildingAdministratorRecord(
+                        user_id=user.id,
+                        full_name=user.full_name,
+                        email=user.email,
+                        home=True,
+                        import_id=None,
+                    ),
+                )
+        for record in self._repository.list_approved_imports_for_client(client_id):
+            if record.administrator_user_id in seen:
+                continue
+            seen.add(record.administrator_user_id)
+            items.append(
+                BuildingAdministratorRecord(
+                    user_id=record.administrator_user_id,
+                    full_name=record.administrator_name,
+                    email=record.administrator_email,
+                    home=False,
+                    import_id=record.id,
+                ),
+            )
+        return items
+
     def request_import(
         self,
         *,
@@ -157,8 +196,8 @@ class ManagementService:
                     kind="management_import_request",
                     title="Solicitud para importar tu edificio",
                     body=(
-                        f"El administrador {admin_label} ({admin_email}) quiere importar "
-                        f"«{client.name}» a su tablero de Gestión. Entrá a Gestión para aprobar o rechazar."
+                        f"El administrador {admin_label} ({admin_email}) quiere gestionar "
+                        f"«{client.name}». Entrá a Administración para aprobar o rechazar."
                     ),
                     created_at=now,
                     read_at=None,
@@ -187,6 +226,30 @@ class ManagementService:
         status = IMPORT_STATUS_APPROVED if approve else IMPORT_STATUS_REJECTED
         now = datetime.now(timezone.utc).isoformat()
         self._repository.save_import_status(import_id, status, resolved_at=now)
+        stored = self._repository.get_import(import_id)
+        if stored is None:
+            raise TaskNotFound()
+        return stored
+
+    def revoke_import(
+        self,
+        import_id: str,
+        *,
+        owner_user_id: str,
+    ) -> ManagementWorkspaceImportRecord:
+        """Remove an approved Gestión grant so the administrator loses the building."""
+        if self._clients is None:
+            raise ValueError("Workspace imports are not available.")
+        record = self._repository.get_import(import_id)
+        if record is None:
+            raise TaskNotFound()
+        if record.status != IMPORT_STATUS_APPROVED:
+            raise ValueError("Only an approved grant can be revoked.")
+        client = self._clients.get_client(record.client_id)
+        if client is None or client.admin_user_id != owner_user_id:
+            raise PermissionError("Only the building owner can revoke this access.")
+        now = datetime.now(timezone.utc).isoformat()
+        self._repository.save_import_status(import_id, IMPORT_STATUS_REVOKED, resolved_at=now)
         stored = self._repository.get_import(import_id)
         if stored is None:
             raise TaskNotFound()
