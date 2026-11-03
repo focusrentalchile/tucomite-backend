@@ -198,3 +198,22 @@ def test_administrator_imports_client_with_owner_approval() -> None:
     assert imported_client_id not in {
         item["client_id"] for item in workspace_revoked.json()["items"]
     }
+
+    reopened = client.post(
+        "/api/v1/management/workspace/imports",
+        json={"owner_email": owner_email},
+    )
+    assert reopened.status_code == 201, reopened.text
+    assert reopened.json()["id"] == import_id
+    assert reopened.json()["status"] == "pending"
+    client.post("/api/v1/auth/logout")
+
+    signed_owner_third = client.post(
+        "/api/v1/auth/login",
+        json={"email": owner_email, "password": "secreto-1"},
+    )
+    assert signed_owner_third.status_code == 200, signed_owner_third.text
+    managers_pending = client.get("/api/v1/management/workspace/administrators")
+    assert managers_pending.status_code == 200
+    pending_row = next(item for item in managers_pending.json()["items"] if item["import_id"] == import_id)
+    assert pending_row["status"] == "pending"

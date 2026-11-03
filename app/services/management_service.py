@@ -20,9 +20,13 @@ from app.domain.management import (
 from app.domain.notifications import NotificationRecord
 from app.domain.topics import MEDIUM_PRIORITY_ID, PRIORITY_IDS
 from app.repositories.access_repository import AccessRepository
+from app.repositories.agreement_repository import AgreementRepository
 from app.repositories.client_repository import ClientRepository
 from app.repositories.management_repository import ManagementRepository
 from app.repositories.notification_repository import NotificationRepository
+from app.repositories.period_repository import PeriodRepository
+
+AGREEMENT_CONTEXT_PERIODS = 6
 
 
 class ManagementService:
@@ -35,11 +39,15 @@ class ManagementService:
         clients: ClientRepository | None = None,
         access: AccessRepository | None = None,
         notifications: NotificationRepository | None = None,
+        agreements: AgreementRepository | None = None,
+        periods: PeriodRepository | None = None,
     ) -> None:
         self._repository = repository
         self._clients = clients
         self._access = access
         self._notifications = notifications
+        self._agreements = agreements
+        self._periods = periods
 
     def list_tasks(
         self,
@@ -99,9 +107,9 @@ class ManagementService:
         return self._repository.list_pending_imports_for_client(client_id)
 
     def list_building_administrators(self, client_id: str) -> list[BuildingAdministratorRecord]:
-        """Home administrators plus external admins with an approved Gestión import."""
+        """Home administrators plus import history (pending, active, revoked, rejected)."""
         items: list[BuildingAdministratorRecord] = []
-        seen: set[str] = set()
+        home_ids: set[str] = set()
         if self._access is not None:
             roles = {role.id: role for role in self._access.list_roles()}
             for user in self._access.list_users():
@@ -110,7 +118,7 @@ class ManagementService:
                 role = roles.get(user.role_id)
                 if role is None or role.name != "administrator":
                     continue
-                seen.add(user.id)
+                home_ids.add(user.id)
                 items.append(
                     BuildingAdministratorRecord(
                         user_id=user.id,
@@ -118,12 +126,18 @@ class ManagementService:
                         email=user.email,
                         home=True,
                         import_id=None,
+                        status=IMPORT_STATUS_APPROVED,
+                        created_at="",
+                        resolved_at=None,
                     ),
                 )
-        for record in self._repository.list_approved_imports_for_client(client_id):
-            if record.administrator_user_id in seen:
+        listed_external: set[str] = set()
+        for record in self._repository.list_imports_for_client(client_id):
+            if record.administrator_user_id in home_ids and record.status == IMPORT_STATUS_APPROVED:
                 continue
-            seen.add(record.administrator_user_id)
+            if record.administrator_user_id in listed_external:
+                continue
+            listed_external.add(record.administrator_user_id)
             items.append(
                 BuildingAdministratorRecord(
                     user_id=record.administrator_user_id,
@@ -131,6 +145,9 @@ class ManagementService:
                     email=record.administrator_email,
                     home=False,
                     import_id=record.id,
+                    status=record.status,
+                    created_at=record.created_at,
+                    resolved_at=record.resolved_at,
                 ),
             )
         return items
@@ -164,12 +181,26 @@ class ManagementService:
             raise ValueError("That account is not a building owner.")
         if home_client_id and client.id == home_client_id:
             raise ValueError("That building is already your home client.")
-        existing = self._repository.find_open_import(administrator_user_id, client.id)
+        existing = self._repository.find_import_for_pair(administrator_user_id, client.id)
+        now = datetime.now(timezone.utc).isoformat()
         if existing is not None:
             if existing.status == IMPORT_STATUS_APPROVED:
                 raise ValueError("That building is already in your Gestión board.")
-            raise ValueError("A permission request is already pending for that building.")
-        now = datetime.now(timezone.utc).isoformat()
+            if existing.status == IMPORT_STATUS_PENDING:
+                raise ValueError("A permission request is already pending for that building.")
+            # Re-enable the same history row when access was revoked or rejected.
+            self._repository.save_import_status(existing.id, IMPORT_STATUS_PENDING, resolved_at=None)
+            stored = self._repository.get_import(existing.id)
+            if stored is None:
+                raise TaskNotFound()
+            self._notify_owner_of_import_request(
+                owner_id=owner.id,
+                administrator_user_id=administrator_user_id,
+                client_name=client.name,
+                stored=stored,
+                now=now,
+            )
+            return stored
         record = ManagementWorkspaceImportRecord(
             id=str(uuid.uuid4()),
             administrator_user_id=administrator_user_id,
@@ -185,24 +216,13 @@ class ManagementService:
         stored = self._repository.get_import(record.id)
         if stored is None:
             raise TaskNotFound()
-        if self._notifications is not None and self._access is not None:
-            admin = self._access.get_user(administrator_user_id)
-            admin_label = admin.full_name if admin is not None else stored.administrator_name
-            admin_email = admin.email if admin is not None else stored.administrator_email
-            self._notifications.add(
-                NotificationRecord(
-                    id=str(uuid.uuid4()),
-                    user_id=owner.id,
-                    kind="management_import_request",
-                    title="Solicitud para importar tu edificio",
-                    body=(
-                        f"El administrador {admin_label} ({admin_email}) quiere gestionar "
-                        f"«{client.name}». Entrá a Administración para aprobar o rechazar."
-                    ),
-                    created_at=now,
-                    read_at=None,
-                ),
-            )
+        self._notify_owner_of_import_request(
+            owner_id=owner.id,
+            administrator_user_id=administrator_user_id,
+            client_name=client.name,
+            stored=stored,
+            now=now,
+        )
         return stored
 
     def resolve_import(
@@ -229,6 +249,8 @@ class ManagementService:
         stored = self._repository.get_import(import_id)
         if stored is None:
             raise TaskNotFound()
+        if approve:
+            self._notify_admin_of_approval(stored, client_name=client.name, now=now)
         return stored
 
     def revoke_import(
@@ -254,6 +276,89 @@ class ManagementService:
         if stored is None:
             raise TaskNotFound()
         return stored
+
+    def _notify_owner_of_import_request(
+        self,
+        *,
+        owner_id: str,
+        administrator_user_id: str,
+        client_name: str,
+        stored: ManagementWorkspaceImportRecord,
+        now: str,
+    ) -> None:
+        if self._notifications is None or self._access is None:
+            return
+        admin = self._access.get_user(administrator_user_id)
+        admin_label = admin.full_name if admin is not None else stored.administrator_name
+        admin_email = admin.email if admin is not None else stored.administrator_email
+        self._notifications.add(
+            NotificationRecord(
+                id=str(uuid.uuid4()),
+                user_id=owner_id,
+                kind="management_import_request",
+                title="Solicitud para gestionar tu edificio",
+                body=(
+                    f"El administrador {admin_label} ({admin_email}) quiere gestionar "
+                    f"«{client_name}». Entrá a Administración para aprobar."
+                ),
+                created_at=now,
+                read_at=None,
+            ),
+        )
+
+    def _recent_agreement_titles(self, client_id: str) -> list[str]:
+        """Agreement titles from the last six periods for onboarding context."""
+        if self._agreements is None or self._periods is None:
+            return []
+        recent_period_ids = {
+            period.id for period in self._periods.list_periods()[-AGREEMENT_CONTEXT_PERIODS:]
+        }
+        if not recent_period_ids:
+            return [
+                item.title
+                for item in self._agreements.list_agreements(client_id=client_id)[:12]
+            ]
+        titles: list[str] = []
+        for item in self._agreements.list_agreements(client_id=client_id):
+            if item.period_id and item.period_id not in recent_period_ids:
+                continue
+            titles.append(item.title)
+            if len(titles) >= 12:
+                break
+        return titles
+
+    def _notify_admin_of_approval(
+        self,
+        stored: ManagementWorkspaceImportRecord,
+        *,
+        client_name: str,
+        now: str,
+    ) -> None:
+        if self._notifications is None:
+            return
+        titles = self._recent_agreement_titles(stored.client_id)
+        if titles:
+            history = " · ".join(titles)
+            body = (
+                f"Ya podés gestionar «{client_name}» en Gestión y Acuerdos. "
+                f"Historial de acuerdos (últimos 6 periodos): {history}."
+            )
+        else:
+            body = (
+                f"Ya podés gestionar «{client_name}» en Gestión y Acuerdos. "
+                "Todavía no hay acuerdos en los últimos 6 periodos."
+            )
+        self._notifications.add(
+            NotificationRecord(
+                id=str(uuid.uuid4()),
+                user_id=stored.administrator_user_id,
+                kind="management_import_approved",
+                title="Acceso aprobado al edificio",
+                body=body,
+                created_at=now,
+                read_at=None,
+            ),
+        )
 
     def create_task(
         self,

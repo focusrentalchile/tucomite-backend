@@ -58,17 +58,27 @@ class ManagementRepository(Protocol):
     def list_approved_imports_for_client(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
         """Return approved import grants targeting this building."""
 
+    def list_imports_for_client(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
+        """Return every import request targeting this building (history)."""
+
     def get_import(self, import_id: str) -> ManagementWorkspaceImportRecord | None:
         """Return one import request."""
 
     def find_open_import(self, administrator_user_id: str, client_id: str) -> ManagementWorkspaceImportRecord | None:
         """Return a pending or approved import for this pair, if any."""
 
+    def find_import_for_pair(
+        self,
+        administrator_user_id: str,
+        client_id: str,
+    ) -> ManagementWorkspaceImportRecord | None:
+        """Return the latest import row for this administrator and building, any status."""
+
     def add_import(self, record: ManagementWorkspaceImportRecord) -> None:
         """Insert an import request."""
 
-    def save_import_status(self, import_id: str, status: str, *, resolved_at: str) -> None:
-        """Update import status and resolution time."""
+    def save_import_status(self, import_id: str, status: str, *, resolved_at: str | None) -> None:
+        """Update import status and resolution time (None clears resolved_at)."""
 
 
 class SqlManagementRepository:
@@ -234,6 +244,14 @@ class SqlManagementRepository:
         ).scalars().all()
         return [self._import(row) for row in rows]
 
+    def list_imports_for_client(self, client_id: str) -> list[ManagementWorkspaceImportRecord]:
+        rows = self._session.execute(
+            select(ManagementWorkspaceImportModel)
+            .where(ManagementWorkspaceImportModel.client_id == client_id)
+            .order_by(ManagementWorkspaceImportModel.created_at.desc()),
+        ).scalars().all()
+        return [self._import(row) for row in rows]
+
     def get_import(self, import_id: str) -> ManagementWorkspaceImportRecord | None:
         row = self._session.get(ManagementWorkspaceImportModel, import_id)
         if row is None:
@@ -254,6 +272,24 @@ class SqlManagementRepository:
             return None
         return self._import(row)
 
+    def find_import_for_pair(
+        self,
+        administrator_user_id: str,
+        client_id: str,
+    ) -> ManagementWorkspaceImportRecord | None:
+        row = self._session.execute(
+            select(ManagementWorkspaceImportModel)
+            .where(
+                ManagementWorkspaceImportModel.administrator_user_id == administrator_user_id,
+                ManagementWorkspaceImportModel.client_id == client_id,
+            )
+            .order_by(ManagementWorkspaceImportModel.created_at.desc())
+            .limit(1),
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return self._import(row)
+
     def add_import(self, record: ManagementWorkspaceImportRecord) -> None:
         self._session.add(
             ManagementWorkspaceImportModel(
@@ -265,12 +301,12 @@ class SqlManagementRepository:
         )
         self._session.flush()
 
-    def save_import_status(self, import_id: str, status: str, *, resolved_at: str) -> None:
+    def save_import_status(self, import_id: str, status: str, *, resolved_at: str | None) -> None:
         row = self._session.get(ManagementWorkspaceImportModel, import_id)
         if row is None:
             raise KeyError(import_id)
         row.status = status
-        row.resolved_at = datetime.fromisoformat(resolved_at)
+        row.resolved_at = datetime.fromisoformat(resolved_at) if resolved_at else None
         self._session.flush()
 
     def _import(self, row: ManagementWorkspaceImportModel) -> ManagementWorkspaceImportRecord:

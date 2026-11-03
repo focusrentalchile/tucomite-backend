@@ -94,10 +94,13 @@ class ManagementWorkspaceImportRecord:
 
 @dataclass(frozen=True)
 class BuildingAdministratorRecord:
-    """Administrator who manages a building (home account or approved import)."""
+    """Administrator history row for the building owner's Administración screen."""
 
     user_id: str
     full_name: str
     email: str
     home: bool
     import_id: str | None
+    status: str
+    created_at: str
+    resolved_at: str | None

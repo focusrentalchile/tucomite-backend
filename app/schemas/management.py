@@ -102,13 +102,16 @@ class CreateManagementWorkspaceImportRequest(BaseModel):
 
 
 class BuildingAdministratorResponse(BaseModel):
-    """Administrator who manages the building owner's client."""
+    """Administrator history row on the Administración screen."""
 
     user_id: str
     full_name: str
     email: str
     home: bool
     import_id: str | None = None
+    status: str
+    created_at: str = ""
+    resolved_at: str | None = None
 
 
 class BuildingAdministratorListResponse(BaseModel):

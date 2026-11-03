@@ -7,9 +7,11 @@ from app.api.deps import Actor, get_current_actor, require_permission
 from app.core.database import get_db
 from app.domain.management import TaskNotFound
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.agreement_repository import SqlAgreementRepository
 from app.repositories.client_repository import SqlClientRepository
 from app.repositories.management_repository import SqlManagementRepository
 from app.repositories.notification_repository import SqlNotificationRepository
+from app.repositories.period_repository import SqlPeriodRepository
 from app.schemas.management import (
     BuildingAdministratorListResponse,
     BuildingAdministratorResponse,
@@ -37,6 +39,8 @@ def get_management_service(db: Session = Depends(get_db)) -> ManagementService:
         clients=SqlClientRepository(db),
         access=SqlAccessRepository(db),
         notifications=SqlNotificationRepository(db),
+        agreements=SqlAgreementRepository(db),
+        periods=SqlPeriodRepository(db),
     )
 
 
@@ -166,6 +170,9 @@ def list_building_administrators(
                 email=item.email,
                 home=item.home,
                 import_id=item.import_id,
+                status=item.status,
+                created_at=item.created_at,
+                resolved_at=item.resolved_at,
             )
             for item in items
         ],
