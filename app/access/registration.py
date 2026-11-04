@@ -30,6 +30,12 @@ def register_builtin_modules() -> None:
             functionalities=("view", "create", "reply", "update", "approve_import"),
         ),
     )
+    access_catalog.register(
+        ModuleDefinition(
+            key="messages",
+            functionalities=("view", "create", "update", "delete", "manage"),
+        ),
+    )
 
 
 register_builtin_modules()

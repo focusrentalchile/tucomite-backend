@@ -34,6 +34,13 @@ def test_v1_router_includes_health_path() -> None:
     assert "/management/workspace/imports" in paths
     assert "/management/workspace/imports/{import_id}/approve" in paths
     assert "/management/workspace/imports/{import_id}/reject" in paths
+    assert "/message-types" in paths
+    assert "/messages" in paths
+    assert "/messages/{message_id}" in paths
+    assert "/messages/{message_id}/open" in paths
+    assert "/messages/{message_id}/status" in paths
+    assert "/messages/{message_id}/replies" in paths
+    assert "/messages/{message_id}/appeal" in paths
     assert "/notifications" in paths
     assert "/notifications/{notification_id}/read" in paths
     assert "/agreements" in paths

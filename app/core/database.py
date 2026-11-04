@@ -48,9 +48,11 @@ def init_database() -> None:
     from app.models import periods as period_models  # noqa: F401
     from app.models import projects as project_models  # noqa: F401
     from app.models import management as management_models  # noqa: F401
+    from app.models import messages as message_models  # noqa: F401
     from app.models import notifications as notification_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
     from app.repositories.access_repository import SqlAccessRepository
+    from app.repositories.message_repository import SqlMessageRepository
     from app.repositories.topic_repository import SqlTopicRepository
     from app.services.access_bootstrap import bootstrap_access
     from app.services.topic_service import ensure_topic_priorities, ensure_topic_statuses
@@ -187,6 +189,7 @@ def init_database() -> None:
         bootstrap_access(SqlAccessRepository(session), access_catalog, SqlClientRepository(session))
         ensure_topic_statuses(SqlTopicRepository(session))
         ensure_topic_priorities(session)
+        SqlMessageRepository(session).ensure_default_types()
         session.commit()
     except Exception:
         session.rollback()

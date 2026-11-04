@@ -39,6 +39,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "management.create",
             "management.reply",
             "management.update",
+            "messages.manage",
             "notifications.receive",
         }
     ),
@@ -48,9 +49,13 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
-    # Building resident (Spanish UI: Residente). Sidebar: Inicio only for now.
+    # Building resident (Spanish UI: Residente). Sidebar: Inicio + Mensajes.
     "resident": frozenset(
         {
+            "messages.view",
+            "messages.create",
+            "messages.update",
+            "messages.delete",
             "notifications.receive",
         }
     ),
