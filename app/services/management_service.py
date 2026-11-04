@@ -277,6 +277,33 @@ class ManagementService:
             raise TaskNotFound()
         return stored
 
+    def leave_import(
+        self,
+        import_id: str,
+        *,
+        administrator_user_id: str,
+    ) -> ManagementWorkspaceImportRecord:
+        """Administrator cancels a pending request or leaves an approved building."""
+        record = self._repository.get_import(import_id)
+        if record is None:
+            raise TaskNotFound()
+        if record.administrator_user_id != administrator_user_id:
+            raise PermissionError("Only the requesting administrator can remove this grant.")
+        now = datetime.now(timezone.utc).isoformat()
+        if record.status == IMPORT_STATUS_PENDING:
+            next_status = IMPORT_STATUS_REJECTED
+        elif record.status == IMPORT_STATUS_APPROVED:
+            next_status = IMPORT_STATUS_REVOKED
+        elif record.status == IMPORT_STATUS_REJECTED:
+            next_status = IMPORT_STATUS_REVOKED
+        else:
+            raise ValueError("That request was already removed.")
+        self._repository.save_import_status(import_id, next_status, resolved_at=now)
+        stored = self._repository.get_import(import_id)
+        if stored is None:
+            raise TaskNotFound()
+        return stored
+
     def _notify_owner_of_import_request(
         self,
         *,

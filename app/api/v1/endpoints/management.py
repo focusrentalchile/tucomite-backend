@@ -278,6 +278,26 @@ def revoke_workspace_import(
     return _import_response(record)
 
 
+@router.post("/workspace/imports/{import_id}/leave", response_model=ManagementWorkspaceImportResponse)
+def leave_workspace_import(
+    import_id: str,
+    service: ManagementService = Depends(get_management_service),
+    actor: Actor = Depends(require_permission("management", "create")),
+) -> ManagementWorkspaceImportResponse:
+    """Administrator cancels a pending import or leaves an approved building."""
+    if actor.is_super_admin:
+        raise HTTPException(status_code=403, detail="Staff does not manage Gestión imports.")
+    try:
+        record = service.leave_import(import_id, administrator_user_id=actor.user_id)
+    except TaskNotFound:
+        raise HTTPException(status_code=404, detail="Import request not found.") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden.") from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    return _import_response(record)
+
+
 @router.get("/tasks", response_model=ManagementTaskListResponse)
 def list_tasks(
     client_id: str | None = Query(default=None),
