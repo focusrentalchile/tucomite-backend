@@ -121,7 +121,7 @@ class UserService:
         role = self._repository.get_role(assigned_role_id)
         if role is None:
             raise UnknownRole(assigned_role_id)
-        if role.system:
+        if role.system or role.name.casefold() in {name.casefold() for name in HIDDEN_ROLES}:
             raise UnknownRole(assigned_role_id)
         user = UserRecord(
             id=str(uuid.uuid4()),
@@ -158,7 +158,11 @@ class UserService:
         assigned_role_id = current.role_id
         if role_id is not None:
             role = self._repository.get_role(role_id)
-            if role is None or role.system:
+            if (
+                role is None
+                or role.system
+                or role.name.casefold() in {name.casefold() for name in HIDDEN_ROLES}
+            ):
                 raise UnknownRole(role_id)
             assigned_role_id = role_id
         updated = UserRecord(

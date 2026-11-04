@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     committee,
     management,
     health,
+    legal,
     messages,
     notifications,
     periods,
@@ -30,5 +31,6 @@ api_router.include_router(reports.router)
 api_router.include_router(management.router)
 api_router.include_router(messages.router)
 api_router.include_router(notifications.router)
+api_router.include_router(legal.router)
 api_router.include_router(topics.router)
 api_router.include_router(agreements.router)

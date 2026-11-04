@@ -47,6 +47,7 @@ def init_database() -> None:
     from app.models import committee as committee_models  # noqa: F401
     from app.models import periods as period_models  # noqa: F401
     from app.models import projects as project_models  # noqa: F401
+    from app.models import legal as legal_models  # noqa: F401
     from app.models import management as management_models  # noqa: F401
     from app.models import messages as message_models  # noqa: F401
     from app.models import notifications as notification_models  # noqa: F401

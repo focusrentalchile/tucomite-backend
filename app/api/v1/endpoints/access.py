@@ -89,6 +89,7 @@ def _scoped_users(
             continue
         if actor.client_id and user.client_id == actor.client_id:
             users.append(user)
+    users.sort(key=lambda item: item.full_name.casefold())
     return users, protected_ids
 
 

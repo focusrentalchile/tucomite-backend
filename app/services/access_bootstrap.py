@@ -96,9 +96,8 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
     ),
 }
 
-# No longer hidden from /roles for user assignment. The admin Roles screen may
-# still filter starters separately for permission editing.
-HIDDEN_ROLES: frozenset[str] = frozenset()
+# Building owner role stays out of the Usuarios role picker (one owner per building).
+HIDDEN_ROLES: frozenset[str] = frozenset({"client"})
 
 
 def bootstrap_access(

@@ -46,6 +46,8 @@ def test_v1_router_includes_health_path() -> None:
     assert "/agreements" in paths
     assert "/agreements/{agreement_id}" in paths
     assert "/agreements/{agreement_id}/pdf" in paths
+    assert "/legal-cases" in paths
+    assert "/legal-cases/{case_id}" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:
