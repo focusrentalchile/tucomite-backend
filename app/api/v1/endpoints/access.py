@@ -48,12 +48,18 @@ def _role_response(role: RoleRecord) -> RoleResponse:
     )
 
 
-def _user_response(user: UserRecord, *, protected: bool = False) -> UserResponse:
+def _user_response(
+    user: UserRecord,
+    *,
+    protected: bool = False,
+    role_key: str = "",
+) -> UserResponse:
     return UserResponse(
         id=user.id,
         full_name=user.full_name,
         email=user.email,
         role_id=user.role_id,
+        role_key=role_key,
         protected=protected,
     )
 
@@ -207,8 +213,16 @@ def read_users(
 ) -> UserListResponse:
     """Return users in the actor's building. The building admin is marked protected."""
     users, protected_ids = _scoped_users(service, actor, db)
+    roles = {role.id: role.name for role in SqlAccessRepository(db).list_roles()}
     return UserListResponse(
-        items=[_user_response(user, protected=user.id in protected_ids) for user in users],
+        items=[
+            _user_response(
+                user,
+                protected=user.id in protected_ids,
+                role_key=roles.get(user.role_id, ""),
+            )
+            for user in users
+        ],
     )
 
 
@@ -236,7 +250,12 @@ def create_user(
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
     admin_id = _client_admin_id(db, actor.client_id)
-    return _user_response(user, protected=user.id == admin_id)
+    role = SqlAccessRepository(db).get_role(user.role_id)
+    return _user_response(
+        user,
+        protected=user.id == admin_id,
+        role_key=role.name if role is not None else "",
+    )
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
@@ -266,7 +285,12 @@ def update_user(
         raise HTTPException(status_code=409, detail="The building admin cannot be changed.") from None
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
-    return _user_response(user, protected=user.id in protected_ids)
+    role = SqlAccessRepository(db).get_role(user.role_id)
+    return _user_response(
+        user,
+        protected=user.id in protected_ids,
+        role_key=role.name if role is not None else "",
+    )
 
 
 @router.delete("/users/{user_id}", status_code=204)
