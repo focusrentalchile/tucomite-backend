@@ -326,7 +326,7 @@ class ManagementService:
                 title="Solicitud para gestionar tu edificio",
                 body=(
                     f"El administrador {admin_label} ({admin_email}) quiere gestionar "
-                    f"«{client_name}». Entrá a Administración para aprobar."
+                    f"«{client_name}». Entrá a Administradores para aprobar."
                 ),
                 created_at=now,
                 read_at=None,

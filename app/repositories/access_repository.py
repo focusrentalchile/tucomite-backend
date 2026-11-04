@@ -211,11 +211,80 @@ class SqlAccessRepository:
         self._session.flush()
 
     def delete_user(self, user_id: str) -> None:
+        """Delete a user and every row that still points at them with a FK."""
         from app.models.committee import CommitteeMemberModel
+        from app.models.management import (
+            ManagementMessageModel,
+            ManagementTaskModel,
+            ManagementWorkspaceImportModel,
+        )
+        from app.models.messages import (
+            ResidentMessageAttachmentModel,
+            ResidentMessageModel,
+            ResidentMessageReplyModel,
+            ResidentMessageStatusEventModel,
+        )
+        from app.models.notifications import NotificationModel
 
         member = self._session.get(CommitteeMemberModel, user_id)
         if member is not None:
             self._session.delete(member)
+
+        self._session.execute(delete(NotificationModel).where(NotificationModel.user_id == user_id))
+        self._session.execute(
+            delete(ManagementWorkspaceImportModel).where(
+                ManagementWorkspaceImportModel.administrator_user_id == user_id,
+            ),
+        )
+        self._session.execute(
+            delete(ManagementMessageModel).where(ManagementMessageModel.author_user_id == user_id),
+        )
+        for task in self._session.scalars(
+            select(ManagementTaskModel).where(ManagementTaskModel.assignee_user_id == user_id),
+        ).all():
+            task.assignee_user_id = None
+        owned_tasks = self._session.scalars(
+            select(ManagementTaskModel).where(ManagementTaskModel.created_by_user_id == user_id),
+        ).all()
+        for task in owned_tasks:
+            self._session.execute(
+                delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task.id),
+            )
+            self._session.delete(task)
+
+        self._session.execute(
+            delete(ResidentMessageReplyModel).where(ResidentMessageReplyModel.author_user_id == user_id),
+        )
+        authored_messages = self._session.scalars(
+            select(ResidentMessageModel).where(ResidentMessageModel.author_user_id == user_id),
+        ).all()
+        for message in authored_messages:
+            self._session.execute(
+                delete(ResidentMessageAttachmentModel).where(
+                    ResidentMessageAttachmentModel.message_id == message.id,
+                ),
+            )
+            reply_ids = self._session.scalars(
+                select(ResidentMessageReplyModel.id).where(
+                    ResidentMessageReplyModel.message_id == message.id,
+                ),
+            ).all()
+            if reply_ids:
+                self._session.execute(
+                    delete(ResidentMessageAttachmentModel).where(
+                        ResidentMessageAttachmentModel.reply_id.in_(reply_ids),
+                    ),
+                )
+            self._session.execute(
+                delete(ResidentMessageReplyModel).where(ResidentMessageReplyModel.message_id == message.id),
+            )
+            self._session.execute(
+                delete(ResidentMessageStatusEventModel).where(
+                    ResidentMessageStatusEventModel.message_id == message.id,
+                ),
+            )
+            self._session.delete(message)
+
         row = self._session.get(UserModel, user_id)
         if row is not None:
             self._session.delete(row)
