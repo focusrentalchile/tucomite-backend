@@ -36,8 +36,11 @@ def register_builtin_modules() -> None:
             functionalities=("view", "create", "update", "delete", "manage"),
         ),
     )
-    # see = sidebar tip only (resident). view = open the Legal screen (committee / client).
-    access_catalog.register(ModuleDefinition(key="legal", functionalities=("see", "view")))
+    # see = sidebar tip (resident). view = open/create cases (client/committee).
+    # reply/update = counsel Casos board (open, message, finish).
+    access_catalog.register(
+        ModuleDefinition(key="legal", functionalities=("see", "view", "reply", "update")),
+    )
 
 
 register_builtin_modules()

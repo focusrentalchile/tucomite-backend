@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+LegalStatus = Literal["waiting", "in_progress", "finished"]
+
 
 class LegalCaseAttachmentPayload(BaseModel):
     """Attachment uploaded with a legal case."""
@@ -29,6 +31,18 @@ class UpdateLegalCaseRequest(BaseModel):
     attachments: list[LegalCaseAttachmentPayload] = Field(default_factory=list)
 
 
+class SetLegalCaseStatusRequest(BaseModel):
+    """Body to move a case on the counsel board."""
+
+    status: LegalStatus
+
+
+class CreateLegalCaseMessageRequest(BaseModel):
+    """Body to post a message on a legal case."""
+
+    body: str = Field(min_length=1)
+
+
 class LegalCaseAttachmentResponse(BaseModel):
     """One attachment on a legal case."""
 
@@ -38,14 +52,27 @@ class LegalCaseAttachmentResponse(BaseModel):
     url: str
 
 
+class LegalCaseMessageResponse(BaseModel):
+    """One message on a legal case thread."""
+
+    id: str
+    author_user_id: str
+    author_name: str
+    body: str
+    from_legal: bool
+    created_at: str
+
+
 class LegalCaseResponse(BaseModel):
-    """One legal case with its attachments."""
+    """One legal case with its attachments and optional messages."""
 
     id: str
     title: str
     description: str
+    status: LegalStatus
     created_at: str
     attachments: list[LegalCaseAttachmentResponse] = Field(default_factory=list)
+    messages: list[LegalCaseMessageResponse] = Field(default_factory=list)
 
 
 class LegalCaseListResponse(BaseModel):

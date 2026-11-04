@@ -133,6 +133,8 @@ def test_bootstrap_seeds_demo_users_for_each_building_role() -> None:
     assert roles[by_email["comite3@demo.tucomite.local"].role_id] == "committee"
     assert roles[by_email["mayordomo@demo.tucomite.local"].role_id] == "caretaker"
     assert roles[by_email["residente@demo.tucomite.local"].role_id] == "resident"
+    assert roles[by_email["legal@demo.tucomite.local"].role_id] == "legal"
+    assert roles[by_email["legal@tucomite.cl"].role_id] == "legal"
     assert by_email["administrador@demo.tucomite.local"].client_id == "client-demo"
     assert sum(1 for user in repository.list_users() if user.email.endswith("@demo.tucomite.local")) == 6
 

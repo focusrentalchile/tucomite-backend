@@ -211,6 +211,30 @@ def init_database() -> None:
                 connection.execute(
                     text("CREATE INDEX `ix_periods_client_id` ON `periods` (`client_id`)"),
                 )
+        legal_cases_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'legal_cases'"
+            ),
+        ).scalar()
+        if legal_cases_exist:
+            has_legal_status = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'legal_cases' AND COLUMN_NAME = 'status'"
+                ),
+            ).scalar()
+            if not has_legal_status:
+                connection.execute(
+                    text(
+                        "ALTER TABLE `legal_cases` "
+                        "ADD COLUMN `status` VARCHAR(32) NOT NULL DEFAULT 'waiting'"
+                    ),
+                )
+                connection.execute(
+                    text("CREATE INDEX `ix_legal_cases_status` ON `legal_cases` (`status`)"),
+                )
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

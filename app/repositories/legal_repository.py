@@ -7,8 +7,13 @@ from uuid import uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.domain.legal import LegalCaseAttachmentRecord, LegalCaseRecord
-from app.models.legal import LegalCaseAttachmentModel, LegalCaseModel
+from app.domain.legal import (
+    LEGAL_STATUS_WAITING,
+    LegalCaseAttachmentRecord,
+    LegalCaseMessageRecord,
+    LegalCaseRecord,
+)
+from app.models.legal import LegalCaseAttachmentModel, LegalCaseMessageModel, LegalCaseModel
 
 
 class LegalRepository(Protocol):
@@ -24,10 +29,10 @@ class LegalRepository(Protocol):
         """Insert one case."""
 
     def update_case(self, case: LegalCaseRecord) -> LegalCaseRecord:
-        """Replace title and description on one case."""
+        """Replace title, description, and status on one case."""
 
     def delete_case(self, case_id: str) -> None:
-        """Delete one case and its attachments."""
+        """Delete one case and its attachments and messages."""
 
     def list_attachments_for_cases(self, case_ids: list[str]) -> list[LegalCaseAttachmentRecord]:
         """Return every attachment for the given cases."""
@@ -38,6 +43,12 @@ class LegalRepository(Protocol):
         attachments: list[LegalCaseAttachmentRecord],
     ) -> None:
         """Replace every attachment for one case."""
+
+    def list_messages(self, case_id: str) -> list[LegalCaseMessageRecord]:
+        """Return messages for one case, oldest first."""
+
+    def add_message(self, message: LegalCaseMessageRecord) -> LegalCaseMessageRecord:
+        """Insert one message on a case."""
 
 
 class SqlLegalRepository:
@@ -68,6 +79,7 @@ class SqlLegalRepository:
                 client_id=case.client_id,
                 title=case.title,
                 description=case.description,
+                status=case.status or LEGAL_STATUS_WAITING,
                 created_by_user_id=case.created_by_user_id,
                 created_at=created,
             ),
@@ -81,10 +93,14 @@ class SqlLegalRepository:
             raise LookupError(case.id)
         row.title = case.title
         row.description = case.description
+        row.status = case.status
         self._session.flush()
         return self._case(row)
 
     def delete_case(self, case_id: str) -> None:
+        self._session.execute(
+            delete(LegalCaseMessageModel).where(LegalCaseMessageModel.case_id == case_id),
+        )
         self._session.execute(
             delete(LegalCaseAttachmentModel).where(LegalCaseAttachmentModel.case_id == case_id),
         )
@@ -130,6 +146,30 @@ class SqlLegalRepository:
             )
         self._session.flush()
 
+    def list_messages(self, case_id: str) -> list[LegalCaseMessageRecord]:
+        rows = self._session.execute(
+            select(LegalCaseMessageModel)
+            .where(LegalCaseMessageModel.case_id == case_id)
+            .order_by(LegalCaseMessageModel.created_at.asc()),
+        ).scalars().all()
+        return [self._message(row) for row in rows]
+
+    def add_message(self, message: LegalCaseMessageRecord) -> LegalCaseMessageRecord:
+        created = datetime.fromisoformat(message.created_at.replace("Z", "+00:00"))
+        self._session.add(
+            LegalCaseMessageModel(
+                id=message.id,
+                case_id=message.case_id,
+                author_user_id=message.author_user_id,
+                author_name=message.author_name,
+                body=message.body,
+                from_legal=message.from_legal,
+                created_at=created,
+            ),
+        )
+        self._session.flush()
+        return message
+
     def _case(self, row: LegalCaseModel) -> LegalCaseRecord:
         created = row.created_at
         if created.tzinfo is None:
@@ -141,4 +181,19 @@ class SqlLegalRepository:
             description=row.description,
             created_at=created.isoformat().replace("+00:00", "Z"),
             created_by_user_id=row.created_by_user_id,
+            status=getattr(row, "status", None) or LEGAL_STATUS_WAITING,
+        )
+
+    def _message(self, row: LegalCaseMessageModel) -> LegalCaseMessageRecord:
+        created = row.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        return LegalCaseMessageRecord(
+            id=row.id,
+            case_id=row.case_id,
+            author_user_id=row.author_user_id,
+            author_name=row.author_name,
+            body=row.body,
+            from_legal=bool(row.from_legal),
+            created_at=created.isoformat().replace("+00:00", "Z"),
         )

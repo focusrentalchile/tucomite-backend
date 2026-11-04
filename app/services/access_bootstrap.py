@@ -62,13 +62,12 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "legal.see",
         }
     ),
-    # Building legal counsel (Spanish UI: Legal). Sidebar: Inicio + Gestión (task board).
+    # Building legal counsel. Sidebar: Inicio + Casos (kanban En espera / En proceso / Finalizado).
     "legal": frozenset(
         {
-            "management.view",
-            "management.create",
-            "management.reply",
-            "management.update",
+            "legal.view",
+            "legal.reply",
+            "legal.update",
             "notifications.receive",
         }
     ),
@@ -317,6 +316,7 @@ def _ensure_demo_building_users(
         ("resident", "Residente 2", "residente2@tucomite.cl"),
         ("resident", "Residente 3", "residente3@tucomite.cl"),
         ("legal", "Legal demo", "legal@demo.tucomite.local"),
+        ("legal", "Legal", "legal@tucomite.cl"),
     )
     for role_name, full_name, email in seeds:
         role = by_name.get(role_name)
