@@ -93,3 +93,21 @@ class ResidentMessageStatusEventModel(Base):
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResidentMessageParticipantModel(Base):
+    """Another resident invited to see a message (read-only)."""
+
+    __tablename__ = "resident_message_participants"
+
+    message_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("resident_messages.id"),
+        primary_key=True,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id"),
+        primary_key=True,
+        index=True,
+    )

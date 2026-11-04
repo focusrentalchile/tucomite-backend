@@ -17,7 +17,7 @@ DEMO_CLIENT_EMAIL = "client@tucomite.cl"
 LEGACY_DEMO_CLIENT_EMAIL = "admin@tucomite.cl"
 
 # English role keys. The admin site translates them in the Spanish locale.
-# Default building roles: committee, caretaker (Mayordomo), resident, client, administrator.
+# Default building roles: committee, caretaker (Mayordomo), resident, legal, client, administrator.
 STARTER_ROLES: dict[str, frozenset[str]] = {
     "committee": frozenset(
         {
@@ -30,6 +30,8 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "progress.update",
             "documents.view",
             "notifications.receive",
+            "management.approve_import",
+            "legal.view",
         }
     ),
     "administrator": frozenset(
@@ -49,13 +51,24 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
-    # Building resident (Spanish UI: Residente). Sidebar: Inicio + Mensajes.
+    # Building resident (Spanish UI: Residente). Sidebar: Inicio + Mensajes + Legal (visible only).
     "resident": frozenset(
         {
             "messages.view",
             "messages.create",
             "messages.update",
             "messages.delete",
+            "notifications.receive",
+            "legal.see",
+        }
+    ),
+    # Building legal counsel (Spanish UI: Legal). Sidebar: Inicio + Gestión (task board).
+    "legal": frozenset(
+        {
+            "management.view",
+            "management.create",
+            "management.reply",
+            "management.update",
             "notifications.receive",
         }
     ),
@@ -78,6 +91,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "roles.update",
             "roles.delete",
             "management.approve_import",
+            "legal.view",
         }
     ),
 }
@@ -290,7 +304,7 @@ def _ensure_demo_building_users(
     client_id: str,
     password_hash: str,
 ) -> None:
-    """Ensure demo users for administrator, committee, caretaker, and resident."""
+    """Ensure demo users for administrator, committee, caretaker, resident, and legal."""
     by_name = {role.name.casefold(): role for role in repository.list_roles()}
     seeds = (
         ("administrator", "Administrador demo", "administrador@demo.tucomite.local"),
@@ -299,6 +313,10 @@ def _ensure_demo_building_users(
         ("committee", "Comité demo 3", "comite3@demo.tucomite.local"),
         ("caretaker", "Mayordomo demo", "mayordomo@demo.tucomite.local"),
         ("resident", "Residente demo", "residente@demo.tucomite.local"),
+        ("resident", "Residente 1", "residente1@tucomite.cl"),
+        ("resident", "Residente 2", "residente2@tucomite.cl"),
+        ("resident", "Residente 3", "residente3@tucomite.cl"),
+        ("legal", "Legal demo", "legal@demo.tucomite.local"),
     )
     for role_name, full_name, email in seeds:
         role = by_name.get(role_name)

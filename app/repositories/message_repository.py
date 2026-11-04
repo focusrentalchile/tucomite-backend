@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.domain.messages import (
     DEFAULT_MESSAGE_TYPE_NAMES,
     MessageAttachmentRecord,
+    MessageParticipantRecord,
     MessageRecord,
     MessageReplyRecord,
     MessageStatusEventRecord,
@@ -20,6 +21,7 @@ from app.models.messages import (
     MessageTypeModel,
     ResidentMessageAttachmentModel,
     ResidentMessageModel,
+    ResidentMessageParticipantModel,
     ResidentMessageReplyModel,
     ResidentMessageStatusEventModel,
 )
@@ -44,6 +46,8 @@ class MessageRepository(Protocol):
 
     def list_messages_for_author(self, author_user_id: str) -> list[MessageRecord]: ...
 
+    def list_messages_for_viewer(self, user_id: str) -> list[MessageRecord]: ...
+
     def list_messages_for_client(self, client_id: str) -> list[MessageRecord]: ...
 
     def get_message(self, message_id: str) -> MessageRecord | None: ...
@@ -59,6 +63,8 @@ class MessageRepository(Protocol):
         message_id: str,
         attachments: list[MessageAttachmentRecord],
     ) -> None: ...
+
+    def replace_participants(self, message_id: str, user_ids: list[str]) -> None: ...
 
     def add_reply(self, reply: MessageReplyRecord) -> None: ...
 
@@ -98,6 +104,40 @@ class SqlMessageRepository:
         ).all()
         return [self._message(row) for row in rows]
 
+    def list_messages_for_viewer(self, user_id: str) -> list[MessageRecord]:
+        """Messages the person authored or was invited to follow."""
+        authored = self._session.scalars(
+            select(ResidentMessageModel)
+            .where(ResidentMessageModel.author_user_id == user_id)
+            .order_by(ResidentMessageModel.created_at.desc()),
+        ).all()
+        participant_ids = {
+            row.message_id
+            for row in self._session.scalars(
+                select(ResidentMessageParticipantModel).where(
+                    ResidentMessageParticipantModel.user_id == user_id,
+                ),
+            ).all()
+        }
+        participated: list[ResidentMessageModel] = []
+        if participant_ids:
+            participated = list(
+                self._session.scalars(
+                    select(ResidentMessageModel)
+                    .where(ResidentMessageModel.id.in_(participant_ids))
+                    .order_by(ResidentMessageModel.created_at.desc()),
+                ).all(),
+            )
+        by_id: dict[str, ResidentMessageModel] = {row.id: row for row in authored}
+        for row in participated:
+            by_id.setdefault(row.id, row)
+        ordered = sorted(
+            by_id.values(),
+            key=lambda row: row.created_at or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        return [self._message(row) for row in ordered]
+
     def list_messages_for_client(self, client_id: str) -> list[MessageRecord]:
         rows = self._session.scalars(
             select(ResidentMessageModel)
@@ -129,6 +169,7 @@ class SqlMessageRepository:
         )
         self._session.flush()
         self.replace_message_attachments(record.id, list(record.attachments))
+        self.replace_participants(record.id, [item.user_id for item in record.participants])
         for event in record.status_events:
             self.add_status_event(event)
 
@@ -158,6 +199,11 @@ class SqlMessageRepository:
         self._session.flush()
 
     def delete_message(self, message_id: str) -> None:
+        self._session.execute(
+            delete(ResidentMessageParticipantModel).where(
+                ResidentMessageParticipantModel.message_id == message_id,
+            ),
+        )
         self._session.execute(
             delete(ResidentMessageAttachmentModel).where(
                 ResidentMessageAttachmentModel.message_id == message_id,
@@ -209,6 +255,23 @@ class SqlMessageRepository:
                     name=item.name,
                     url=item.url,
                 ),
+            )
+        self._session.flush()
+
+    def replace_participants(self, message_id: str, user_ids: list[str]) -> None:
+        self._session.execute(
+            delete(ResidentMessageParticipantModel).where(
+                ResidentMessageParticipantModel.message_id == message_id,
+            ),
+        )
+        seen: set[str] = set()
+        for user_id in user_ids:
+            cleaned = user_id.strip()
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            self._session.add(
+                ResidentMessageParticipantModel(message_id=message_id, user_id=cleaned),
             )
         self._session.flush()
 
@@ -299,6 +362,21 @@ class SqlMessageRepository:
                 .order_by(ResidentMessageStatusEventModel.occurred_at.asc()),
             ).all()
         ]
+        participants: list[MessageParticipantRecord] = []
+        for link in self._session.scalars(
+            select(ResidentMessageParticipantModel).where(
+                ResidentMessageParticipantModel.message_id == row.id,
+            ),
+        ).all():
+            person = self._session.get(UserModel, link.user_id)
+            participants.append(
+                MessageParticipantRecord(
+                    user_id=link.user_id,
+                    full_name=person.full_name if person else "",
+                    email=person.email if person else "",
+                ),
+            )
+        participants.sort(key=lambda item: item.full_name.casefold())
         return MessageRecord(
             id=row.id,
             client_id=row.client_id,
@@ -320,4 +398,5 @@ class SqlMessageRepository:
             attachments=tuple(attachments),
             replies=tuple(replies),
             status_events=tuple(events),
+            participants=tuple(participants),
         )

@@ -55,6 +55,14 @@ class MessageStatusEventResponse(BaseModel):
     occurred_at: str
 
 
+class MessageParticipantResponse(BaseModel):
+    """One invited resident on a message."""
+
+    user_id: str
+    full_name: str
+    email: str = ""
+
+
 class MessageResponse(BaseModel):
     """Full message ticket."""
 
@@ -78,12 +86,27 @@ class MessageResponse(BaseModel):
     attachments: list[MessageAttachmentResponse] = []
     replies: list[MessageReplyResponse] = []
     status_events: list[MessageStatusEventResponse] = []
+    participants: list[MessageParticipantResponse] = []
 
 
 class MessageListResponse(BaseModel):
     """List of message tickets."""
 
     items: list[MessageResponse]
+
+
+class MessageParticipantCandidateResponse(BaseModel):
+    """Resident that can be invited onto a message."""
+
+    id: str
+    full_name: str
+    email: str
+
+
+class MessageParticipantCandidateListResponse(BaseModel):
+    """Other residents in the building."""
+
+    items: list[MessageParticipantCandidateResponse]
 
 
 class CreateMessageRequest(BaseModel):
@@ -93,6 +116,7 @@ class CreateMessageRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1)
     attachments: list[MessageAttachmentPayload] = []
+    participant_user_ids: list[str] = []
 
 
 class UpdateMessageRequest(BaseModel):
@@ -102,6 +126,7 @@ class UpdateMessageRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1)
     attachments: list[MessageAttachmentPayload] = []
+    participant_user_ids: list[str] = []
 
 
 class CreateMessageReplyRequest(BaseModel):

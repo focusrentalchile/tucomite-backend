@@ -31,6 +31,14 @@ class MemoryMessageRepository:
     def list_messages_for_author(self, author_user_id: str) -> list[MessageRecord]:
         return [item for item in self.messages.values() if item.author_user_id == author_user_id]
 
+    def list_messages_for_viewer(self, user_id: str) -> list[MessageRecord]:
+        return [
+            item
+            for item in self.messages.values()
+            if item.author_user_id == user_id
+            or any(person.user_id == user_id for person in item.participants)
+        ]
+
     def list_messages_for_client(self, client_id: str) -> list[MessageRecord]:
         return [item for item in self.messages.values() if item.client_id == client_id]
 
@@ -54,6 +62,19 @@ class MemoryMessageRepository:
         current = self.messages[message_id]
         self.messages[message_id] = MessageRecord(
             **{**current.__dict__, "attachments": tuple(attachments)},
+        )
+
+    def replace_participants(self, message_id: str, user_ids: list[str]) -> None:
+        from app.domain.messages import MessageParticipantRecord
+
+        current = self.messages[message_id]
+        self.messages[message_id] = MessageRecord(
+            **{
+                **current.__dict__,
+                "participants": tuple(
+                    MessageParticipantRecord(user_id=user_id, full_name="") for user_id in user_ids
+                ),
+            },
         )
 
     def add_reply(self, reply) -> None:
@@ -91,3 +112,23 @@ def test_open_and_reply_move_status() -> None:
     finished = service.set_status(created.id, MESSAGE_STATUS_FINISHED)
     assert finished.status == MESSAGE_STATUS_FINISHED
     assert len(repo.events) >= 3
+
+
+def test_create_with_participants_is_visible_read_only_to_invitee() -> None:
+    repo = MemoryMessageRepository()
+    service = MessageService(repo)
+    created = service.create(
+        client_id="c1",
+        author_user_id="u1",
+        author_name="Residente 1",
+        message_type_id="t1",
+        subject="Ruido",
+        body="En el piso 3",
+        participant_user_ids=["u2", "u1", "u2"],
+    )
+    assert [person.user_id for person in created.participants] == ["u2"]
+    assert service.can_view(created, "u1") is True
+    assert service.can_view(created, "u2") is True
+    assert service.can_view(created, "u3") is False
+    listed = service.list_for_viewer("u2")
+    assert [item.id for item in listed] == [created.id]

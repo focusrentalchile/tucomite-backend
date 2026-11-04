@@ -64,6 +64,15 @@ class MessageStatusEventRecord:
 
 
 @dataclass(frozen=True)
+class MessageParticipantRecord:
+    """One other resident invited to follow a message."""
+
+    user_id: str
+    full_name: str
+    email: str = ""
+
+
+@dataclass(frozen=True)
 class MessageRecord:
     """One resident message ticket for a building."""
 
@@ -87,6 +96,7 @@ class MessageRecord:
     attachments: tuple[MessageAttachmentRecord, ...] = ()
     replies: tuple[MessageReplyRecord, ...] = ()
     status_events: tuple[MessageStatusEventRecord, ...] = ()
+    participants: tuple[MessageParticipantRecord, ...] = ()
 
 
 class MessageNotFound(Exception):

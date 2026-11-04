@@ -12,6 +12,7 @@ from app.domain.messages import (
     InvalidMessageStatus,
     MessageAttachmentRecord,
     MessageNotFound,
+    MessageParticipantRecord,
     MessageRecord,
     MessageReplyRecord,
     MessageStatusEventRecord,
@@ -47,9 +48,19 @@ class MessageService:
         """Messages created by one resident."""
         return self._repository.list_messages_for_author(author_user_id)
 
+    def list_for_viewer(self, user_id: str) -> list[MessageRecord]:
+        """Messages the resident authored or was invited to follow."""
+        return self._repository.list_messages_for_viewer(user_id)
+
     def list_for_client(self, client_id: str) -> list[MessageRecord]:
         """All messages for one building (administrator board)."""
         return self._repository.list_messages_for_client(client_id)
+
+    def can_view(self, record: MessageRecord, user_id: str) -> bool:
+        """True when the person authored the ticket or is an invited participant."""
+        if record.author_user_id == user_id:
+            return True
+        return any(item.user_id == user_id for item in record.participants)
 
     def get(self, message_id: str) -> MessageRecord:
         """Load one message or raise."""
@@ -68,6 +79,7 @@ class MessageService:
         subject: str,
         body: str,
         attachments: list[dict[str, str]] | None = None,
+        participant_user_ids: list[str] | None = None,
         parent_message_id: str | None = None,
         topic_id: str | None = None,
     ) -> MessageRecord:
@@ -101,6 +113,13 @@ class MessageService:
                     occurred_at=now,
                 ),
             ),
+            participants=tuple(
+                MessageParticipantRecord(user_id=user_id, full_name="")
+                for user_id in self._normalize_participant_ids(
+                    participant_user_ids,
+                    author_user_id=author_user_id,
+                )
+            ),
         )
         self._repository.add_message(record)
         stored = self._repository.get_message(message_id)
@@ -117,6 +136,7 @@ class MessageService:
         subject: str,
         body: str,
         attachments: list[dict[str, str]] | None = None,
+        participant_user_ids: list[str] | None = None,
     ) -> MessageRecord:
         """Edit a message while it is still Enviado."""
         current = self.get(message_id)
@@ -127,6 +147,17 @@ class MessageService:
         message_type = self._repository.get_type(message_type_id)
         if message_type is None:
             raise MessageTypeNotFound()
+        participants = (
+            tuple(
+                MessageParticipantRecord(user_id=user_id, full_name="")
+                for user_id in self._normalize_participant_ids(
+                    participant_user_ids,
+                    author_user_id=author_user_id,
+                )
+            )
+            if participant_user_ids is not None
+            else current.participants
+        )
         updated = MessageRecord(
             id=current.id,
             client_id=current.client_id,
@@ -148,9 +179,15 @@ class MessageService:
             attachments=tuple(self._normalize_attachments(attachments)),
             replies=current.replies,
             status_events=current.status_events,
+            participants=participants,
         )
         self._repository.save_message(updated)
         self._repository.replace_message_attachments(message_id, list(updated.attachments))
+        if participant_user_ids is not None:
+            self._repository.replace_participants(
+                message_id,
+                [item.user_id for item in participants],
+            )
         return self.get(message_id)
 
     def delete(self, message_id: str, *, author_user_id: str) -> None:
@@ -305,6 +342,7 @@ class MessageService:
             attachments=current.attachments,
             replies=current.replies,
             status_events=current.status_events,
+            participants=current.participants,
         )
         self._repository.save_message(updated)
         self._repository.add_status_event(
@@ -332,3 +370,20 @@ class MessageService:
                 MessageAttachmentRecord(id=str(uuid4()), kind=kind, name=name, url=url),
             )
         return items
+
+    def _normalize_participant_ids(
+        self,
+        participant_user_ids: list[str] | None,
+        *,
+        author_user_id: str,
+    ) -> list[str]:
+        """Drop blanks, duplicates, and the author from the invite list."""
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for raw in participant_user_ids or []:
+            user_id = raw.strip()
+            if not user_id or user_id == author_user_id or user_id in seen:
+                continue
+            seen.add(user_id)
+            cleaned.append(user_id)
+        return cleaned

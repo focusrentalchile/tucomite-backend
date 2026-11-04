@@ -221,6 +221,7 @@ class SqlAccessRepository:
         from app.models.messages import (
             ResidentMessageAttachmentModel,
             ResidentMessageModel,
+            ResidentMessageParticipantModel,
             ResidentMessageReplyModel,
             ResidentMessageStatusEventModel,
         )
@@ -231,6 +232,11 @@ class SqlAccessRepository:
             self._session.delete(member)
 
         self._session.execute(delete(NotificationModel).where(NotificationModel.user_id == user_id))
+        self._session.execute(
+            delete(ResidentMessageParticipantModel).where(
+                ResidentMessageParticipantModel.user_id == user_id,
+            ),
+        )
         self._session.execute(
             delete(ManagementWorkspaceImportModel).where(
                 ManagementWorkspaceImportModel.administrator_user_id == user_id,

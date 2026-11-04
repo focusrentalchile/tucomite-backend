@@ -16,6 +16,9 @@ from app.schemas.messages import (
     CreateMessageRequest,
     MessageAttachmentResponse,
     MessageListResponse,
+    MessageParticipantCandidateListResponse,
+    MessageParticipantCandidateResponse,
+    MessageParticipantResponse,
     MessageReplyResponse,
     MessageResponse,
     MessageStatusEventResponse,
@@ -86,7 +89,42 @@ def _message(item) -> MessageResponse:
         attachments=[_attachment(file) for file in item.attachments],
         replies=[_reply(reply) for reply in item.replies],
         status_events=[_event(event) for event in item.status_events],
+        participants=[
+            MessageParticipantResponse(
+                user_id=person.user_id,
+                full_name=person.full_name,
+                email=person.email,
+            )
+            for person in item.participants
+        ],
     )
+
+
+def _validate_participants(
+    db: Session,
+    *,
+    client_id: str,
+    author_user_id: str,
+    participant_user_ids: list[str],
+) -> list[str]:
+    """Keep only other resident accounts from the same building."""
+    access = SqlAccessRepository(db)
+    roles = {role.id: role for role in access.list_roles()}
+    allowed: list[str] = []
+    seen: set[str] = set()
+    for user_id in participant_user_ids:
+        cleaned = user_id.strip()
+        if not cleaned or cleaned == author_user_id or cleaned in seen:
+            continue
+        user = access.get_user(cleaned)
+        if user is None or user.client_id != client_id:
+            raise HTTPException(status_code=422, detail="Participant must belong to this building.")
+        role = roles.get(user.role_id)
+        if role is None or role.name.casefold() != "resident":
+            raise HTTPException(status_code=422, detail="Only residents can be invited.")
+        seen.add(cleaned)
+        allowed.append(cleaned)
+    return allowed
 
 
 @router.get("/message-types", response_model=MessageTypeListResponse)
@@ -98,6 +136,37 @@ def list_message_types(
     return MessageTypeListResponse(
         items=[MessageTypeResponse(id=item.id, name=item.name) for item in service.list_types()],
     )
+
+
+@router.get(
+    "/messages/participant-candidates",
+    response_model=MessageParticipantCandidateListResponse,
+)
+def list_message_participant_candidates(
+    actor: Actor = Depends(require_permission("messages", "create")),
+    db: Session = Depends(get_db),
+) -> MessageParticipantCandidateListResponse:
+    """Other residents in the building that can be invited onto a message."""
+    if not actor.client_id:
+        raise HTTPException(status_code=422, detail="Building context is required.")
+    access = SqlAccessRepository(db)
+    roles = {role.id: role for role in access.list_roles()}
+    items: list[MessageParticipantCandidateResponse] = []
+    for user in access.list_users():
+        if user.id == actor.user_id or user.client_id != actor.client_id:
+            continue
+        role = roles.get(user.role_id)
+        if role is None or role.name.casefold() != "resident":
+            continue
+        items.append(
+            MessageParticipantCandidateResponse(
+                id=user.id,
+                full_name=user.full_name,
+                email=user.email,
+            ),
+        )
+    items.sort(key=lambda item: item.full_name.casefold())
+    return MessageParticipantCandidateListResponse(items=items)
 
 
 @router.get("/messages", response_model=MessageListResponse)
@@ -113,7 +182,7 @@ def list_messages(
     elif "messages.manage" in held and actor.client_id:
         items = service.list_for_client(actor.client_id)
     elif "messages.view" in held:
-        items = service.list_for_author(actor.user_id)
+        items = service.list_for_viewer(actor.user_id)
     else:
         raise HTTPException(status_code=403, detail="Forbidden.")
     return MessageListResponse(items=[_message(item) for item in items])
@@ -131,6 +200,12 @@ def create_message(
         raise HTTPException(status_code=422, detail="Building context is required.")
     access = SqlAccessRepository(db)
     user = access.get_user(actor.user_id)
+    participants = _validate_participants(
+        db,
+        client_id=actor.client_id,
+        author_user_id=actor.user_id,
+        participant_user_ids=body.participant_user_ids,
+    )
     try:
         record = service.create(
             client_id=actor.client_id,
@@ -140,6 +215,7 @@ def create_message(
             subject=body.subject,
             body=body.body,
             attachments=[item.model_dump() for item in body.attachments],
+            participant_user_ids=participants,
         )
     except MessageTypeNotFound as error:
         raise HTTPException(status_code=404, detail="Message type not found.") from error
@@ -160,7 +236,7 @@ def read_message(
     held = set(actor.permissions)
     if "messages.manage" in held:
         return _message(record)
-    if "messages.view" in held and record.author_user_id == actor.user_id:
+    if "messages.view" in held and service.can_view(record, actor.user_id):
         return _message(record)
     raise HTTPException(status_code=403, detail="Forbidden.")
 
@@ -171,8 +247,17 @@ def update_message(
     body: UpdateMessageRequest,
     service: MessageService = Depends(get_message_service),
     actor: Actor = Depends(require_permission("messages", "update")),
+    db: Session = Depends(get_db),
 ) -> MessageResponse:
     """Resident edits a still-sent message."""
+    if not actor.client_id:
+        raise HTTPException(status_code=422, detail="Building context is required.")
+    participants = _validate_participants(
+        db,
+        client_id=actor.client_id,
+        author_user_id=actor.user_id,
+        participant_user_ids=body.participant_user_ids,
+    )
     try:
         record = service.update(
             message_id,
@@ -181,6 +266,7 @@ def update_message(
             subject=body.subject,
             body=body.body,
             attachments=[item.model_dump() for item in body.attachments],
+            participant_user_ids=participants,
         )
     except MessageNotFound as error:
         raise HTTPException(status_code=404, detail="Message not found.") from error
