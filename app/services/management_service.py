@@ -338,7 +338,8 @@ class ManagementService:
         if self._agreements is None or self._periods is None:
             return []
         recent_period_ids = {
-            period.id for period in self._periods.list_periods()[-AGREEMENT_CONTEXT_PERIODS:]
+            period.id
+            for period in self._periods.list_periods(client_id)[-AGREEMENT_CONTEXT_PERIODS:]
         }
         if not recent_period_ids:
             return [

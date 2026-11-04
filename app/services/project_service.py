@@ -38,7 +38,9 @@ class ProjectService:
         period = self._periods.get_period(period_id)
         if period is None:
             raise PeriodNotFound(period_id)
-        open_period = self._periods.get_open_period()
+        if not period.client_id:
+            raise NoOpenPeriod(period_id)
+        open_period = self._periods.get_open_period(period.client_id)
         if open_period is None or open_period.id != period_id:
             raise NoOpenPeriod(period_id)
         project_id = str(uuid4())

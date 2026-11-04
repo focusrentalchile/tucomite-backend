@@ -13,7 +13,7 @@ from tests.support.memory_project_repository import InMemoryProjectRepository
 def test_create_list_update_and_delete_project() -> None:
     periods = InMemoryPeriodRepository()
     period_service = PeriodService(periods)
-    open_period = period_service.open_period("2026")
+    open_period = period_service.open_period("client-1", "2026")
     service = ProjectService(InMemoryProjectRepository(), periods)
 
     created = service.create_project(
@@ -57,7 +57,9 @@ def test_create_requires_open_period() -> None:
     with pytest.raises(PeriodNotFound):
         service.create_project("missing", "Titulo", "Descripcion", "")
 
-    closed = periods.create_period(PeriodRecord(id="p-closed", name="2024", status=PERIOD_STATUS_CLOSED))
+    closed = periods.create_period(
+        PeriodRecord(id="p-closed", name="2024", status=PERIOD_STATUS_CLOSED, client_id="client-1"),
+    )
     with pytest.raises(NoOpenPeriod):
         service.create_project(closed.id, "Titulo", "Descripcion", "")
 

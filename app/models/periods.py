@@ -15,3 +15,4 @@ class PeriodModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(16), default=PERIOD_STATUS_CLOSED)
+    client_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)

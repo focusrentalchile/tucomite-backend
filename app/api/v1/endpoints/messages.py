@@ -370,7 +370,11 @@ def appeal_message(
     user = access.get_user(actor.user_id)
     period_id = None
     try:
-        open_period = SqlPeriodRepository(db).get_open_period()
+        open_period = (
+            SqlPeriodRepository(db).get_open_period(actor.client_id)
+            if actor.client_id
+            else None
+        )
         period_id = open_period.id if open_period else None
     except Exception:
         period_id = None

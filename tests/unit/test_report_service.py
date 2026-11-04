@@ -11,9 +11,9 @@ from tests.support.memory_project_repository import InMemoryProjectRepository
 class _TopicRepo:
     def __init__(self) -> None:
         self.topics = [
-            TopicRecord("t1", "A", "d", "other", "", "?", OPEN_STATUS_ID, 1),
-            TopicRecord("t2", "B", "d", "other", "", "?", WAITING_STATUS_ID, 2),
-            TopicRecord("t3", "C", "d", "other", "", "?", 4, 3),
+            TopicRecord("t1", "A", "d", "other", "", "?", OPEN_STATUS_ID, 1, period_id="per1"),
+            TopicRecord("t2", "B", "d", "other", "", "?", WAITING_STATUS_ID, 2, period_id="per1"),
+            TopicRecord("t3", "C", "d", "other", "", "?", 4, 3, period_id="per1"),
         ]
         self.votes = [
             TopicVoteRecord("v1", "t2", "u1", "Ana", "yes"),
@@ -29,7 +29,9 @@ class _TopicRepo:
 
 def test_report_summary_counts_topics_votes_and_projects() -> None:
     periods = InMemoryPeriodRepository()
-    periods.create_period(PeriodRecord(id="per1", name="2026", status=PERIOD_STATUS_OPEN))
+    periods.create_period(
+        PeriodRecord(id="per1", name="2026", status=PERIOD_STATUS_OPEN, client_id="client-1"),
+    )
     projects = InMemoryProjectRepository()
     projects.create_project(
         ProjectRecord(
@@ -43,7 +45,7 @@ def test_report_summary_counts_topics_votes_and_projects() -> None:
     )
     service = ReportService(_TopicRepo(), projects, periods)
 
-    summary = service.summary()
+    summary = service.summary("client-1")
 
     assert summary["topics_opened"] == 3
     assert summary["topics_open"] == 1

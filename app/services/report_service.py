@@ -23,22 +23,18 @@ class ReportService:
         self._projects = projects
         self._periods = periods
 
-    def _topics_for_open_period(self):
-        """Topics belonging to the open period (legacy null counts as current)."""
-        open_period = self._periods.get_open_period()
+    def _topics_for_open_period(self, client_id: str):
+        """Topics belonging to this building's open period."""
+        open_period = self._periods.get_open_period(client_id)
         topics = self._topics.list_topics()
         if open_period is None:
             return [], None
-        scoped = [
-            topic
-            for topic in topics
-            if topic.period_id is None or topic.period_id == open_period.id
-        ]
+        scoped = [topic for topic in topics if topic.period_id == open_period.id]
         return scoped, open_period
 
-    def summary(self) -> dict[str, int | str]:
+    def summary(self, client_id: str) -> dict[str, int | str]:
         """Return the counts shown on the Informes page."""
-        topics, open_period = self._topics_for_open_period()
+        topics, open_period = self._topics_for_open_period(client_id)
         votes = self._topics.list_votes_for_topics([topic.id for topic in topics])
         projects = (
             self._projects.list_projects(open_period.id)
@@ -56,9 +52,9 @@ class ReportService:
             "open_period_name": open_period.name if open_period is not None else "",
         }
 
-    def response_time(self) -> dict:
+    def response_time(self, client_id: str) -> dict:
         """Average / fastest / slowest resolution times for closed topics."""
-        topics, _ = self._topics_for_open_period()
+        topics, _ = self._topics_for_open_period(client_id)
         rows: list[dict] = []
         for topic in topics:
             if topic.status_id != CLOSED_STATUS_ID:
@@ -88,9 +84,9 @@ class ReportService:
             "items": rows,
         }
 
-    def resolved_topics(self) -> dict:
+    def resolved_topics(self, client_id: str) -> dict:
         """Breakdown of closed topics by priority and category."""
-        topics, open_period = self._topics_for_open_period()
+        topics, open_period = self._topics_for_open_period(client_id)
         closed = [topic for topic in topics if topic.status_id == CLOSED_STATUS_ID]
         by_priority: dict[str, int] = {"high": 0, "medium": 0, "low": 0}
         by_category: dict[str, int] = {}

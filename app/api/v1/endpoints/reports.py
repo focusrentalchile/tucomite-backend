@@ -19,10 +19,10 @@ router = APIRouter(tags=["reports"])
 @router.get("/reports/summary", response_model=ReportSummaryResponse)
 def read_report_summary(
     service: ReportService = Depends(get_report_service),
-    _: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(get_current_actor),
 ) -> ReportSummaryResponse:
     """Return owner-facing counts for topics, votes, and projects."""
-    data = service.summary()
+    data = service.summary(actor.client_id or "")
     return ReportSummaryResponse(
         topics_opened=int(data["topics_opened"]),
         topics_open=int(data["topics_open"]),
@@ -38,10 +38,10 @@ def read_report_summary(
 @router.get("/reports/response-time", response_model=ResponseTimeReportResponse)
 def read_response_time_report(
     service: ReportService = Depends(get_report_service),
-    _: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(get_current_actor),
 ) -> ResponseTimeReportResponse:
     """How long the committee takes to close topics."""
-    data = service.response_time()
+    data = service.response_time(actor.client_id or "")
     return ResponseTimeReportResponse(
         average_seconds=data["average_seconds"],
         fastest_seconds=data["fastest_seconds"],
@@ -56,10 +56,10 @@ def read_response_time_report(
 @router.get("/reports/resolved-topics", response_model=ResolvedTopicsReportResponse)
 def read_resolved_topics_report(
     service: ReportService = Depends(get_report_service),
-    _: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(get_current_actor),
 ) -> ResolvedTopicsReportResponse:
     """How many topics were resolved, with priority and category breakdown."""
-    data = service.resolved_topics()
+    data = service.resolved_topics(actor.client_id or "")
     return ResolvedTopicsReportResponse(
         total_resolved=int(data["total_resolved"]),
         open_period_name=str(data["open_period_name"]),

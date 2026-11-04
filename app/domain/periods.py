@@ -8,11 +8,12 @@ PERIOD_STATUS_CLOSED = "closed"
 
 @dataclass(frozen=True)
 class PeriodRecord:
-    """A management period with open or closed status."""
+    """A management period with open or closed status, scoped to one building."""
 
     id: str
     name: str
     status: str
+    client_id: str | None = None
 
 
 class PeriodNotFound(Exception):

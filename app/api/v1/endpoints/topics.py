@@ -125,36 +125,14 @@ def _topic_response(
 def _topics_for_open_period(
     service: TopicService,
     db: Session,
+    *,
+    client_id: str,
 ) -> list[TopicRecord]:
-    """Return topics for the open period, backfilling legacy rows without period_id."""
-    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open()
+    """Return topics for this building's open period only."""
+    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open(client_id)
     topics = service.list_topics()
-    if open_period is None:
-        return []
     scoped: list[TopicRecord] = []
     for topic in topics:
-        if topic.period_id is None:
-            filled = TopicRecord(
-                id=topic.id,
-                title=topic.title,
-                description=topic.description,
-                category_key=topic.category_key,
-                attachment_name=topic.attachment_name,
-                decision=topic.decision,
-                status_id=topic.status_id,
-                priority_id=topic.priority_id,
-                assignee_user_id=topic.assignee_user_id,
-                start_date=topic.start_date,
-                due_date=topic.due_date,
-                created_at=topic.created_at,
-                closed_at=topic.closed_at,
-                period_id=open_period.id,
-                completion_note=topic.completion_note,
-                completion_submitted_at=topic.completion_submitted_at,
-            )
-            SqlTopicRepository(db).save_topic(filled)
-            scoped.append(filled)
-            continue
         if topic.period_id == open_period.id:
             scoped.append(topic)
     return scoped
@@ -163,11 +141,13 @@ def _topics_for_open_period(
 @router.get("/topics", response_model=TopicListResponse)
 def read_topics(
     service: TopicService = Depends(get_topic_service),
-    _: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(get_current_actor),
     db: Session = Depends(get_db),
 ) -> TopicListResponse:
     """Return open-period topics with votes, opinions, and attachments."""
-    topics = _topics_for_open_period(service, db)
+    if not actor.client_id:
+        return TopicListResponse(items=[])
+    topics = _topics_for_open_period(service, db, client_id=actor.client_id)
     topic_ids = [topic.id for topic in topics]
     votes = service.list_votes_for_topics(topic_ids)
     opinions = service.list_opinions_for_topics(topic_ids)
@@ -210,12 +190,14 @@ def read_topics(
 def create_topic(
     body: CreateTopicRequest,
     service: TopicService = Depends(get_topic_service),
-    _: Actor = Depends(require_permission("matters", "create")),
-    __: Actor = Depends(require_committee_member),
+    actor: Actor = Depends(require_permission("matters", "create")),
+    _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> TopicResponse:
     """Create a topic in status 1 (open). Only committee members may create."""
-    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open()
+    if not actor.client_id:
+        raise HTTPException(status_code=422, detail="Building context is required.")
+    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open(actor.client_id)
     if open_period is None:
         raise HTTPException(status_code=409, detail="Period is not open.")
     topic = service.create_topic(

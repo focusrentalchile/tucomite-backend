@@ -181,6 +181,35 @@ def init_database() -> None:
             ).scalar()
             if not has_project_due:
                 connection.execute(text("ALTER TABLE `projects` ADD COLUMN `due_date` DATE NULL"))
+        periods_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'periods'"
+            ),
+        ).scalar()
+        if periods_exist:
+            has_period_client = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'periods' AND COLUMN_NAME = 'client_id'"
+                ),
+            ).scalar()
+            if not has_period_client:
+                connection.execute(
+                    text("ALTER TABLE `periods` ADD COLUMN `client_id` VARCHAR(36) NULL"),
+                )
+            has_period_client_index = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'periods' AND INDEX_NAME = 'ix_periods_client_id'"
+                ),
+            ).scalar()
+            if not has_period_client_index:
+                connection.execute(
+                    text("CREATE INDEX `ix_periods_client_id` ON `periods` (`client_id`)"),
+                )
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

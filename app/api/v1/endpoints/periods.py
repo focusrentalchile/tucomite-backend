@@ -22,20 +22,26 @@ def _period_response(period: PeriodRecord) -> PeriodResponse:
 @router.get("/periods", response_model=PeriodListResponse)
 def read_periods(
     service: PeriodService = Depends(get_period_service),
-    _: Actor = Depends(require_period_access),
+    actor: Actor = Depends(require_period_access),
 ) -> PeriodListResponse:
-    """Return every period."""
-    return PeriodListResponse(items=[_period_response(period) for period in service.list_periods()])
+    """Return periods for the signed-in building."""
+    if not actor.client_id:
+        raise HTTPException(status_code=422, detail="Building context is required.")
+    return PeriodListResponse(
+        items=[_period_response(period) for period in service.list_periods(actor.client_id)],
+    )
 
 
 @router.post("/periods", response_model=PeriodResponse, status_code=201)
 def open_period(
     body: OpenPeriodRequest,
     service: PeriodService = Depends(get_period_service),
-    _: Actor = Depends(require_period_access),
+    actor: Actor = Depends(require_period_access),
 ) -> PeriodResponse:
-    """Open (aperturar) a period. Closes any previously open period."""
-    return _period_response(service.open_period(body.name))
+    """Open (aperturar) a period. Closes any previously open period for this building."""
+    if not actor.client_id:
+        raise HTTPException(status_code=422, detail="Building context is required.")
+    return _period_response(service.open_period(actor.client_id, body.name))
 
 
 @router.post("/periods/{period_id}/close", response_model=PeriodResponse)
@@ -46,8 +52,10 @@ def close_period(
     db: Session = Depends(get_db),
 ) -> PeriodResponse:
     """Close an open period and publish closed topics into Acuerdos."""
+    if not actor.client_id:
+        raise HTTPException(status_code=422, detail="Building context is required.")
     try:
-        closed = service.close_period(period_id)
+        closed = service.close_period(actor.client_id, period_id)
     except PeriodNotFound as error:
         raise HTTPException(status_code=404, detail="Period not found.") from error
     except NoOpenPeriod as error:
