@@ -96,8 +96,9 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
     ),
 }
 
-# Building owner role stays out of the Usuarios role picker (one owner per building).
-HIDDEN_ROLES: frozenset[str] = frozenset({"client"})
+# Shown on /roles. Not offered when assigning a role in Usuarios (one owner per building).
+HIDDEN_ROLES: frozenset[str] = frozenset()
+NON_ASSIGNABLE_ROLES: frozenset[str] = frozenset({"client"})
 
 
 def bootstrap_access(
@@ -323,14 +324,20 @@ def _ensure_demo_building_users(
             continue
         existing = repository.get_user_by_email(email)
         if existing is not None:
-            if existing.client_id == client_id and existing.role_id == role.id:
+            # Keep demo seed accounts on this building, role, and shared demo password.
+            if (
+                existing.client_id == client_id
+                and existing.role_id == role.id
+                and existing.password_hash == password_hash
+                and (existing.full_name or "") == full_name
+            ):
                 continue
             repository.save_user(
                 UserRecord(
                     id=existing.id,
-                    full_name=existing.full_name or full_name,
+                    full_name=full_name,
                     email=email,
-                    password_hash=existing.password_hash or password_hash,
+                    password_hash=password_hash,
                     role_id=role.id,
                     client_id=client_id,
                 ),

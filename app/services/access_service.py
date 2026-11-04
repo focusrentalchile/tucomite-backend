@@ -17,7 +17,7 @@ from app.domain.access import (
     permission_key,
 )
 from app.repositories.access_repository import AccessRepository
-from app.services.access_bootstrap import HIDDEN_ROLES
+from app.services.access_bootstrap import HIDDEN_ROLES, NON_ASSIGNABLE_ROLES
 from app.utils.passwords import hash_password
 
 
@@ -121,7 +121,7 @@ class UserService:
         role = self._repository.get_role(assigned_role_id)
         if role is None:
             raise UnknownRole(assigned_role_id)
-        if role.system or role.name.casefold() in {name.casefold() for name in HIDDEN_ROLES}:
+        if role.system or role.name.casefold() in {name.casefold() for name in NON_ASSIGNABLE_ROLES}:
             raise UnknownRole(assigned_role_id)
         user = UserRecord(
             id=str(uuid.uuid4()),
@@ -161,7 +161,7 @@ class UserService:
             if (
                 role is None
                 or role.system
-                or role.name.casefold() in {name.casefold() for name in HIDDEN_ROLES}
+                or role.name.casefold() in {name.casefold() for name in NON_ASSIGNABLE_ROLES}
             ):
                 raise UnknownRole(role_id)
             assigned_role_id = role_id

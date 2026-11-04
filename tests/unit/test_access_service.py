@@ -174,7 +174,7 @@ def test_list_roles_hides_system_and_delete_removes_users() -> None:
     assert "administrator" in {role.name for role in listed}
     assert "committee" in {role.name for role in listed}
     assert "resident" in {role.name for role in listed}
-    assert "client" not in {role.name for role in listed}
+    assert "client" in {role.name for role in listed}
     assert "caretaker" in {role.name for role in listed}
 
     starter = next(role for role in listed if role.name == "committee")
