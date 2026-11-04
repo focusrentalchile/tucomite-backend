@@ -289,7 +289,7 @@ def move_topic(
                 status_code=422,
                 detail="Due date cannot be before start date.",
             )
-    committee_size = len(SqlCommitteeRepository(db).list_members())
+    committee_size = SqlCommitteeRepository(db).count_voter_seats()
     try:
         topic = service.move_topic(topic_id, body.status_id, committee_size=committee_size)
     except TopicNotFound as error:
@@ -382,7 +382,7 @@ def cast_vote(
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
-    member_count = len(SqlCommitteeRepository(db).list_members())
+    member_count = SqlCommitteeRepository(db).count_voter_seats()
     if member_count < MIN_COMMITTEE_FOR_VOTE:
         raise HTTPException(
             status_code=409,

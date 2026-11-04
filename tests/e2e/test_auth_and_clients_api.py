@@ -104,3 +104,5 @@ def test_demo_building_users_exist_for_starter_roles() -> None:
     assert by_email["comite2@demo.tucomite.local"]["role_id"] == roles["committee"]
     assert by_email["comite3@demo.tucomite.local"]["role_id"] == roles["committee"]
     assert by_email["mayordomo@demo.tucomite.local"]["role_id"] == roles["caretaker"]
+    assert by_email["residente@demo.tucomite.local"]["role_id"] == roles["resident"]
+    assert "resident" in roles

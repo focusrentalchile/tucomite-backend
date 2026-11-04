@@ -17,7 +17,7 @@ DEMO_CLIENT_EMAIL = "client@tucomite.cl"
 LEGACY_DEMO_CLIENT_EMAIL = "admin@tucomite.cl"
 
 # English role keys. The admin site translates them in the Spanish locale.
-# Default building roles: committee, caretaker (Mayordomo), client, administrator.
+# Default building roles: committee, caretaker (Mayordomo), resident, client, administrator.
 STARTER_ROLES: dict[str, frozenset[str]] = {
     "committee": frozenset(
         {
@@ -42,8 +42,14 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
-    # On-site building caretaker (Spanish UI: Mayordomo). Replaces legacy "resident".
+    # On-site building caretaker (Spanish UI: Mayordomo).
     "caretaker": frozenset(
+        {
+            "notifications.receive",
+        }
+    ),
+    # Building resident (Spanish UI: Residente). Sidebar: Inicio only for now.
+    "resident": frozenset(
         {
             "notifications.receive",
         }
@@ -240,12 +246,15 @@ def upsert_platform_accounts(
 
 
 def _migrate_resident_role_to_caretaker(repository: AccessRepository) -> None:
-    """Rename legacy resident starter role to caretaker (Mayordomo)."""
+    """One-time: rename legacy-only resident → caretaker when caretaker is missing.
+
+    After caretaker exists, resident is a separate starter role (Residente).
+    """
     roles = {role.name.casefold(): role for role in repository.list_roles()}
+    if "caretaker" in roles:
+        return
     legacy = roles.get("resident")
     if legacy is None or legacy.system:
-        return
-    if "caretaker" in roles:
         return
     repository.save_role(
         RoleRecord(
@@ -276,7 +285,7 @@ def _ensure_demo_building_users(
     client_id: str,
     password_hash: str,
 ) -> None:
-    """Ensure demo users for administrator, three committee voters, and caretaker."""
+    """Ensure demo users for administrator, committee, caretaker, and resident."""
     by_name = {role.name.casefold(): role for role in repository.list_roles()}
     seeds = (
         ("administrator", "Administrador demo", "administrador@demo.tucomite.local"),
@@ -284,6 +293,7 @@ def _ensure_demo_building_users(
         ("committee", "Comité demo 2", "comite2@demo.tucomite.local"),
         ("committee", "Comité demo 3", "comite3@demo.tucomite.local"),
         ("caretaker", "Mayordomo demo", "mayordomo@demo.tucomite.local"),
+        ("resident", "Residente demo", "residente@demo.tucomite.local"),
     )
     for role_name, full_name, email in seeds:
         role = by_name.get(role_name)

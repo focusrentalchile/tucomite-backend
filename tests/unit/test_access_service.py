@@ -90,7 +90,7 @@ def test_bootstrap_creates_the_building_groups_once() -> None:
     assert "agreements.view" in roles["administrator"].permissions
     assert "management.view" in roles["administrator"].permissions
     assert roles["caretaker"].permissions == STARTER_ROLES["caretaker"]
-    assert "resident" not in roles
+    assert roles["resident"].permissions == STARTER_ROLES["resident"]
     assert "client" in roles
     assert sum(1 for role in repository.list_roles() if role.name == "committee") == 1
 
@@ -132,8 +132,9 @@ def test_bootstrap_seeds_demo_users_for_each_building_role() -> None:
     assert roles[by_email["comite2@demo.tucomite.local"].role_id] == "committee"
     assert roles[by_email["comite3@demo.tucomite.local"].role_id] == "committee"
     assert roles[by_email["mayordomo@demo.tucomite.local"].role_id] == "caretaker"
+    assert roles[by_email["residente@demo.tucomite.local"].role_id] == "resident"
     assert by_email["administrador@demo.tucomite.local"].client_id == "client-demo"
-    assert sum(1 for user in repository.list_users() if user.email.endswith("@demo.tucomite.local")) == 3
+    assert sum(1 for user in repository.list_users() if user.email.endswith("@demo.tucomite.local")) == 6
 
 
 def test_checkbox_grants_and_removes_one_permission() -> None:

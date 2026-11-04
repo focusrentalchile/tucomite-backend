@@ -6,8 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.committee import CommitteeMemberRecord
-from app.models.access import UserModel
+from app.models.access import RoleModel, UserModel
 from app.models.committee import CommitteeMemberModel
+
+# Roles that sit as topic voting / confirmation seats.
+VOTER_ROLE_NAMES = frozenset({"committee", "client"})
 
 
 class CommitteeRepository(Protocol):
@@ -15,6 +18,9 @@ class CommitteeRepository(Protocol):
 
     def list_members(self) -> list[CommitteeMemberRecord]:
         """Return every committee member ordered by name."""
+
+    def count_voter_seats(self) -> int:
+        """Return how many users have committee or client roles."""
 
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:
         """Return one committee member when present."""
@@ -42,6 +48,15 @@ class SqlCommitteeRepository:
             .order_by(UserModel.full_name),
         ).scalars().all()
         return [self._member(row) for row in rows]
+
+    def count_voter_seats(self) -> int:
+        """Count building users whose role is committee or client."""
+        rows = self._session.execute(
+            select(UserModel.id)
+            .join(RoleModel, RoleModel.id == UserModel.role_id)
+            .where(RoleModel.name.in_(tuple(VOTER_ROLE_NAMES))),
+        ).all()
+        return len(rows)
 
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:
         row = self._session.get(CommitteeMemberModel, user_id)

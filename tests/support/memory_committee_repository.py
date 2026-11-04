@@ -19,6 +19,10 @@ class InMemoryCommitteeRepository:
             key=lambda member: member.full_name,
         )
 
+    def count_voter_seats(self) -> int:
+        """In memory tests, every listed member counts as a voter seat."""
+        return len(self.list_members())
+
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:
         if user_id not in self.member_ids:
             return None
