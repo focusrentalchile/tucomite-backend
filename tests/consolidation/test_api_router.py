@@ -9,6 +9,9 @@ def test_v1_router_includes_health_path() -> None:
     paths = {route.path for route in api_router.routes}
 
     assert "/health" in paths
+    assert "/blog" in paths
+    assert "/blog/manage" in paths
+    assert "/blog/{slug}" in paths
     assert "/access/catalog" in paths
     assert "/roles" in paths
     assert "/roles/{role_id}/permissions" in paths

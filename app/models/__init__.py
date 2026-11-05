@@ -2,6 +2,7 @@
 
 from app.models.access import FunctionalityModel, ModuleModel, RoleModel, RolePermissionModel, UserModel
 from app.models.agreements import AgreementModel
+from app.models.blog import BlogPostModel
 from app.models.committee import CommitteeMemberModel
 from app.models.legal import LegalCaseAttachmentModel, LegalCaseModel
 from app.models.management import ManagementMessageModel, ManagementTaskModel, ManagementWorkspaceImportModel
@@ -19,6 +20,7 @@ from app.models.topics import (
 
 __all__ = [
     "AgreementModel",
+    "BlogPostModel",
     "CommitteeMemberModel",
     "FunctionalityModel",
     "LegalCaseAttachmentModel",

@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     access,
     agreements,
     auth,
+    blog,
     clients,
     committee,
     management,
@@ -23,6 +24,7 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(access.router)
+api_router.include_router(blog.router)
 api_router.include_router(clients.router)
 api_router.include_router(committee.router)
 api_router.include_router(periods.router)

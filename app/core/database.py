@@ -44,6 +44,7 @@ def init_database() -> None:
     from app.access import registration  # noqa: F401
     from app.core.access_catalog import access_catalog
     from app.models import access as access_models  # noqa: F401
+    from app.models import blog as blog_models  # noqa: F401
     from app.models import committee as committee_models  # noqa: F401
     from app.models import periods as period_models  # noqa: F401
     from app.models import projects as project_models  # noqa: F401
