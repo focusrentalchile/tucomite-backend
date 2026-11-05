@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from app.domain.agreements import (
     VOTE_RESULT_APPROVED,
+    VOTE_RESULT_CUSTOM,
     VOTE_RESULT_NO_VOTES,
     VOTE_RESULT_REJECTED,
     VOTE_RESULT_TIED,
@@ -14,7 +15,14 @@ from app.domain.agreements import (
     AgreementNotFound,
     AgreementRecord,
 )
-from app.domain.topics import CLOSED_STATUS_ID, TopicNotFound, TopicOpinionRecord, TopicRecord, TopicVoteRecord
+from app.domain.topics import (
+    CLOSED_STATUS_ID,
+    VOTE_TYPE_CUSTOM,
+    TopicNotFound,
+    TopicOpinionRecord,
+    TopicRecord,
+    TopicVoteRecord,
+)
 from app.repositories.agreement_repository import AgreementRepository
 from app.repositories.client_repository import ClientRepository
 from app.repositories.topic_repository import TopicRepository
@@ -67,8 +75,26 @@ class AgreementService:
         yes_count = sum(1 for vote in votes if vote.choice == "yes")
         no_count = sum(1 for vote in votes if vote.choice == "no")
         abstain_count = sum(1 for vote in votes if vote.choice == "abstain")
-        vote_result = self._vote_result(yes_count, no_count, abstain_count)
-        summary = self._summary(topic, yes_count, no_count, abstain_count, vote_result, opinions)
+        vote_choice_labels = {
+            "yes": "A favor",
+            "no": "En contra",
+            "abstain": "Abstención",
+        }
+        vote_option_counts: list[tuple[str, int]] | None = None
+        if topic.vote_type == VOTE_TYPE_CUSTOM:
+            vote_option_counts = []
+            option_lines: list[str] = []
+            for option in topic.vote_options:
+                count = sum(1 for vote in votes if vote.choice == option.id)
+                vote_option_counts.append((option.label, count))
+                option_lines.append(f"{option.label}: {count}")
+                vote_choice_labels[option.id] = option.label
+            option_lines.append(f"Abstenciones: {abstain_count}")
+            vote_result = VOTE_RESULT_NO_VOTES if not votes else VOTE_RESULT_CUSTOM
+            summary = self._summary_custom(topic, option_lines, opinions)
+        else:
+            vote_result = self._vote_result(yes_count, no_count, abstain_count)
+            summary = self._summary(topic, yes_count, no_count, abstain_count, vote_result, opinions)
         building_name = self._building_name(client_id)
         pdf_bytes = build_agreement_pdf(
             title=topic.title,
@@ -83,6 +109,8 @@ class AgreementService:
             votes=votes,
             opinions=opinions,
             building_name=building_name,
+            vote_option_counts=vote_option_counts,
+            vote_choice_labels=vote_choice_labels,
         )
         safe_title = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in topic.title)[:40]
         pdf_name = f"acuerdo-{safe_title or 'tema'}.pdf"
@@ -155,6 +183,25 @@ class AgreementService:
             f"Categoría: {category}",
             f"Decisión: {topic.decision or '—'}",
             f"Resultado de la votación: {result} (a favor {yes_count}, en contra {no_count}, abstenciones {abstain_count}).",
+            f"Descripción: {topic.description or '—'}",
+            f"Comentarios registrados: {len(opinions)}.",
+        ]
+        return "\n".join(lines)
+
+    def _summary_custom(
+        self,
+        topic: TopicRecord,
+        option_lines: list[str],
+        opinions: list[TopicOpinionRecord],
+    ) -> str:
+        category = CATEGORY_LABELS.get(topic.category_key, topic.category_key or "—")
+        result = RESULT_LABELS.get(VOTE_RESULT_CUSTOM, "OPCIONES")
+        tallies = ", ".join(option_lines) if option_lines else "sin conteos"
+        lines = [
+            f"Tema: {topic.title}",
+            f"Categoría: {category}",
+            f"Pregunta: {topic.decision or '—'}",
+            f"Resultado de la votación: {result} ({tallies}).",
             f"Descripción: {topic.description or '—'}",
             f"Comentarios registrados: {len(opinions)}.",
         ]

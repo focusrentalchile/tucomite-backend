@@ -13,6 +13,9 @@ from app.domain.topics import (
     TOPIC_PRIORITIES,
     TOPIC_STATUSES,
     VOTE_CHOICES,
+    VOTE_TYPE_CUSTOM,
+    VOTE_TYPE_YES_NO,
+    VOTE_TYPES,
     WAITING_STATUS_ID,
     CompletionAlreadySubmitted,
     CompletionNotSubmitted,
@@ -21,12 +24,14 @@ from app.domain.topics import (
     InvalidTopicPriority,
     InvalidTopicStatus,
     InvalidVoteChoice,
+    InvalidVoteOptions,
     StatusRecord,
     TopicAttachmentRecord,
     TopicConfirmationRecord,
     TopicNotFound,
     TopicOpinionRecord,
     TopicRecord,
+    TopicVoteOptionRecord,
     TopicVoteRecord,
     VoteAlreadyCast,
     completion_quorum_met,
@@ -78,9 +83,33 @@ def _copy_topic(topic: TopicRecord, **changes) -> TopicRecord:
         "period_id": topic.period_id,
         "completion_note": topic.completion_note,
         "completion_submitted_at": topic.completion_submitted_at,
+        "vote_type": topic.vote_type,
+        "vote_options": topic.vote_options,
     }
     data.update(changes)
     return TopicRecord(**data)
+
+
+def _normalize_vote_options(
+    vote_type: str,
+    options: list[dict[str, str]] | None,
+) -> tuple[TopicVoteOptionRecord, ...]:
+    """Build stored options. Custom polls need at least two labeled answers."""
+    normalized_type = (vote_type or VOTE_TYPE_YES_NO).strip().lower()
+    if normalized_type not in VOTE_TYPES:
+        raise InvalidVoteOptions()
+    if normalized_type != VOTE_TYPE_CUSTOM:
+        return ()
+    cleaned: list[TopicVoteOptionRecord] = []
+    for item in options or []:
+        label = str(item.get("label") or "").strip()
+        if not label:
+            continue
+        option_id = str(item.get("id") or "").strip() or str(uuid.uuid4())
+        cleaned.append(TopicVoteOptionRecord(id=option_id, label=label[:120]))
+    if len(cleaned) < 2:
+        raise InvalidVoteOptions()
+    return tuple(cleaned)
 
 
 class TopicService:
@@ -186,10 +215,14 @@ class TopicService:
         priority_id: int = MEDIUM_PRIORITY_ID,
         period_id: str | None = None,
         attachments: list[dict[str, str]] | None = None,
+        vote_type: str = VOTE_TYPE_YES_NO,
+        vote_options: list[dict[str, str]] | None = None,
     ) -> TopicRecord:
         """Store a topic in the open status."""
         if priority_id not in PRIORITY_IDS:
             raise InvalidTopicPriority()
+        normalized_type = (vote_type or VOTE_TYPE_YES_NO).strip().lower()
+        options = _normalize_vote_options(normalized_type, vote_options)
         topic = TopicRecord(
             id=str(uuid.uuid4()),
             title=title.strip(),
@@ -200,6 +233,8 @@ class TopicService:
             status_id=OPEN_STATUS_ID,
             priority_id=priority_id,
             period_id=period_id,
+            vote_type=normalized_type,
+            vote_options=options,
         )
         self._repository.add_topic(topic)
         self._repository.replace_attachments(topic.id, self._normalize_attachments(topic.id, attachments))
@@ -215,6 +250,8 @@ class TopicService:
         decision: str,
         priority_id: int = MEDIUM_PRIORITY_ID,
         attachments: list[dict[str, str]] | None = None,
+        vote_type: str = VOTE_TYPE_YES_NO,
+        vote_options: list[dict[str, str]] | None = None,
     ) -> TopicRecord:
         """Update the editable fields of one topic."""
         if priority_id not in PRIORITY_IDS:
@@ -222,6 +259,8 @@ class TopicService:
         current = self._repository.get_topic(topic_id)
         if current is None:
             raise TopicNotFound()
+        normalized_type = (vote_type or VOTE_TYPE_YES_NO).strip().lower()
+        options = _normalize_vote_options(normalized_type, vote_options)
         topic = _copy_topic(
             current,
             title=title.strip(),
@@ -230,6 +269,8 @@ class TopicService:
             attachment_name=attachment_name.strip(),
             decision=decision.strip(),
             priority_id=priority_id,
+            vote_type=normalized_type,
+            vote_options=options,
         )
         self._repository.save_topic(topic)
         if attachments is not None:
@@ -333,12 +374,19 @@ class TopicService:
         choice: str,
     ) -> tuple[TopicRecord, TopicVoteRecord]:
         """Store one person's first vote and move the topic to waiting."""
-        normalized = choice.strip().lower()
-        if normalized not in VOTE_CHOICES:
-            raise InvalidVoteChoice()
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
+        normalized = choice.strip()
+        allowed = (
+            {option.id for option in topic.vote_options} | {"abstain"}
+            if topic.vote_type == VOTE_TYPE_CUSTOM
+            else VOTE_CHOICES
+        )
+        if topic.vote_type != VOTE_TYPE_CUSTOM:
+            normalized = normalized.lower()
+        if normalized not in allowed:
+            raise InvalidVoteChoice()
         existing = self._repository.get_vote(topic_id, author_id)
         if existing is not None:
             raise VoteAlreadyCast()

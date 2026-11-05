@@ -24,6 +24,9 @@ TOPIC_PRIORITIES: tuple[tuple[int, str], ...] = (
 MEDIUM_PRIORITY_ID = 2
 
 VOTE_CHOICES = frozenset({"yes", "no", "abstain"})
+VOTE_TYPE_YES_NO = "yes_no"
+VOTE_TYPE_CUSTOM = "custom"
+VOTE_TYPES = frozenset({VOTE_TYPE_YES_NO, VOTE_TYPE_CUSTOM})
 PRIORITY_IDS = frozenset(priority_id for priority_id, _ in TOPIC_PRIORITIES)
 
 
@@ -41,6 +44,14 @@ class PriorityRecord:
 
     id: int
     key: str
+
+
+@dataclass(frozen=True)
+class TopicVoteOptionRecord:
+    """One answer option for a custom poll."""
+
+    id: str
+    label: str
 
 
 @dataclass(frozen=True)
@@ -63,11 +74,13 @@ class TopicRecord:
     period_id: str | None = None
     completion_note: str | None = None
     completion_submitted_at: str | None = None
+    vote_type: str = VOTE_TYPE_YES_NO
+    vote_options: tuple[TopicVoteOptionRecord, ...] = ()
 
 
 @dataclass(frozen=True)
 class TopicVoteRecord:
-    """One person's yes, no, or abstain on a topic decision."""
+    """One person's vote: yes/no/abstain or a custom option id."""
 
     id: str
     topic_id: str
@@ -125,7 +138,11 @@ class TopicNotFound(Exception):
 
 
 class InvalidVoteChoice(Exception):
-    """Raised when a vote is not yes, no, or abstain."""
+    """Raised when a vote choice is not allowed for the topic poll type."""
+
+
+class InvalidVoteOptions(Exception):
+    """Raised when a custom poll does not include at least two options."""
 
 
 class VoteAlreadyCast(Exception):

@@ -43,6 +43,41 @@ def test_non_member_cannot_create_a_topic() -> None:
     assert created.status_code == 403
 
 
+def test_custom_poll_is_created_and_accepts_option_votes() -> None:
+    _ensure_actor_on_committee()
+    created = client.post(
+        "/api/v1/topics",
+        json={
+            "title": "Pintura",
+            "description": "Hay que elegir color.",
+            "category_key": "maintenance",
+            "attachment_name": "",
+            "decision": "¿Qué color pintamos el hall?",
+            "priority_id": 2,
+            "vote_type": "custom",
+            "vote_options": [
+                {"label": "Azul"},
+                {"label": "Verde"},
+                {"label": "Blanco"},
+            ],
+        },
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["vote_type"] == "custom"
+    assert len(body["vote_options"]) == 3
+    option_id = body["vote_options"][1]["id"]
+    assert body["vote_options"][1]["label"] == "Verde"
+
+    voted = client.post(f"/api/v1/topics/{body['id']}/votes", json={"choice": option_id})
+    assert voted.status_code == 200
+    assert voted.json()["vote"]["choice"] == option_id
+    assert voted.json()["status_id"] == 2
+
+    rejected = client.post(f"/api/v1/topics/{body['id']}/votes", json={"choice": "yes"})
+    assert rejected.status_code in {400, 409, 422}
+
+
 def test_vote_is_stored_and_moves_topic_to_waiting() -> None:
     _ensure_actor_on_committee()
     created = client.post(

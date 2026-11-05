@@ -7,6 +7,7 @@ VOTE_RESULT_APPROVED = "approved"
 VOTE_RESULT_REJECTED = "rejected"
 VOTE_RESULT_TIED = "tied"
 VOTE_RESULT_NO_VOTES = "no_votes"
+VOTE_RESULT_CUSTOM = "custom"
 
 
 @dataclass(frozen=True)

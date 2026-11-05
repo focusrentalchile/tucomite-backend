@@ -1,5 +1,7 @@
 """In-memory topic repository for unit tests."""
 
+from dataclasses import replace
+
 from app.domain.topics import (
     StatusRecord,
     TopicAttachmentRecord,
@@ -39,26 +41,7 @@ class InMemoryTopicRepository:
 
     def save_topic_status(self, topic_id: str, status_id: int) -> None:
         self.topics = [
-            TopicRecord(
-                id=topic.id,
-                title=topic.title,
-                description=topic.description,
-                category_key=topic.category_key,
-                attachment_name=topic.attachment_name,
-                decision=topic.decision,
-                status_id=status_id,
-                priority_id=topic.priority_id,
-                assignee_user_id=topic.assignee_user_id,
-                start_date=topic.start_date,
-                due_date=topic.due_date,
-                created_at=topic.created_at,
-                closed_at=topic.closed_at,
-                period_id=topic.period_id,
-                completion_note=topic.completion_note,
-                completion_submitted_at=topic.completion_submitted_at,
-            )
-            if topic.id == topic_id
-            else topic
+            replace(topic, status_id=status_id) if topic.id == topic_id else topic
             for topic in self.topics
         ]
 

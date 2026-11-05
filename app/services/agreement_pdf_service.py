@@ -22,6 +22,7 @@ from reportlab.platypus import (
 
 from app.domain.agreements import (
     VOTE_RESULT_APPROVED,
+    VOTE_RESULT_CUSTOM,
     VOTE_RESULT_NO_VOTES,
     VOTE_RESULT_REJECTED,
     VOTE_RESULT_TIED,
@@ -56,6 +57,7 @@ RESULT_LABELS = {
     VOTE_RESULT_REJECTED: "RECHAZADO",
     VOTE_RESULT_TIED: "EMPATE",
     VOTE_RESULT_NO_VOTES: "SIN VOTOS",
+    VOTE_RESULT_CUSTOM: "OPCIONES PERSONALIZADAS",
 }
 
 
@@ -78,6 +80,8 @@ def build_agreement_pdf(
     votes: list[TopicVoteRecord],
     opinions: list[TopicOpinionRecord],
     building_name: str | None = None,
+    vote_option_counts: list[tuple[str, int]] | None = None,
+    vote_choice_labels: dict[str, str] | None = None,
 ) -> bytes:
     """Return PDF bytes for one agreement acta."""
     buffer = BytesIO()
@@ -170,16 +174,20 @@ def build_agreement_pdf(
     elif vote_result == VOTE_RESULT_REJECTED:
         result_hex = "#B42318"
 
+    if vote_option_counts:
+        tally_parts = [f"{_escape(label)}: <b>{count}</b>" for label, count in vote_option_counts]
+        tally_parts.append(f"Abstenciones: <b>{vote_abstain}</b>")
+        tally_line = " · ".join(tally_parts)
+    else:
+        tally_line = (
+            f"A favor: <b>{vote_yes}</b> · En contra: <b>{vote_no}</b> · Abstenciones: <b>{vote_abstain}</b>"
+        )
+    choice_labels = {**VOTE_LABELS, **(vote_choice_labels or {})}
     highlight_rows = [
         [Paragraph("<b>Decisión sometida a votación</b>", highlight_style)],
         [Paragraph(_escape(decision or "Sin decisión registrada."), body_style)],
         [Paragraph(f"<b>Resultado:</b> <font color='{result_hex}'>{result_label}</font>", highlight_style)],
-        [
-            Paragraph(
-                f"A favor: <b>{vote_yes}</b> · En contra: <b>{vote_no}</b> · Abstenciones: <b>{vote_abstain}</b>",
-                body_style,
-            )
-        ],
+        [Paragraph(tally_line, body_style)],
     ]
     highlight = Table(highlight_rows, colWidths=[16.5 * cm])
     highlight.setStyle(
@@ -217,7 +225,7 @@ def build_agreement_pdf(
             vote_table_data.append(
                 [
                     _escape(vote.author_name or "Sin nombre"),
-                    VOTE_LABELS.get(vote.choice, vote.choice),
+                    _escape(choice_labels.get(vote.choice, vote.choice)),
                 ],
             )
         vote_table = Table(vote_table_data, colWidths=[10 * cm, 6.5 * cm])

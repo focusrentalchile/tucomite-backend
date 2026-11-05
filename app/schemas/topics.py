@@ -13,6 +13,13 @@ class TopicAttachmentPayload(BaseModel):
     url: str = Field(min_length=1)
 
 
+class TopicVoteOptionPayload(BaseModel):
+    """One custom answer option label (id is assigned by the server when omitted)."""
+
+    id: str | None = Field(default=None, max_length=36)
+    label: str = Field(min_length=1, max_length=120)
+
+
 class CreateTopicRequest(BaseModel):
     """Fields collected by the new-topic form. Status is not accepted from the client."""
 
@@ -22,6 +29,8 @@ class CreateTopicRequest(BaseModel):
     attachment_name: str = Field(default="", max_length=255)
     decision: str = Field(min_length=1, max_length=500)
     priority_id: int = Field(ge=1, le=3)
+    vote_type: Literal["yes_no", "custom"] = "yes_no"
+    vote_options: list[TopicVoteOptionPayload] = []
     attachments: list[TopicAttachmentPayload] = []
 
 
@@ -34,6 +43,8 @@ class UpdateTopicRequest(BaseModel):
     attachment_name: str = Field(default="", max_length=255)
     decision: str = Field(min_length=1, max_length=500)
     priority_id: int = Field(ge=1, le=3)
+    vote_type: Literal["yes_no", "custom"] = "yes_no"
+    vote_options: list[TopicVoteOptionPayload] = []
     attachments: list[TopicAttachmentPayload] = []
 
 
@@ -47,9 +58,9 @@ class MoveTopicRequest(BaseModel):
 
 
 class CastVoteRequest(BaseModel):
-    """Yes, no, or abstain on the topic decision."""
+    """Yes/no/abstain, or a custom option id for multi-choice polls."""
 
-    choice: Literal["yes", "no", "abstain"]
+    choice: str = Field(min_length=1, max_length=36)
 
 
 class UpsertOpinionRequest(BaseModel):
@@ -65,13 +76,20 @@ class SubmitCompletionRequest(BaseModel):
     attachments: list[TopicAttachmentPayload] = []
 
 
+class TopicVoteOptionResponse(BaseModel):
+    """One stored custom poll option."""
+
+    id: str
+    label: str
+
+
 class TopicVoteResponse(BaseModel):
     """One stored vote."""
 
     id: str
     author_id: str
     author_name: str
-    choice: Literal["yes", "no", "abstain"]
+    choice: str
 
 
 class TopicOpinionResponse(BaseModel):
@@ -116,6 +134,8 @@ class TopicResponse(BaseModel):
     assignee_user_id: str | None = None
     start_date: str | None = None
     due_date: str | None = None
+    vote_type: Literal["yes_no", "custom"] = "yes_no"
+    vote_options: list[TopicVoteOptionResponse] = []
     votes: list[TopicVoteResponse]
     opinions: list[TopicOpinionResponse] = []
     attachments: list[TopicAttachmentResponse] = []

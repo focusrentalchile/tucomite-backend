@@ -1,6 +1,6 @@
 """Unit tests for the branded agreement PDF builder."""
 
-from app.domain.agreements import VOTE_RESULT_APPROVED
+from app.domain.agreements import VOTE_RESULT_APPROVED, VOTE_RESULT_CUSTOM
 from app.domain.topics import TopicOpinionRecord, TopicVoteRecord
 from app.services.agreement_pdf_service import build_agreement_pdf
 
@@ -36,3 +36,26 @@ def test_build_agreement_pdf_contains_pdf_header() -> None:
     )
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 1000
+
+
+def test_build_agreement_pdf_supports_custom_option_tallies() -> None:
+    pdf = build_agreement_pdf(
+        title="Color del hall",
+        decision="¿Qué color pintamos?",
+        description="Elegir entre tres opciones.",
+        category_key="maintenance",
+        vote_yes=0,
+        vote_no=0,
+        vote_abstain=1,
+        vote_result=VOTE_RESULT_CUSTOM,
+        closed_at="2026-03-01T15:00:00",
+        votes=[
+            TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="Ana", choice="opt-blue"),
+            TopicVoteRecord(id="v2", topic_id="t1", author_id="u2", author_name="Luis", choice="abstain"),
+        ],
+        opinions=[],
+        vote_option_counts=[("Azul", 1), ("Verde", 0)],
+        vote_choice_labels={"opt-blue": "Azul", "opt-green": "Verde"},
+    )
+    assert pdf.startswith(b"%PDF")
+    assert len(pdf) > 800

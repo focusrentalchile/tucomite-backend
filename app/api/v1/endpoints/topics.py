@@ -14,6 +14,7 @@ from app.domain.topics import (
     ConfirmationAlreadyCast,
     InvalidTopicStatus,
     InvalidVoteChoice,
+    InvalidVoteOptions,
     TopicAttachmentRecord,
     TopicConfirmationRecord,
     TopicNotFound,
@@ -58,7 +59,7 @@ def _vote_response(vote: TopicVoteRecord) -> TopicVoteResponse:
         id=vote.id,
         author_id=vote.author_id,
         author_name=vote.author_name,
-        choice=vote.choice,  # type: ignore[arg-type]
+        choice=vote.choice,
     )
 
 
@@ -110,6 +111,10 @@ def _topic_response(
         assignee_user_id=topic.assignee_user_id,
         start_date=topic.start_date,
         due_date=topic.due_date,
+        vote_type=topic.vote_type if topic.vote_type in {"yes_no", "custom"} else "yes_no",  # type: ignore[arg-type]
+        vote_options=[
+            {"id": option.id, "label": option.label} for option in topic.vote_options
+        ],
         votes=[_vote_response(vote) for vote in votes],
         opinions=[_opinion_response(item) for item in (opinions or [])],
         attachments=[_attachment_response(item) for item in (attachments or [])],
@@ -200,16 +205,24 @@ def create_topic(
     open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open(actor.client_id)
     if open_period is None:
         raise HTTPException(status_code=409, detail="Period is not open.")
-    topic = service.create_topic(
-        body.title,
-        body.description,
-        body.category_key,
-        body.attachment_name,
-        body.decision,
-        body.priority_id,
-        period_id=open_period.id,
-        attachments=[item.model_dump() for item in body.attachments],
-    )
+    try:
+        topic = service.create_topic(
+            body.title,
+            body.description,
+            body.category_key,
+            body.attachment_name,
+            body.decision,
+            body.priority_id,
+            period_id=open_period.id,
+            attachments=[item.model_dump() for item in body.attachments],
+            vote_type=body.vote_type,
+            vote_options=[item.model_dump() for item in body.vote_options],
+        )
+    except InvalidVoteOptions as error:
+        raise HTTPException(
+            status_code=422,
+            detail="Custom polls need at least two answer options.",
+        ) from error
     stored = service.list_attachments_for_topics([topic.id])
     return _topic_response(topic, [], attachments=stored)
 
@@ -233,9 +246,16 @@ def update_topic(
             body.decision,
             body.priority_id,
             attachments=[item.model_dump() for item in body.attachments],
+            vote_type=body.vote_type,
+            vote_options=[item.model_dump() for item in body.vote_options],
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
+    except InvalidVoteOptions as error:
+        raise HTTPException(
+            status_code=422,
+            detail="Custom polls need at least two answer options.",
+        ) from error
     votes = service.list_votes_for_topics([topic.id])
     opinions = service.list_opinions_for_topics([topic.id])
     stored = service.list_attachments_for_topics([topic.id])
@@ -380,7 +400,7 @@ def cast_vote(
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
     except InvalidVoteChoice as error:
-        raise HTTPException(status_code=422, detail="Vote must be yes, no, or abstain.") from error
+        raise HTTPException(status_code=422, detail="Invalid vote choice for this poll.") from error
     except VoteAlreadyCast as error:
         raise HTTPException(status_code=409, detail="Vote already cast.") from error
     return CastVoteResponse(

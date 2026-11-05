@@ -235,6 +235,43 @@ def init_database() -> None:
                 connection.execute(
                     text("CREATE INDEX `ix_legal_cases_status` ON `legal_cases` (`status`)"),
                 )
+        topics_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'topics'"
+            ),
+        ).scalar()
+        if topics_exist:
+            for column_name, ddl in (
+                (
+                    "vote_type",
+                    "ALTER TABLE `topics` ADD COLUMN `vote_type` VARCHAR(16) NOT NULL DEFAULT 'yes_no'",
+                ),
+                (
+                    "vote_options_json",
+                    "ALTER TABLE `topics` ADD COLUMN `vote_options_json` TEXT NULL",
+                ),
+            ):
+                has_column = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        f"AND TABLE_NAME = 'topics' AND COLUMN_NAME = '{column_name}'"
+                    ),
+                ).scalar()
+                if not has_column:
+                    connection.execute(text(ddl))
+            vote_choice_len = connection.execute(
+                text(
+                    "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'topic_votes' AND COLUMN_NAME = 'choice'"
+                ),
+            ).scalar()
+            if vote_choice_len is not None and int(vote_choice_len) < 36:
+                connection.execute(
+                    text("ALTER TABLE `topic_votes` MODIFY COLUMN `choice` VARCHAR(36) NOT NULL"),
+                )
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

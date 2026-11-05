@@ -1,5 +1,6 @@
 """Persistence for topic statuses, topics, and votes."""
 
+import json
 from datetime import date, datetime, timezone
 from typing import Protocol
 
@@ -8,11 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.domain.topics import (
     CLOSED_STATUS_ID,
+    VOTE_TYPE_YES_NO,
     StatusRecord,
     TopicAttachmentRecord,
     TopicConfirmationRecord,
     TopicOpinionRecord,
     TopicRecord,
+    TopicVoteOptionRecord,
     TopicVoteRecord,
 )
 from app.models.topics import (
@@ -142,6 +145,8 @@ class SqlTopicRepository:
                 category_key=topic.category_key,
                 attachment_name=topic.attachment_name,
                 decision=topic.decision,
+                vote_type=topic.vote_type or VOTE_TYPE_YES_NO,
+                vote_options_json=self._options_json(topic.vote_options),
                 status_id=topic.status_id,
                 priority_id=topic.priority_id,
                 assignee_user_id=topic.assignee_user_id,
@@ -183,6 +188,10 @@ class SqlTopicRepository:
         row.category_key = topic.category_key
         row.attachment_name = topic.attachment_name
         row.decision = topic.decision
+        if hasattr(row, "vote_type"):
+            row.vote_type = topic.vote_type or VOTE_TYPE_YES_NO
+        if hasattr(row, "vote_options_json"):
+            row.vote_options_json = self._options_json(topic.vote_options)
         row.status_id = topic.status_id
         row.priority_id = topic.priority_id
         row.assignee_user_id = topic.assignee_user_id
@@ -470,7 +479,35 @@ class SqlTopicRepository:
                 if getattr(row, "completion_submitted_at", None)
                 else None
             ),
+            vote_type=getattr(row, "vote_type", None) or VOTE_TYPE_YES_NO,
+            vote_options=self._parse_options(getattr(row, "vote_options_json", None)),
         )
+
+    def _options_json(self, options: tuple[TopicVoteOptionRecord, ...]) -> str:
+        return json.dumps(
+            [{"id": item.id, "label": item.label} for item in options],
+            ensure_ascii=False,
+        )
+
+    def _parse_options(self, raw: str | None) -> tuple[TopicVoteOptionRecord, ...]:
+        if not raw:
+            return ()
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return ()
+        if not isinstance(parsed, list):
+            return ()
+        options: list[TopicVoteOptionRecord] = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            option_id = str(item.get("id") or "").strip()
+            label = str(item.get("label") or "").strip()
+            if not option_id or not label:
+                continue
+            options.append(TopicVoteOptionRecord(id=option_id, label=label))
+        return tuple(options)
 
     def _vote(self, row: TopicVoteModel) -> TopicVoteRecord:
         return TopicVoteRecord(

@@ -39,6 +39,8 @@ class TopicModel(Base):
     category_key: Mapped[str] = mapped_column(String(64))
     attachment_name: Mapped[str] = mapped_column(String(255), default="")
     decision: Mapped[str] = mapped_column(String(500))
+    vote_type: Mapped[str] = mapped_column(String(16), default="yes_no")
+    vote_options_json: Mapped[str] = mapped_column(Text, default="[]")
     status_id: Mapped[int] = mapped_column(ForeignKey("statuses.id"), default=OPEN_STATUS_ID)
     priority_id: Mapped[int] = mapped_column(ForeignKey("priorities.id"), default=MEDIUM_PRIORITY_ID)
     assignee_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
@@ -52,7 +54,7 @@ class TopicModel(Base):
 
 
 class TopicVoteModel(Base):
-    """One vote per person on a topic. Choice is yes, no, or abstain."""
+    """One vote per person. Choice is yes/no/abstain or a custom option id."""
 
     __tablename__ = "topic_votes"
     __table_args__ = (UniqueConstraint("topic_id", "author_id", name="uq_topic_votes_author"),)
@@ -61,7 +63,7 @@ class TopicVoteModel(Base):
     topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
     author_id: Mapped[str] = mapped_column(String(36), index=True)
     author_name: Mapped[str] = mapped_column(String(160))
-    choice: Mapped[str] = mapped_column(String(8))
+    choice: Mapped[str] = mapped_column(String(36))
 
 
 class TopicOpinionModel(Base):

@@ -398,3 +398,66 @@ def test_completion_and_confirmations_gate_close() -> None:
     closed = service.move_topic(topic.id, 4, committee_size=3)
     assert closed.status_id == 4
 
+
+def test_custom_poll_stores_options_and_accepts_option_votes() -> None:
+    from app.domain.topics import InvalidVoteChoice, VOTE_TYPE_CUSTOM
+
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+
+    topic = service.create_topic(
+        title="Pintura",
+        description="Hay que elegir color.",
+        category_key="maintenance",
+        attachment_name="",
+        decision="¿Qué color pintamos el hall?",
+        vote_type=VOTE_TYPE_CUSTOM,
+        vote_options=[
+            {"id": "opt-blue", "label": "Azul"},
+            {"id": "opt-green", "label": "Verde"},
+            {"label": "Blanco"},
+        ],
+    )
+
+    assert topic.vote_type == VOTE_TYPE_CUSTOM
+    assert [option.label for option in topic.vote_options] == ["Azul", "Verde", "Blanco"]
+    assert topic.vote_options[0].id == "opt-blue"
+
+    updated, vote = service.cast_vote(
+        topic.id,
+        author_id="user-1",
+        author_name="Ana",
+        choice="opt-green",
+    )
+    assert vote.choice == "opt-green"
+    assert updated.status_id == WAITING_STATUS_ID
+    assert repository.get_topic(topic.id).vote_options[1].label == "Verde"
+
+    try:
+        service.cast_vote(topic.id, author_id="user-2", author_name="Luis", choice="yes")
+        raise AssertionError("expected InvalidVoteChoice")
+    except InvalidVoteChoice:
+        pass
+
+
+def test_yes_no_poll_rejects_custom_option_ids() -> None:
+    from app.domain.topics import InvalidVoteChoice
+
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Luminarias",
+        description="Están apagadas.",
+        category_key="security",
+        attachment_name="",
+        decision="¿Pedimos cotizaciones?",
+    )
+
+    try:
+        service.cast_vote(topic.id, author_id="user-1", author_name="Ana", choice="opt-x")
+        raise AssertionError("expected InvalidVoteChoice")
+    except InvalidVoteChoice:
+        pass
+
