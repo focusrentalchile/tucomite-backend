@@ -45,6 +45,7 @@ def init_database() -> None:
     from app.core.access_catalog import access_catalog
     from app.models import access as access_models  # noqa: F401
     from app.models import blog as blog_models  # noqa: F401
+    from app.models import contact as contact_models  # noqa: F401
     from app.models import committee as committee_models  # noqa: F401
     from app.models import periods as period_models  # noqa: F401
     from app.models import projects as project_models  # noqa: F401
@@ -105,6 +106,38 @@ def init_database() -> None:
             if not has_license_start:
                 connection.execute(text("ALTER TABLE `clients` ADD COLUMN `license_starts_at` DATE NULL"))
                 connection.execute(text("ALTER TABLE `clients` ADD COLUMN `license_ends_at` DATE NULL"))
+            for column, ddl in (
+                ("address", "ALTER TABLE `clients` ADD COLUMN `address` VARCHAR(255) NOT NULL DEFAULT ''"),
+                (
+                    "responsible_name",
+                    "ALTER TABLE `clients` ADD COLUMN `responsible_name` VARCHAR(160) NOT NULL DEFAULT ''",
+                ),
+            ):
+                has_column = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        f"AND TABLE_NAME = 'clients' AND COLUMN_NAME = '{column}'"
+                    ),
+                ).scalar()
+                if not has_column:
+                    connection.execute(text(ddl))
+        blog_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'blog_posts'"
+            ),
+        ).scalar()
+        if blog_exist:
+            description_type = connection.execute(
+                text(
+                    "SELECT DATA_TYPE FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'blog_posts' AND COLUMN_NAME = 'description'"
+                ),
+            ).scalar()
+            if description_type and str(description_type).lower() != "text":
+                connection.execute(text("ALTER TABLE `blog_posts` MODIFY COLUMN `description` TEXT NOT NULL"))
         topics_exist = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.TABLES "

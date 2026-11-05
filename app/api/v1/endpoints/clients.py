@@ -26,6 +26,8 @@ def _client_response(client, admin_email: str) -> ClientResponse:
         name=client.name,
         admin_user_id=client.admin_user_id,
         admin_email=admin_email,
+        address=getattr(client, "address", "") or "",
+        responsible_name=getattr(client, "responsible_name", "") or "",
         license_starts_at=client.license_starts_at,
         license_ends_at=client.license_ends_at,
         license_status=license.status,
@@ -61,6 +63,8 @@ def create_client(
             body.password,
             body.license_starts_at,
             body.license_ends_at,
+            address=body.address,
+            responsible_name=body.responsible_name,
         )
     except DuplicateClientName:
         raise HTTPException(status_code=409, detail="Client name already exists.") from None
@@ -87,6 +91,8 @@ def update_client(
             body.password,
             body.license_starts_at,
             body.license_ends_at,
+            address=body.address,
+            responsible_name=body.responsible_name,
         )
     except ClientNotFound:
         raise HTTPException(status_code=404, detail="Client not found.") from None

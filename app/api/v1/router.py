@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     blog,
     clients,
     committee,
+    contact,
     management,
     health,
     legal,
@@ -26,6 +27,7 @@ api_router.include_router(auth.router)
 api_router.include_router(access.router)
 api_router.include_router(blog.router)
 api_router.include_router(clients.router)
+api_router.include_router(contact.router)
 api_router.include_router(committee.router)
 api_router.include_router(periods.router)
 api_router.include_router(projects.router)

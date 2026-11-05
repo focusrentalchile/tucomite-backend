@@ -68,6 +68,8 @@ class ClientModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
     admin_user_id: Mapped[str] = mapped_column(String(36))
+    address: Mapped[str] = mapped_column(String(255), default="")
+    responsible_name: Mapped[str] = mapped_column(String(160), default="")
     license_starts_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     license_ends_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 

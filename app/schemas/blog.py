@@ -8,7 +8,7 @@ class BlogPostPayload(BaseModel):
 
     title: str = Field(min_length=1, max_length=200)
     keywords: str = Field(default="", max_length=300)
-    description: str = Field(default="", max_length=500)
+    description: str = Field(default="", max_length=5000)
     body_html: str = Field(default="")
     cover_image: str = Field(default="")
     published: bool = True

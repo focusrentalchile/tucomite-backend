@@ -14,11 +14,13 @@ from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.project_repository import SqlProjectRepository
 from app.repositories.agreement_repository import SqlAgreementRepository
 from app.repositories.blog_repository import SqlBlogRepository
+from app.repositories.contact_repository import SqlContactRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.access_service import PermissionPolicy, RoleService, UserService
 from app.services.agreement_service import AgreementService
 from app.services.blog_service import BlogService
 from app.services.client_service import ClientService
+from app.services.contact_service import ContactService
 from app.services.committee_access import ensure_committee_access
 from app.services.committee_service import CommitteeService
 from app.services.period_service import PeriodService
@@ -90,6 +92,11 @@ def get_agreement_service(db: Session = Depends(get_db)) -> AgreementService:
 def get_blog_service(db: Session = Depends(get_db)) -> BlogService:
     """Build a blog service bound to the request session."""
     return BlogService(SqlBlogRepository(db))
+
+
+def get_contact_service(db: Session = Depends(get_db)) -> ContactService:
+    """Build a contact service bound to the request session."""
+    return ContactService(SqlContactRepository(db))
 
 
 def get_current_actor(request: Request, db: Session = Depends(get_db)) -> Actor:

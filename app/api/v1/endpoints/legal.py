@@ -1,5 +1,8 @@
 """Legal case endpoints for committee, building owners, and legal counsel."""
 
+from datetime import datetime, timezone
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -11,8 +14,10 @@ from app.domain.legal import (
     LegalCaseNotFound,
     LegalCaseRecord,
 )
+from app.domain.notifications import NotificationRecord
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.legal_repository import SqlLegalRepository
+from app.repositories.notification_repository import SqlNotificationRepository
 from app.schemas.legal import (
     CreateLegalCaseMessageRequest,
     CreateLegalCaseRequest,
@@ -65,6 +70,31 @@ def _service(db: Session) -> LegalService:
     return LegalService(SqlLegalRepository(db))
 
 
+def _notify_legal_counsel(db: Session, *, client_id: str, case: LegalCaseRecord) -> None:
+    """Send an in-app notice to every legal user in the building."""
+    access = SqlAccessRepository(db)
+    roles = {role.name: role.id for role in access.list_roles()}
+    legal_role_id = roles.get("legal")
+    if not legal_role_id:
+        return
+    notifications = SqlNotificationRepository(db)
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    for user in access.list_users():
+        if user.client_id != client_id or user.role_id != legal_role_id:
+            continue
+        notifications.add(
+            NotificationRecord(
+                id=str(uuid4()),
+                user_id=user.id,
+                kind="legal_case_created",
+                title="Nueva cotización de asesoría legal",
+                body=f"Se solicitó «{case.title}». Revisalo en Casos (En espera).",
+                created_at=now,
+                read_at=None,
+            ),
+        )
+
+
 @router.get("/legal-cases", response_model=LegalCaseListResponse)
 def read_legal_cases(
     actor: Actor = Depends(require_permission("legal", "view")),
@@ -100,6 +130,7 @@ def create_legal_case(
         description=body.description,
         attachments=[item.model_dump() for item in body.attachments],
     )
+    _notify_legal_counsel(db, client_id=actor.client_id, case=case)
     stored = service.list_attachments_for_cases([case.id])
     return _case_response(case, stored)
 

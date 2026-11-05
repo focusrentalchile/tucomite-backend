@@ -43,6 +43,8 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
             "name": f"Cliente {uuid.uuid4().hex[:6]}",
             "email": f"admin.{uuid.uuid4().hex[:8]}@demo.local",
             "password": SEED_PASSWORD,
+            "address": "Av. Providencia 123",
+            "responsible_name": "María López",
             "license_starts_at": "2026-01-01",
             "license_ends_at": "2027-01-01",
         },
@@ -50,6 +52,8 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
     assert created.status_code == 201
     body = created.json()
     assert body["admin_email"].endswith("@demo.local")
+    assert body["address"] == "Av. Providencia 123"
+    assert body["responsible_name"] == "María López"
     assert body["license_starts_at"] == "2026-01-01"
     assert body["license_ends_at"] == "2027-01-01"
 
@@ -69,12 +73,16 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
         json={
             "name": body["name"],
             "email": body["admin_email"],
+            "address": "Los Leones 456",
+            "responsible_name": "Pedro Soto",
             "license_starts_at": "2026-02-01",
             "license_ends_at": "2027-02-01",
         },
     )
     assert updated.status_code == 200
     assert updated.json()["license_starts_at"] == "2026-02-01"
+    assert updated.json()["address"] == "Los Leones 456"
+    assert updated.json()["responsible_name"] == "Pedro Soto"
 
     removed = client.delete(f"/api/v1/clients/{client_id}")
     assert removed.status_code == 204

@@ -15,7 +15,7 @@ class BlogPostModel(Base):
     slug: Mapped[str] = mapped_column(String(180), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(200))
     keywords: Mapped[str] = mapped_column(String(300), default="")
-    description: Mapped[str] = mapped_column(String(500), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
     body_html: Mapped[str] = mapped_column(Text, default="")
     cover_image: Mapped[str] = mapped_column(Text, default="")
     published: Mapped[bool] = mapped_column(Boolean, default=True)

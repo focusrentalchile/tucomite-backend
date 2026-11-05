@@ -70,6 +70,8 @@ class SqlClientRepository:
                 id=client.id,
                 name=client.name,
                 admin_user_id=client.admin_user_id,
+                address=client.address,
+                responsible_name=client.responsible_name,
                 license_starts_at=_parse_day(client.license_starts_at),
                 license_ends_at=_parse_day(client.license_ends_at),
             ),
@@ -82,6 +84,8 @@ class SqlClientRepository:
             raise KeyError(client.id)
         row.name = client.name
         row.admin_user_id = client.admin_user_id
+        row.address = client.address
+        row.responsible_name = client.responsible_name
         row.license_starts_at = _parse_day(client.license_starts_at)
         row.license_ends_at = _parse_day(client.license_ends_at)
         self._session.flush()
@@ -98,6 +102,8 @@ class SqlClientRepository:
             id=row.id,
             name=row.name,
             admin_user_id=row.admin_user_id,
+            address=getattr(row, "address", "") or "",
+            responsible_name=getattr(row, "responsible_name", "") or "",
             license_starts_at=_day(getattr(row, "license_starts_at", None)),
             license_ends_at=_day(getattr(row, "license_ends_at", None)),
         )

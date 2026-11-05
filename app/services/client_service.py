@@ -47,6 +47,8 @@ class ClientService:
         password: str,
         license_starts_at: str,
         license_ends_at: str,
+        address: str = "",
+        responsible_name: str = "",
     ) -> tuple[ClientRecord, UserRecord]:
         """Create a client owner and a default building administrator for that license."""
         cleaned_name = name.strip()
@@ -70,9 +72,10 @@ class ClientService:
         client_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
         password_hash = hash_password(password)
+        cleaned_responsible = responsible_name.strip()
         user = UserRecord(
             id=user_id,
-            full_name=cleaned_name,
+            full_name=cleaned_responsible or cleaned_name,
             email=normalized,
             password_hash=password_hash,
             role_id=owner_role.id,
@@ -83,6 +86,8 @@ class ClientService:
             id=client_id,
             name=cleaned_name,
             admin_user_id=user_id,
+            address=address.strip(),
+            responsible_name=cleaned_responsible,
             license_starts_at=starts,
             license_ends_at=ends,
         )
@@ -144,6 +149,8 @@ class ClientService:
         password: str | None,
         license_starts_at: str,
         license_ends_at: str,
+        address: str = "",
+        responsible_name: str = "",
     ) -> tuple[ClientRecord, UserRecord]:
         """Update a client name, license, and building-owner credentials."""
         client = self.get_client(client_id)
@@ -164,9 +171,10 @@ class ClientService:
         if other is not None and other.id != admin.id:
             raise DuplicateEmail(normalized)
 
+        cleaned_responsible = responsible_name.strip()
         updated_admin = UserRecord(
             id=admin.id,
-            full_name=admin.full_name or cleaned_name,
+            full_name=cleaned_responsible or admin.full_name or cleaned_name,
             email=normalized,
             password_hash=hash_password(password) if password else admin.password_hash,
             role_id=admin.role_id,
@@ -177,6 +185,8 @@ class ClientService:
             id=client.id,
             name=cleaned_name,
             admin_user_id=admin.id,
+            address=address.strip(),
+            responsible_name=cleaned_responsible,
             license_starts_at=starts,
             license_ends_at=ends,
         )
