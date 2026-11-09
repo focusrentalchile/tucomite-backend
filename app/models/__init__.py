@@ -10,6 +10,7 @@ from app.models.management import ManagementMessageModel, ManagementTaskModel, M
 from app.models.notifications import NotificationModel
 from app.models.periods import PeriodModel
 from app.models.projects import ProjectAttachmentModel, ProjectModel
+from app.models.support import SupportReplyModel, SupportTicketModel, SupportTypeModel
 from app.models.topics import (
     PriorityModel,
     StatusModel,
@@ -39,6 +40,9 @@ __all__ = [
     "RoleModel",
     "RolePermissionModel",
     "StatusModel",
+    "SupportReplyModel",
+    "SupportTicketModel",
+    "SupportTypeModel",
     "TopicAttachmentModel",
     "TopicModel",
     "TopicOpinionModel",

@@ -41,6 +41,9 @@ def register_builtin_modules() -> None:
     access_catalog.register(
         ModuleDefinition(key="legal", functionalities=("see", "view", "reply", "update")),
     )
+    access_catalog.register(
+        ModuleDefinition(key="support", functionalities=("view", "create", "reply")),
+    )
 
 
 register_builtin_modules()

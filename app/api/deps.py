@@ -96,7 +96,13 @@ def get_blog_service(db: Session = Depends(get_db)) -> BlogService:
 
 def get_contact_service(db: Session = Depends(get_db)) -> ContactService:
     """Build a contact service bound to the request session."""
-    return ContactService(SqlContactRepository(db))
+    from app.repositories.support_repository import SqlSupportRepository
+    from app.services.support_service import SupportService
+
+    return ContactService(
+        SqlContactRepository(db),
+        SupportService(SqlSupportRepository(db)),
+    )
 
 
 def get_current_actor(request: Request, db: Session = Depends(get_db)) -> Actor:

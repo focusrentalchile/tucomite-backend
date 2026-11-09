@@ -5,13 +5,19 @@ from datetime import datetime, timezone
 
 from app.domain.contact import ContactMessageRecord, PrivacyConsentRequired
 from app.repositories.contact_repository import ContactRepository
+from app.services.support_service import SupportService
 
 
 class ContactService:
     """Stores and lists public contact submissions."""
 
-    def __init__(self, repository: ContactRepository) -> None:
+    def __init__(
+        self,
+        repository: ContactRepository,
+        support_service: SupportService | None = None,
+    ) -> None:
         self._repository = repository
+        self._support = support_service
 
     def list_messages(self) -> list[ContactMessageRecord]:
         """Return every contact message for the super admin."""
@@ -46,4 +52,10 @@ class ContactService:
             created_at=now,
         )
         self._repository.add_message(record)
+        if self._support is not None:
+            self._support.create_web_message_ticket(
+                contact_name=cleaned_name,
+                contact_email=cleaned_email,
+                message=cleaned_message,
+            )
         return record

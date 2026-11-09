@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     session_secret: str = "tu-comite-dev-session-secret-change-me"
     session_https_only: bool = False
     session_same_site: str = "lax"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+    public_site_url: str = "https://tucomite.cl"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

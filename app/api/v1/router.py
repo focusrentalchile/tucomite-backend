@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     periods,
     projects,
     reports,
+    support,
     topics,
 )
 
@@ -36,5 +37,6 @@ api_router.include_router(management.router)
 api_router.include_router(messages.router)
 api_router.include_router(notifications.router)
 api_router.include_router(legal.router)
+api_router.include_router(support.router)
 api_router.include_router(topics.router)
 api_router.include_router(agreements.router)
