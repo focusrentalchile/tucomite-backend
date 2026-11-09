@@ -398,7 +398,18 @@ class TopicService:
             raise InvalidVoteChoice()
         existing = self._repository.get_vote(topic_id, author_id)
         if existing is not None:
-            raise VoteAlreadyCast()
+            # Voters may change their choice only while the topic waits for a decision.
+            if topic.status_id != WAITING_STATUS_ID:
+                raise VoteAlreadyCast()
+            vote = TopicVoteRecord(
+                id=existing.id,
+                topic_id=topic_id,
+                author_id=author_id,
+                author_name=author_name.strip() or existing.author_name,
+                choice=normalized,
+            )
+            self._repository.save_vote(vote)
+            return topic, vote
         vote = TopicVoteRecord(
             id=str(uuid.uuid4()),
             topic_id=topic_id,

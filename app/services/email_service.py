@@ -2,6 +2,7 @@
 
 import html
 import smtplib
+from dataclasses import dataclass
 from email.message import EmailMessage
 
 from app.core.config import settings
@@ -15,9 +16,34 @@ class EmailSendError(Exception):
     """Raised when SMTP delivery fails."""
 
 
-def smtp_configured() -> bool:
+@dataclass(frozen=True)
+class SmtpDeliveryConfig:
+    """Resolved SMTP connection values for one send."""
+
+    host: str
+    port: int
+    user: str
+    password: str
+    from_address: str
+    use_tls: bool
+
+
+def smtp_config_from_env() -> SmtpDeliveryConfig:
+    """Build SMTP config from process environment defaults."""
+    return SmtpDeliveryConfig(
+        host=settings.smtp_host,
+        port=settings.smtp_port,
+        user=settings.smtp_user,
+        password=settings.smtp_password,
+        from_address=settings.smtp_from,
+        use_tls=settings.smtp_use_tls,
+    )
+
+
+def smtp_configured(config: SmtpDeliveryConfig | None = None) -> bool:
     """True when host and from address are present."""
-    return bool(settings.smtp_host.strip() and settings.smtp_from.strip())
+    cfg = config or smtp_config_from_env()
+    return bool(cfg.host.strip() and cfg.from_address.strip())
 
 
 def build_support_reply_html(*, visitor_name: str, reply_body: str, site_url: str) -> str:
@@ -72,27 +98,34 @@ def build_support_reply_html(*, visitor_name: str, reply_body: str, site_url: st
 </html>"""
 
 
-def send_html_email(*, to_email: str, subject: str, html_body: str) -> None:
+def send_html_email(
+    *,
+    to_email: str,
+    subject: str,
+    html_body: str,
+    smtp: SmtpDeliveryConfig | None = None,
+) -> None:
     """Send one HTML email through configured SMTP."""
-    if not smtp_configured():
+    cfg = smtp or smtp_config_from_env()
+    if not smtp_configured(cfg):
         raise EmailNotConfigured("SMTP is not configured.")
     message = EmailMessage()
     message["Subject"] = subject
-    message["From"] = settings.smtp_from
+    message["From"] = cfg.from_address
     message["To"] = to_email
     message.set_content("Abrí este correo en un cliente que soporte HTML para ver la respuesta.")
     message.add_alternative(html_body, subtype="html")
     try:
-        if settings.smtp_use_tls:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
+        if cfg.use_tls:
+            with smtplib.SMTP(cfg.host, cfg.port, timeout=30) as server:
                 server.starttls()
-                if settings.smtp_user:
-                    server.login(settings.smtp_user, settings.smtp_password)
+                if cfg.user:
+                    server.login(cfg.user, cfg.password)
                 server.send_message(message)
         else:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
-                if settings.smtp_user:
-                    server.login(settings.smtp_user, settings.smtp_password)
+            with smtplib.SMTP(cfg.host, cfg.port, timeout=30) as server:
+                if cfg.user:
+                    server.login(cfg.user, cfg.password)
                 server.send_message(message)
     except Exception as error:  # noqa: BLE001 — surface SMTP failures as domain error
         raise EmailSendError(str(error)) from error

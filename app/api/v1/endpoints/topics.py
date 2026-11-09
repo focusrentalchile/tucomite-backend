@@ -401,7 +401,7 @@ def cast_vote(
     _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> CastVoteResponse:
-    """Store the actor's first vote. Only listed committee voters may vote."""
+    """Store or update the actor's vote while the topic is open or waiting."""
     if not is_listed_committee_member(db, actor.user_id):
         raise HTTPException(status_code=403, detail="Only committee voters may vote.")
     access = SqlAccessRepository(db)

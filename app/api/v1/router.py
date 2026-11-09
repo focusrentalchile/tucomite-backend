@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     messages,
     notifications,
     periods,
+    platform_settings,
     projects,
     reports,
     support,
@@ -38,5 +39,6 @@ api_router.include_router(messages.router)
 api_router.include_router(notifications.router)
 api_router.include_router(legal.router)
 api_router.include_router(support.router)
+api_router.include_router(platform_settings.router)
 api_router.include_router(topics.router)
 api_router.include_router(agreements.router)

@@ -150,29 +150,24 @@ def test_same_author_cannot_change_or_repeat_a_vote() -> None:
 
     first, vote = service.cast_vote(topic.id, "user-1", "Ana Pérez", "yes")
 
-
-
-    try:
-
-        service.cast_vote(topic.id, "user-1", "Ana Pérez", "no")
-
-        raised = False
-
-    except VoteAlreadyCast:
-
-        raised = True
-
-
-
-    assert raised
-
     assert vote.choice == "yes"
-
-    assert len(repository.list_votes(topic.id)) == 1
-
     assert first.status_id == WAITING_STATUS_ID
 
-    assert repository.list_votes(topic.id)[0].choice == "yes"
+    # While waiting for a decision, the same voter may change their choice.
+    changed_topic, changed = service.cast_vote(topic.id, "user-1", "Ana Pérez", "no")
+    assert changed.choice == "no"
+    assert changed_topic.status_id == WAITING_STATUS_ID
+    assert len(repository.list_votes(topic.id)) == 1
+    assert repository.list_votes(topic.id)[0].choice == "no"
+
+    # After leaving the waiting column, the vote is locked again.
+    repository.save_topic_status(topic.id, 3)
+    try:
+        service.cast_vote(topic.id, "user-1", "Ana Pérez", "abstain")
+        raised = False
+    except VoteAlreadyCast:
+        raised = True
+    assert raised
 
 
 

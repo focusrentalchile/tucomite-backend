@@ -60,6 +60,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/support/tickets" in paths
     assert "/support/tickets/{ticket_id}" in paths
     assert "/support/tickets/{ticket_id}/replies" in paths
+    assert "/platform-settings" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:

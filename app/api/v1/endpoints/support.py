@@ -12,6 +12,7 @@ from app.domain.support import (
     SupportTypeNotFound,
 )
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.platform_settings_repository import SqlPlatformSettingsRepository
 from app.repositories.support_repository import SqlSupportRepository
 from app.schemas.support import (
     CreateSupportReplyRequest,
@@ -22,6 +23,8 @@ from app.schemas.support import (
     SupportTypeListResponse,
     SupportTypeResponse,
 )
+from app.services.email_service import SmtpDeliveryConfig
+from app.services.platform_settings_service import PlatformSettingsService
 from app.services.support_service import SupportService
 
 router = APIRouter(prefix="/support", tags=["support"])
@@ -173,6 +176,16 @@ def create_support_reply(
     if from_staff:
         require_super_admin(actor)
 
+    platform = PlatformSettingsService(SqlPlatformSettingsRepository(db)).get_settings()
+    site_url = platform.public_site_url.strip() or settings.public_site_url
+    smtp = SmtpDeliveryConfig(
+        host=platform.smtp_host,
+        port=platform.smtp_port,
+        user=platform.smtp_user,
+        password=platform.smtp_password,
+        from_address=platform.smtp_from,
+        use_tls=platform.smtp_use_tls,
+    )
     try:
         updated = service.add_reply(
             ticket_id,
@@ -180,7 +193,8 @@ def create_support_reply(
             author_name=_actor_display_name(db, actor.user_id),
             body=body.body,
             from_staff=from_staff,
-            site_url=settings.public_site_url,
+            site_url=site_url,
+            smtp=smtp,
         )
     except SupportTicketNotFound as error:
         raise HTTPException(status_code=404, detail="Support ticket not found.") from error

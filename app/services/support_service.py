@@ -21,6 +21,7 @@ from app.repositories.support_repository import SupportRepository
 from app.services.email_service import (
     EmailNotConfigured,
     EmailSendError,
+    SmtpDeliveryConfig,
     build_support_reply_html,
     send_html_email,
 )
@@ -141,6 +142,7 @@ class SupportService:
         body: str,
         from_staff: bool,
         site_url: str = "https://tucomite.cl",
+        smtp: SmtpDeliveryConfig | None = None,
     ) -> SupportTicketRecord:
         """Append a chat reply; staff replies to Mensaje also email the visitor."""
         ticket = self.get(ticket_id)
@@ -194,6 +196,7 @@ class SupportService:
                     to_email=email,
                     subject=f"Respuesta de Tu Comité: {ticket.subject}",
                     html_body=html_body,
+                    smtp=smtp,
                 )
             except EmailNotConfigured as error:
                 raise SupportEmailError(str(error)) from error
