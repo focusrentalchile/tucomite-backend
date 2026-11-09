@@ -136,9 +136,10 @@ def _topics_for_open_period(
     """Return topics for this building's open period only.
 
     Also reclaims unfinished topics stranded on a closed period of the same
-    building (for example after an older auto-advance closed the active period).
+    building (or a legacy period with no client_id) so creates stay visible.
     """
-    periods = PeriodService(SqlPeriodRepository(db))
+    period_repo = SqlPeriodRepository(db)
+    periods = PeriodService(period_repo)
     open_period = periods.ensure_current_month_open(client_id)
     client_period_ids = {period.id for period in periods.list_periods(client_id)}
     topics = service.list_topics()
@@ -147,10 +148,20 @@ def _topics_for_open_period(
         if topic.period_id == open_period.id:
             scoped.append(topic)
             continue
-        if (
-            topic.period_id in client_period_ids
-            and topic.status_id != CLOSED_STATUS_ID
-        ):
+        if topic.status_id == CLOSED_STATUS_ID:
+            continue
+        if topic.period_id in client_period_ids:
+            reclaimed = service.reassign_period(topic.id, open_period.id)
+            scoped.append(reclaimed)
+            continue
+        period = period_repo.get_period(topic.period_id) if topic.period_id else None
+        # Legacy rows predating per-building periods have client_id NULL.
+        if period is not None and period.client_id is None:
+            period_repo.assign_client(period.id, client_id)
+            reclaimed = service.reassign_period(topic.id, open_period.id)
+            scoped.append(reclaimed)
+            continue
+        if topic.period_id is None:
             reclaimed = service.reassign_period(topic.id, open_period.id)
             scoped.append(reclaimed)
     return scoped
