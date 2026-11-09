@@ -37,6 +37,17 @@ class SupportTypeRecord:
 
 
 @dataclass(frozen=True)
+class SupportAttachmentRecord:
+    """One file attached to a support ticket."""
+
+    id: str
+    ticket_id: str
+    kind: str
+    name: str
+    url: str
+
+
+@dataclass(frozen=True)
 class SupportReplyRecord:
     """One reply in a support ticket chat."""
 
@@ -66,6 +77,7 @@ class SupportTicketRecord:
     author_name: str = ""
     contact_name: str | None = None
     contact_email: str | None = None
+    attachments: tuple[SupportAttachmentRecord, ...] = ()
     replies: tuple[SupportReplyRecord, ...] = ()
 
 

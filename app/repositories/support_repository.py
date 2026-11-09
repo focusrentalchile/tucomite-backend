@@ -4,17 +4,23 @@ from datetime import datetime, timezone
 from typing import Protocol
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.domain.support import (
     DEFAULT_SUPPORT_TYPE_NAMES,
+    SupportAttachmentRecord,
     SupportReplyRecord,
     SupportTicketRecord,
     SupportTypeRecord,
 )
 from app.models.access import UserModel
-from app.models.support import SupportReplyModel, SupportTicketModel, SupportTypeModel
+from app.models.support import (
+    SupportAttachmentModel,
+    SupportReplyModel,
+    SupportTicketModel,
+    SupportTypeModel,
+)
 
 
 def _iso(value: datetime | None) -> str:
@@ -49,6 +55,12 @@ class SupportRepository(Protocol):
     def save_ticket(self, record: SupportTicketRecord) -> None: ...
 
     def add_reply(self, record: SupportReplyRecord) -> None: ...
+
+    def replace_attachments(
+        self,
+        ticket_id: str,
+        attachments: list[SupportAttachmentRecord],
+    ) -> None: ...
 
 
 class SqlSupportRepository:
@@ -161,6 +173,26 @@ class SqlSupportRepository:
         )
         self._session.flush()
 
+    def replace_attachments(
+        self,
+        ticket_id: str,
+        attachments: list[SupportAttachmentRecord],
+    ) -> None:
+        self._session.execute(
+            delete(SupportAttachmentModel).where(SupportAttachmentModel.ticket_id == ticket_id),
+        )
+        for item in attachments:
+            self._session.add(
+                SupportAttachmentModel(
+                    id=item.id or str(uuid4()),
+                    ticket_id=ticket_id,
+                    kind=item.kind,
+                    name=item.name,
+                    url=item.url,
+                ),
+            )
+        self._session.flush()
+
     def _ticket(self, row: SupportTicketModel) -> SupportTicketRecord:
         type_row = self._session.get(SupportTypeModel, row.support_type_id)
         author_name = ""
@@ -171,6 +203,7 @@ class SqlSupportRepository:
         elif row.contact_name:
             author_name = row.contact_name
         replies = self._replies(row.id)
+        attachments = self._attachments(row.id)
         return SupportTicketRecord(
             id=row.id,
             client_id=row.client_id,
@@ -185,8 +218,24 @@ class SqlSupportRepository:
             contact_email=row.contact_email,
             created_at=_iso(row.created_at),
             updated_at=_iso(row.updated_at),
+            attachments=tuple(attachments),
             replies=tuple(replies),
         )
+
+    def _attachments(self, ticket_id: str) -> list[SupportAttachmentRecord]:
+        rows = self._session.scalars(
+            select(SupportAttachmentModel).where(SupportAttachmentModel.ticket_id == ticket_id),
+        ).all()
+        return [
+            SupportAttachmentRecord(
+                id=row.id,
+                ticket_id=row.ticket_id,
+                kind=row.kind,
+                name=row.name,
+                url=row.url,
+            )
+            for row in rows
+        ]
 
     def _replies(self, ticket_id: str) -> list[SupportReplyRecord]:
         rows = self._session.scalars(

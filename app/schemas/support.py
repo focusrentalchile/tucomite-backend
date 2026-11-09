@@ -1,5 +1,7 @@
 """HTTP schemas for platform support tickets."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -14,6 +16,23 @@ class SupportTypeListResponse(BaseModel):
     """Alphabetical support types."""
 
     items: list[SupportTypeResponse]
+
+
+class SupportAttachmentPayload(BaseModel):
+    """Attachment uploaded with a support ticket."""
+
+    kind: Literal["image", "video", "file"] = "file"
+    name: str = Field(min_length=1, max_length=255)
+    url: str = Field(min_length=1)
+
+
+class SupportAttachmentResponse(BaseModel):
+    """One stored attachment on a support ticket."""
+
+    id: str
+    kind: Literal["image", "video", "file"]
+    name: str
+    url: str
 
 
 class SupportReplyResponse(BaseModel):
@@ -44,6 +63,7 @@ class SupportTicketResponse(BaseModel):
     contact_email: str | None = None
     created_at: str
     updated_at: str
+    attachments: list[SupportAttachmentResponse] = []
     replies: list[SupportReplyResponse] = []
 
 
@@ -59,6 +79,7 @@ class CreateSupportTicketRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=8000)
     support_type_id: str | None = Field(default=None, max_length=36)
+    attachments: list[SupportAttachmentPayload] = Field(default_factory=list)
 
 
 class CreateSupportReplyRequest(BaseModel):

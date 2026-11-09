@@ -59,3 +59,20 @@ class SupportReplyModel(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     from_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SupportAttachmentModel(Base):
+    """Attachment on a platform support ticket."""
+
+    __tablename__ = "platform_support_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    ticket_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("platform_support_tickets.id"),
+        nullable=False,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)

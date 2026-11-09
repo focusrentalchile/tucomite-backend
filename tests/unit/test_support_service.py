@@ -10,6 +10,7 @@ from app.domain.support import (
     SUPPORT_TYPE_MESSAGE,
     SUPPORT_TYPE_SUPPORT,
     InvalidSupportType,
+    SupportAttachmentRecord,
     SupportEmailError,
     SupportReplyRecord,
     SupportTicketRecord,
@@ -25,6 +26,7 @@ class MemorySupportRepository:
             SupportTypeRecord(id="tm", name=SUPPORT_TYPE_MESSAGE),
         ]
         self.tickets: dict[str, SupportTicketRecord] = {}
+        self.attachments: dict[str, list[SupportAttachmentRecord]] = {}
 
     def ensure_default_types(self) -> None:
         return None
@@ -39,16 +41,27 @@ class MemorySupportRepository:
         return next((item for item in self.types if item.name == name), None)
 
     def list_all_tickets(self) -> list[SupportTicketRecord]:
-        return list(self.tickets.values())
+        return [self._with_attachments(item) for item in self.tickets.values()]
 
     def list_tickets_for_client(self, client_id: str) -> list[SupportTicketRecord]:
-        return [item for item in self.tickets.values() if item.client_id == client_id]
+        return [
+            self._with_attachments(item)
+            for item in self.tickets.values()
+            if item.client_id == client_id
+        ]
 
     def list_tickets_for_author(self, author_user_id: str) -> list[SupportTicketRecord]:
-        return [item for item in self.tickets.values() if item.author_user_id == author_user_id]
+        return [
+            self._with_attachments(item)
+            for item in self.tickets.values()
+            if item.author_user_id == author_user_id
+        ]
 
     def get_ticket(self, ticket_id: str) -> SupportTicketRecord | None:
-        return self.tickets.get(ticket_id)
+        record = self.tickets.get(ticket_id)
+        if record is None:
+            return None
+        return self._with_attachments(record)
 
     def add_ticket(self, record: SupportTicketRecord) -> None:
         self.tickets[record.id] = record
@@ -60,6 +73,21 @@ class MemorySupportRepository:
         current = self.tickets[record.ticket_id]
         self.tickets[record.ticket_id] = SupportTicketRecord(
             **{**current.__dict__, "replies": (*current.replies, record)},
+        )
+
+    def replace_attachments(
+        self,
+        ticket_id: str,
+        attachments: list[SupportAttachmentRecord],
+    ) -> None:
+        self.attachments[ticket_id] = list(attachments)
+
+    def _with_attachments(self, record: SupportTicketRecord) -> SupportTicketRecord:
+        return SupportTicketRecord(
+            **{
+                **record.__dict__,
+                "attachments": tuple(self.attachments.get(record.id, [])),
+            },
         )
 
 
@@ -85,9 +113,15 @@ def test_create_and_reply_chat() -> None:
         author_name="Comité",
         subject="Ayuda",
         body="Necesito asistencia",
+        attachments=[
+            {"kind": "image", "name": "foto.png", "url": "data:image/png;base64,abc"},
+            {"kind": "file", "name": "nota.pdf", "url": "data:application/pdf;base64,xyz"},
+        ],
     )
     assert created.status == SUPPORT_STATUS_OPEN
     assert created.support_type_name == SUPPORT_TYPE_SUPPORT
+    assert len(created.attachments) == 2
+    assert created.attachments[0].name == "foto.png"
 
     replied = service.add_reply(
         created.id,
@@ -99,6 +133,7 @@ def test_create_and_reply_chat() -> None:
     assert replied.status == SUPPORT_STATUS_ANSWERED
     assert len(replied.replies) == 1
     assert replied.replies[0].from_staff is True
+    assert len(replied.attachments) == 2
 
 
 def test_web_message_staff_reply_sends_email() -> None:

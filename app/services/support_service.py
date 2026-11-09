@@ -10,6 +10,7 @@ from app.domain.support import (
     SUPPORT_TYPE_MESSAGE,
     SUPPORT_TYPE_SUPPORT,
     InvalidSupportType,
+    SupportAttachmentRecord,
     SupportEmailError,
     SupportReplyRecord,
     SupportTicketNotFound,
@@ -26,6 +27,8 @@ from app.services.email_service import (
     send_html_email,
 )
 
+ATTACHMENT_KINDS = frozenset({"image", "video", "file"})
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -36,6 +39,33 @@ class SupportService:
 
     def __init__(self, repository: SupportRepository) -> None:
         self._repository = repository
+
+    def _normalize_attachments(
+        self,
+        ticket_id: str,
+        attachments: list[dict[str, str]] | None,
+    ) -> list[SupportAttachmentRecord]:
+        if not attachments:
+            return []
+        rows: list[SupportAttachmentRecord] = []
+        for item in attachments:
+            kind = (item.get("kind") or "file").strip().lower()
+            if kind not in ATTACHMENT_KINDS:
+                kind = "file"
+            name = (item.get("name") or "").strip()
+            url = (item.get("url") or "").strip()
+            if not name or not url:
+                continue
+            rows.append(
+                SupportAttachmentRecord(
+                    id=str(uuid4()),
+                    ticket_id=ticket_id,
+                    kind=kind,
+                    name=name,
+                    url=url,
+                ),
+            )
+        return rows
 
     def list_types(self, *, creatable_only: bool = False) -> list[SupportTypeRecord]:
         """Support types; optionally only those buildings may open."""
@@ -68,6 +98,7 @@ class SupportService:
         subject: str,
         body: str,
         support_type_id: str | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> SupportTicketRecord:
         """Open a Soporte ticket from committee or client (type is assigned server-side)."""
         if support_type_id:
@@ -98,6 +129,10 @@ class SupportService:
             updated_at=now,
         )
         self._repository.add_ticket(record)
+        self._repository.replace_attachments(
+            ticket_id,
+            self._normalize_attachments(ticket_id, attachments),
+        )
         return self.get(ticket_id)
 
     def create_web_message_ticket(
@@ -179,6 +214,7 @@ class SupportService:
             contact_email=ticket.contact_email,
             created_at=ticket.created_at,
             updated_at=now,
+            attachments=ticket.attachments,
             replies=ticket.replies + (reply,),
         )
         self._repository.save_ticket(updated)

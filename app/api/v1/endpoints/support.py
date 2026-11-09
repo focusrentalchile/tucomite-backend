@@ -17,6 +17,7 @@ from app.repositories.support_repository import SqlSupportRepository
 from app.schemas.support import (
     CreateSupportReplyRequest,
     CreateSupportTicketRequest,
+    SupportAttachmentResponse,
     SupportReplyResponse,
     SupportTicketListResponse,
     SupportTicketResponse,
@@ -50,6 +51,15 @@ def _ticket_response(ticket) -> SupportTicketResponse:
         contact_email=ticket.contact_email,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
+        attachments=[
+            SupportAttachmentResponse(
+                id=item.id,
+                kind=item.kind,  # type: ignore[arg-type]
+                name=item.name,
+                url=item.url,
+            )
+            for item in ticket.attachments
+        ],
         replies=[
             SupportReplyResponse(
                 id=item.id,
@@ -121,6 +131,7 @@ def create_support_ticket(
             subject=body.subject,
             body=body.body,
             support_type_id=body.support_type_id,
+            attachments=[item.model_dump() for item in body.attachments],
         )
     except SupportTypeNotFound as error:
         raise HTTPException(status_code=404, detail="Support type not found.") from error
