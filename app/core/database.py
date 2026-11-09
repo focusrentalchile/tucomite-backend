@@ -138,6 +138,17 @@ def init_database() -> None:
             ).scalar()
             if description_type and str(description_type).lower() != "text":
                 connection.execute(text("ALTER TABLE `blog_posts` MODIFY COLUMN `description` TEXT NOT NULL"))
+            cover_type = connection.execute(
+                text(
+                    "SELECT DATA_TYPE FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'blog_posts' AND COLUMN_NAME = 'cover_image'"
+                ),
+            ).scalar()
+            if cover_type and str(cover_type).lower() != "mediumtext":
+                connection.execute(
+                    text("ALTER TABLE `blog_posts` MODIFY COLUMN `cover_image` MEDIUMTEXT NOT NULL"),
+                )
         topics_exist = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.TABLES "
