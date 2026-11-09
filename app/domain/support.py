@@ -14,12 +14,18 @@ SUPPORT_STATUSES = frozenset(
     }
 )
 
-SUPPORT_TYPE_ONE = "Soporte tipo 1"
-SUPPORT_TYPE_TWO = "Soporte tipo 2"
+# 1 = Soporte (building users). 2 = Mensaje (public web contact).
+SUPPORT_TYPE_SUPPORT = "Soporte"
 SUPPORT_TYPE_MESSAGE = "Mensaje"
 
-DEFAULT_SUPPORT_TYPE_NAMES = (SUPPORT_TYPE_ONE, SUPPORT_TYPE_TWO, SUPPORT_TYPE_MESSAGE)
-CREATABLE_SUPPORT_TYPE_NAMES = frozenset({SUPPORT_TYPE_ONE, SUPPORT_TYPE_TWO})
+# Legacy names renamed on bootstrap so existing rows keep working.
+LEGACY_SUPPORT_TYPE_RENAMES = {
+    "Soporte tipo 1": SUPPORT_TYPE_SUPPORT,
+    "Soporte tipo 2": SUPPORT_TYPE_SUPPORT,
+}
+
+DEFAULT_SUPPORT_TYPE_NAMES = (SUPPORT_TYPE_SUPPORT, SUPPORT_TYPE_MESSAGE)
+CREATABLE_SUPPORT_TYPE_NAMES = frozenset({SUPPORT_TYPE_SUPPORT})
 
 
 @dataclass(frozen=True)

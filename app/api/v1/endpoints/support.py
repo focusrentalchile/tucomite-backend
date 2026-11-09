@@ -105,7 +105,7 @@ def create_support_ticket(
     db: Session = Depends(get_db),
     service: SupportService = Depends(get_support_service),
 ) -> SupportTicketResponse:
-    """Open a Soporte tipo 1/2 ticket for the signed-in building."""
+    """Open a Soporte ticket for the signed-in building (Asunto + Mensaje only)."""
     if actor.is_super_admin:
         raise HTTPException(status_code=403, detail="Super admin cannot open building tickets.")
     if not actor.client_id:
@@ -115,9 +115,9 @@ def create_support_ticket(
             client_id=actor.client_id,
             author_user_id=actor.user_id,
             author_name=_actor_display_name(db, actor.user_id),
-            support_type_id=body.support_type_id,
             subject=body.subject,
             body=body.body,
+            support_type_id=body.support_type_id,
         )
     except SupportTypeNotFound as error:
         raise HTTPException(status_code=404, detail="Support type not found.") from error

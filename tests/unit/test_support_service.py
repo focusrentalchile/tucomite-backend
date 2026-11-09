@@ -8,7 +8,7 @@ from app.domain.support import (
     SUPPORT_STATUS_ANSWERED,
     SUPPORT_STATUS_OPEN,
     SUPPORT_TYPE_MESSAGE,
-    SUPPORT_TYPE_ONE,
+    SUPPORT_TYPE_SUPPORT,
     InvalidSupportType,
     SupportEmailError,
     SupportReplyRecord,
@@ -21,8 +21,7 @@ from app.services.support_service import SupportService
 class MemorySupportRepository:
     def __init__(self) -> None:
         self.types = [
-            SupportTypeRecord(id="t1", name=SUPPORT_TYPE_ONE),
-            SupportTypeRecord(id="t2", name="Soporte tipo 2"),
+            SupportTypeRecord(id="t1", name=SUPPORT_TYPE_SUPPORT),
             SupportTypeRecord(id="tm", name=SUPPORT_TYPE_MESSAGE),
         ]
         self.tickets: dict[str, SupportTicketRecord] = {}
@@ -84,12 +83,11 @@ def test_create_and_reply_chat() -> None:
         client_id="c1",
         author_user_id="u1",
         author_name="Comité",
-        support_type_id="t1",
         subject="Ayuda",
         body="Necesito asistencia",
     )
     assert created.status == SUPPORT_STATUS_OPEN
-    assert created.support_type_name == SUPPORT_TYPE_ONE
+    assert created.support_type_name == SUPPORT_TYPE_SUPPORT
 
     replied = service.add_reply(
         created.id,

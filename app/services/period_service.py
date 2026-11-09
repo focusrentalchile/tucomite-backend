@@ -3,7 +3,13 @@
 from datetime import date
 from uuid import uuid4
 
-from app.domain.periods import PERIOD_STATUS_OPEN, NoOpenPeriod, PeriodNotFound, PeriodRecord
+from app.domain.periods import (
+    PERIOD_STATUS_CLOSED,
+    PERIOD_STATUS_OPEN,
+    NoOpenPeriod,
+    PeriodNotFound,
+    PeriodRecord,
+)
 from app.repositories.period_repository import PeriodRepository
 
 
@@ -20,8 +26,9 @@ class PeriodService:
         self._repository = repository
 
     def list_periods(self, client_id: str) -> list[PeriodRecord]:
-        """Ensure the current month is open for the building, then return its periods."""
-        self.ensure_current_month_open(client_id)
+        """Return periods for the building. Opens the calendar month only when none is open."""
+        if self._repository.get_open_period(client_id) is None:
+            self.ensure_current_month_open(client_id)
         return self._repository.list_periods(client_id)
 
     def get_open_period(self, client_id: str) -> PeriodRecord | None:
@@ -33,20 +40,24 @@ class PeriodService:
         client_id: str,
         today: date | None = None,
     ) -> PeriodRecord:
-        """Close a stale open period for this building and open the calendar month if needed."""
-        name = current_month_period_name(today)
+        """Return the building's open period, or open the calendar month when none exists.
+
+        Never replaces an already-open period. Auto-advancing the month was closing the
+        active period on every Temas refresh and orphaning newly created topics.
+        """
         open_one = self._repository.get_open_period(client_id)
         if open_one is None:
             claimed = self._repository.claim_legacy_open(client_id)
             if claimed is not None:
-                open_one = claimed
-        if open_one is not None and open_one.name == name:
+                return claimed
+        if open_one is not None:
             return open_one
+
+        name = current_month_period_name(today)
         existing = next(
             (item for item in self._repository.list_periods(client_id) if item.name == name),
             None,
         )
-        self._repository.close_all_open(client_id)
         if existing is not None:
             return self._repository.set_status(existing.id, PERIOD_STATUS_OPEN)
         return self._repository.create_period(

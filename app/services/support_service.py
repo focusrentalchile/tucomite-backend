@@ -8,6 +8,7 @@ from app.domain.support import (
     SUPPORT_STATUS_ANSWERED,
     SUPPORT_STATUS_OPEN,
     SUPPORT_TYPE_MESSAGE,
+    SUPPORT_TYPE_SUPPORT,
     InvalidSupportType,
     SupportEmailError,
     SupportReplyRecord,
@@ -63,12 +64,15 @@ class SupportService:
         client_id: str,
         author_user_id: str,
         author_name: str,
-        support_type_id: str,
         subject: str,
         body: str,
+        support_type_id: str | None = None,
     ) -> SupportTicketRecord:
-        """Open a Soporte tipo 1/2 ticket from committee or client."""
-        support_type = self._repository.get_type(support_type_id)
+        """Open a Soporte ticket from committee or client (type is assigned server-side)."""
+        if support_type_id:
+            support_type = self._repository.get_type(support_type_id)
+        else:
+            support_type = self._repository.get_type_by_name(SUPPORT_TYPE_SUPPORT)
         if support_type is None:
             raise SupportTypeNotFound()
         if support_type.name not in CREATABLE_SUPPORT_TYPE_NAMES:

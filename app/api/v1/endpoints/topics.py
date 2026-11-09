@@ -133,13 +133,26 @@ def _topics_for_open_period(
     *,
     client_id: str,
 ) -> list[TopicRecord]:
-    """Return topics for this building's open period only."""
-    open_period = PeriodService(SqlPeriodRepository(db)).ensure_current_month_open(client_id)
+    """Return topics for this building's open period only.
+
+    Also reclaims unfinished topics stranded on a closed period of the same
+    building (for example after an older auto-advance closed the active period).
+    """
+    periods = PeriodService(SqlPeriodRepository(db))
+    open_period = periods.ensure_current_month_open(client_id)
+    client_period_ids = {period.id for period in periods.list_periods(client_id)}
     topics = service.list_topics()
     scoped: list[TopicRecord] = []
     for topic in topics:
         if topic.period_id == open_period.id:
             scoped.append(topic)
+            continue
+        if (
+            topic.period_id in client_period_ids
+            and topic.status_id != CLOSED_STATUS_ID
+        ):
+            reclaimed = service.reassign_period(topic.id, open_period.id)
+            scoped.append(reclaimed)
     return scoped
 
 

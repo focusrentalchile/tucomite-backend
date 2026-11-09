@@ -54,11 +54,11 @@ class SupportTicketListResponse(BaseModel):
 
 
 class CreateSupportTicketRequest(BaseModel):
-    """Body for opening a building support ticket."""
+    """Body for opening a building support ticket. Type is assigned as Soporte."""
 
-    support_type_id: str = Field(min_length=1, max_length=36)
     subject: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=8000)
+    support_type_id: str | None = Field(default=None, max_length=36)
 
 
 class CreateSupportReplyRequest(BaseModel):

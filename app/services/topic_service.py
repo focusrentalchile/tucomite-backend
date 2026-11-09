@@ -205,6 +205,15 @@ class TopicService:
         self._repository.add_opinion(opinion)
         return opinion
 
+    def reassign_period(self, topic_id: str, period_id: str) -> TopicRecord:
+        """Move one topic onto another period (used to recover stranded WIP topics)."""
+        current = self._repository.get_topic(topic_id)
+        if current is None:
+            raise TopicNotFound()
+        topic = _copy_topic(current, period_id=period_id)
+        self._repository.save_topic(topic)
+        return topic
+
     def create_topic(
         self,
         title: str,

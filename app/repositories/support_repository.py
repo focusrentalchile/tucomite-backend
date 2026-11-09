@@ -58,6 +58,17 @@ class SqlSupportRepository:
         self._session = session
 
     def ensure_default_types(self) -> None:
+        from app.domain.support import LEGACY_SUPPORT_TYPE_RENAMES
+
+        rows = list(self._session.scalars(select(SupportTypeModel)).all())
+        for row in rows:
+            renamed = LEGACY_SUPPORT_TYPE_RENAMES.get(row.name)
+            if renamed is not None and renamed != row.name:
+                # Prefer a single canonical "Soporte" row when renaming duplicates.
+                already = next((item for item in rows if item.name == renamed), None)
+                if already is None:
+                    row.name = renamed
+                # Leave the duplicate legacy row; tickets still resolve by id.
         existing = {row.name for row in self._session.scalars(select(SupportTypeModel)).all()}
         for name in DEFAULT_SUPPORT_TYPE_NAMES:
             if name in existing:
