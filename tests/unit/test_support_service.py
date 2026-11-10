@@ -75,6 +75,40 @@ class MemorySupportRepository:
             **{**current.__dict__, "replies": (*current.replies, record)},
         )
 
+    def get_reply(self, reply_id: str) -> SupportReplyRecord | None:
+        for ticket in self.tickets.values():
+            for reply in ticket.replies:
+                if reply.id == reply_id:
+                    return reply
+        return None
+
+    def update_reply(self, reply_id: str, body: str) -> SupportReplyRecord | None:
+        for ticket_id, ticket in self.tickets.items():
+            updated: list[SupportReplyRecord] = []
+            found = None
+            for reply in ticket.replies:
+                if reply.id == reply_id:
+                    found = SupportReplyRecord(**{**reply.__dict__, "body": body})
+                    updated.append(found)
+                else:
+                    updated.append(reply)
+            if found is not None:
+                self.tickets[ticket_id] = SupportTicketRecord(
+                    **{**ticket.__dict__, "replies": tuple(updated)},
+                )
+                return found
+        return None
+
+    def delete_reply(self, reply_id: str) -> bool:
+        for ticket_id, ticket in self.tickets.items():
+            kept = tuple(reply for reply in ticket.replies if reply.id != reply_id)
+            if len(kept) != len(ticket.replies):
+                self.tickets[ticket_id] = SupportTicketRecord(
+                    **{**ticket.__dict__, "replies": kept},
+                )
+                return True
+        return False
+
     def replace_attachments(
         self,
         ticket_id: str,
@@ -134,6 +168,23 @@ def test_create_and_reply_chat() -> None:
     assert len(replied.replies) == 1
     assert replied.replies[0].from_staff is True
     assert len(replied.attachments) == 2
+
+    reply_id = replied.replies[0].id
+    edited = service.update_reply(
+        created.id,
+        reply_id,
+        body="Actualizado",
+        actor_user_id="staff",
+        is_super_admin=True,
+    )
+    assert edited.replies[0].body == "Actualizado"
+    cleared = service.delete_reply(
+        created.id,
+        reply_id,
+        actor_user_id="staff",
+        is_super_admin=True,
+    )
+    assert cleared.replies == ()
 
 
 def test_web_message_staff_reply_sends_email() -> None:

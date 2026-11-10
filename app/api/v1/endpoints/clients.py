@@ -15,6 +15,7 @@ from app.schemas.clients import (
     UpdateClientRequest,
 )
 from app.services.client_service import ClientNotFound, ClientService, DuplicateClientName
+from app.services.onboarding_email import send_role_invite_email
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -53,6 +54,7 @@ def list_clients(
 def create_client(
     body: CreateClientRequest,
     service: ClientService = Depends(get_client_service),
+    db: Session = Depends(get_db),
     _: object = Depends(require_permission("clients", "create")),
 ) -> ClientResponse:
     """Create a client and its administrator account."""
@@ -72,6 +74,13 @@ def create_client(
         raise HTTPException(status_code=409, detail="Email already registered.") from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
+    send_role_invite_email(
+        db,
+        role_key="client",
+        to_email=admin.email,
+        name=admin.full_name or client.responsible_name or client.name,
+        building_name=client.name,
+    )
     return _client_response(client, admin.email)
 
 

@@ -7,9 +7,11 @@ from app.api.v1.endpoints import (
     agreements,
     auth,
     blog,
+    building_wall,
     clients,
     committee,
     contact,
+    email_templates,
     management,
     health,
     legal,
@@ -39,6 +41,8 @@ api_router.include_router(messages.router)
 api_router.include_router(notifications.router)
 api_router.include_router(legal.router)
 api_router.include_router(support.router)
+api_router.include_router(building_wall.router)
 api_router.include_router(platform_settings.router)
+api_router.include_router(email_templates.router)
 api_router.include_router(topics.router)
 api_router.include_router(agreements.router)

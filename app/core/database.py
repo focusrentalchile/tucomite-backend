@@ -54,7 +54,10 @@ def init_database() -> None:
     from app.models import messages as message_models  # noqa: F401
     from app.models import notifications as notification_models  # noqa: F401
     from app.models import support as support_models  # noqa: F401
+    from app.models import building_wall as building_wall_models  # noqa: F401
+    from app.models import email_templates as email_template_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
+    from app.models import platform_settings as platform_settings_models  # noqa: F401
     from app.repositories.access_repository import SqlAccessRepository
     from app.repositories.message_repository import SqlMessageRepository
     from app.repositories.support_repository import SqlSupportRepository

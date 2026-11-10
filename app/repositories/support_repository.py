@@ -56,6 +56,12 @@ class SupportRepository(Protocol):
 
     def add_reply(self, record: SupportReplyRecord) -> None: ...
 
+    def update_reply(self, reply_id: str, body: str) -> SupportReplyRecord | None: ...
+
+    def delete_reply(self, reply_id: str) -> bool: ...
+
+    def get_reply(self, reply_id: str) -> SupportReplyRecord | None: ...
+
     def replace_attachments(
         self,
         ticket_id: str,
@@ -172,6 +178,41 @@ class SqlSupportRepository:
             ),
         )
         self._session.flush()
+
+    def get_reply(self, reply_id: str) -> SupportReplyRecord | None:
+        row = self._session.get(SupportReplyModel, reply_id)
+        if row is None:
+            return None
+        author_name = "Tu Comité"
+        if row.author_user_id:
+            user = self._session.get(UserModel, row.author_user_id)
+            if user is not None:
+                author_name = user.full_name or user.email or author_name
+        return SupportReplyRecord(
+            id=row.id,
+            ticket_id=row.ticket_id,
+            author_user_id=row.author_user_id,
+            author_name=author_name,
+            body=row.body,
+            from_staff=bool(row.from_staff),
+            created_at=_iso(row.created_at),
+        )
+
+    def update_reply(self, reply_id: str, body: str) -> SupportReplyRecord | None:
+        row = self._session.get(SupportReplyModel, reply_id)
+        if row is None:
+            return None
+        row.body = body
+        self._session.flush()
+        return self.get_reply(reply_id)
+
+    def delete_reply(self, reply_id: str) -> bool:
+        row = self._session.get(SupportReplyModel, reply_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.flush()
+        return True
 
     def replace_attachments(
         self,

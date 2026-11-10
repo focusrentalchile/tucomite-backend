@@ -16,6 +16,7 @@ from app.repositories.platform_settings_repository import SqlPlatformSettingsRep
 from app.repositories.support_repository import SqlSupportRepository
 from app.schemas.support import (
     CreateSupportReplyRequest,
+    UpdateSupportReplyRequest,
     CreateSupportTicketRequest,
     SupportAttachmentResponse,
     SupportReplyResponse,
@@ -213,4 +214,70 @@ def create_support_reply(
         raise HTTPException(status_code=502, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    return _ticket_response(updated)
+
+
+@router.patch("/tickets/{ticket_id}/replies/{reply_id}", response_model=SupportTicketResponse)
+def update_support_reply(
+    ticket_id: str,
+    reply_id: str,
+    body: UpdateSupportReplyRequest,
+    actor: Actor = Depends(get_current_actor),
+    service: SupportService = Depends(get_support_service),
+) -> SupportTicketResponse:
+    """Edit a chat reply owned by the actor (or any reply if super admin)."""
+    try:
+        ticket = service.get(ticket_id)
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+
+    if not actor.is_super_admin:
+        if "support.view" not in actor.permissions or ticket.client_id != actor.client_id:
+            raise HTTPException(status_code=403, detail="Forbidden.")
+
+    try:
+        updated = service.update_reply(
+            ticket_id,
+            reply_id,
+            body=body.body,
+            actor_user_id=actor.user_id,
+            is_super_admin=actor.is_super_admin,
+        )
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail="Forbidden.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _ticket_response(updated)
+
+
+@router.delete("/tickets/{ticket_id}/replies/{reply_id}", response_model=SupportTicketResponse)
+def delete_support_reply(
+    ticket_id: str,
+    reply_id: str,
+    actor: Actor = Depends(get_current_actor),
+    service: SupportService = Depends(get_support_service),
+) -> SupportTicketResponse:
+    """Delete a chat reply owned by the actor (or any reply if super admin)."""
+    try:
+        ticket = service.get(ticket_id)
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+
+    if not actor.is_super_admin:
+        if "support.view" not in actor.permissions or ticket.client_id != actor.client_id:
+            raise HTTPException(status_code=403, detail="Forbidden.")
+
+    try:
+        updated = service.delete_reply(
+            ticket_id,
+            reply_id,
+            actor_user_id=actor.user_id,
+            is_super_admin=actor.is_super_admin,
+        )
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail="Forbidden.") from error
     return _ticket_response(updated)

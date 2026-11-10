@@ -250,11 +250,28 @@ def create_user(
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
     admin_id = _client_admin_id(db, actor.client_id)
-    role = SqlAccessRepository(db).get_role(user.role_id)
+    access = SqlAccessRepository(db)
+    role = access.get_role(user.role_id)
+    role_key = role.name if role is not None else ""
+    building_name = ""
+    if user.client_id:
+        from app.repositories.client_repository import SqlClientRepository
+
+        client = SqlClientRepository(db).get_client(user.client_id)
+        building_name = client.name if client is not None else ""
+    from app.services.onboarding_email import send_role_invite_email
+
+    send_role_invite_email(
+        db,
+        role_key=role_key,
+        to_email=user.email,
+        name=user.full_name,
+        building_name=building_name,
+    )
     return _user_response(
         user,
         protected=user.id == admin_id,
-        role_key=role.name if role is not None else "",
+        role_key=role_key,
     )
 
 

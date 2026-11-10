@@ -239,3 +239,43 @@ class SupportService:
             except EmailSendError as error:
                 raise SupportEmailError(str(error)) from error
         return self.get(ticket_id)
+
+    def update_reply(
+        self,
+        ticket_id: str,
+        reply_id: str,
+        *,
+        body: str,
+        actor_user_id: str,
+        is_super_admin: bool,
+    ) -> SupportTicketRecord:
+        """Edit one reply when the actor owns it or is platform staff."""
+        self.get(ticket_id)
+        reply = self._repository.get_reply(reply_id)
+        if reply is None or reply.ticket_id != ticket_id:
+            raise SupportTicketNotFound()
+        if not is_super_admin and reply.author_user_id != actor_user_id:
+            raise PermissionError("Forbidden.")
+        cleaned = body.strip()
+        if not cleaned:
+            raise ValueError("Reply body is required.")
+        self._repository.update_reply(reply_id, cleaned)
+        return self.get(ticket_id)
+
+    def delete_reply(
+        self,
+        ticket_id: str,
+        reply_id: str,
+        *,
+        actor_user_id: str,
+        is_super_admin: bool,
+    ) -> SupportTicketRecord:
+        """Delete one reply when the actor owns it or is platform staff."""
+        self.get(ticket_id)
+        reply = self._repository.get_reply(reply_id)
+        if reply is None or reply.ticket_id != ticket_id:
+            raise SupportTicketNotFound()
+        if not is_super_admin and reply.author_user_id != actor_user_id:
+            raise PermissionError("Forbidden.")
+        self._repository.delete_reply(reply_id)
+        return self.get(ticket_id)

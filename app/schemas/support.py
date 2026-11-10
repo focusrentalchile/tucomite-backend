@@ -86,3 +86,9 @@ class CreateSupportReplyRequest(BaseModel):
     """Body for posting a chat reply."""
 
     body: str = Field(min_length=1, max_length=8000)
+
+
+class UpdateSupportReplyRequest(BaseModel):
+    """Body for editing an existing chat reply."""
+
+    body: str = Field(min_length=1, max_length=8000)
