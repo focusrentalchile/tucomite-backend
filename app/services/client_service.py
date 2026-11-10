@@ -2,6 +2,7 @@
 
 import secrets
 import uuid
+from dataclasses import replace
 from datetime import date
 
 from app.domain.access import (
@@ -209,6 +210,16 @@ class ClientService:
     def delete_client(self, client_id: str) -> None:
         """Delete a client and every user belonging to that client."""
         self.get_client(client_id)
+        for user in self._access.list_users():
+            if user.client_id != client_id:
+                continue
+            if user.period_id:
+                self._access.save_user(replace(user, period_id=None))
+        session = getattr(self._clients, "_session", None)
+        if session is not None:
+            from app.repositories.client_purge import purge_client_dependencies
+
+            purge_client_dependencies(session, client_id)
         for user in self._access.list_users():
             if user.client_id == client_id:
                 self._access.delete_user(user.id)

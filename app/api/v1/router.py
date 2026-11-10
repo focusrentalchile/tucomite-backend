@@ -23,6 +23,7 @@ from app.api.v1.endpoints import (
     platform_settings,
     projects,
     reports,
+    seo,
     support,
     topics,
 )
@@ -34,6 +35,7 @@ api_router.include_router(access.router)
 api_router.include_router(account.router)
 api_router.include_router(client_settings.router)
 api_router.include_router(blog.router)
+api_router.include_router(seo.router)
 api_router.include_router(clients.router)
 api_router.include_router(contact.router)
 api_router.include_router(committee.router)
