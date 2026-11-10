@@ -20,7 +20,13 @@ from app.services.onboarding_email import send_role_invite_email
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-def _client_response(client, admin_email: str) -> ClientResponse:
+def _client_response(
+    client,
+    admin_email: str,
+    *,
+    email_sent: bool | None = None,
+    email_error: str | None = None,
+) -> ClientResponse:
     license = evaluate_license(client.license_starts_at, client.license_ends_at)
     return ClientResponse(
         id=client.id,
@@ -32,6 +38,8 @@ def _client_response(client, admin_email: str) -> ClientResponse:
         license_starts_at=client.license_starts_at,
         license_ends_at=client.license_ends_at,
         license_status=license.status,
+        email_sent=email_sent,
+        email_error=email_error,
     )
 
 
@@ -74,14 +82,21 @@ def create_client(
         raise HTTPException(status_code=409, detail="Email already registered.") from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
-    send_role_invite_email(
+    invite = send_role_invite_email(
         db,
         role_key="client",
         to_email=admin.email,
         name=admin.full_name or client.responsible_name or client.name,
         building_name=client.name,
+        login_email=admin.email,
+        temporary_password=body.password,
     )
-    return _client_response(client, admin.email)
+    return _client_response(
+        client,
+        admin.email,
+        email_sent=invite.sent,
+        email_error=invite.error or None,
+    )
 
 
 @router.put("/{client_id}", response_model=ClientResponse)

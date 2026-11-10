@@ -105,7 +105,11 @@ def send_html_email(
     html_body: str,
     smtp: SmtpDeliveryConfig | None = None,
 ) -> None:
-    """Send one HTML email through configured SMTP."""
+    """Send one HTML email through configured SMTP.
+
+    Port 465 uses implicit SSL (``SMTP_SSL``). Other ports use plain SMTP and,
+    when ``use_tls`` is true, upgrade with STARTTLS (typical for 587).
+    """
     cfg = smtp or smtp_config_from_env()
     if not smtp_configured(cfg):
         raise EmailNotConfigured("SMTP is not configured.")
@@ -116,16 +120,17 @@ def send_html_email(
     message.set_content("Abrí este correo en un cliente que soporte HTML para ver la respuesta.")
     message.add_alternative(html_body, subtype="html")
     try:
-        if cfg.use_tls:
-            with smtplib.SMTP(cfg.host, cfg.port, timeout=30) as server:
+        if cfg.port == 465:
+            with smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=30) as server:
+                if cfg.user:
+                    server.login(cfg.user, cfg.password)
+                server.send_message(message)
+            return
+        with smtplib.SMTP(cfg.host, cfg.port, timeout=30) as server:
+            if cfg.use_tls:
                 server.starttls()
-                if cfg.user:
-                    server.login(cfg.user, cfg.password)
-                server.send_message(message)
-        else:
-            with smtplib.SMTP(cfg.host, cfg.port, timeout=30) as server:
-                if cfg.user:
-                    server.login(cfg.user, cfg.password)
-                server.send_message(message)
+            if cfg.user:
+                server.login(cfg.user, cfg.password)
+            server.send_message(message)
     except Exception as error:  # noqa: BLE001 — surface SMTP failures as domain error
         raise EmailSendError(str(error)) from error

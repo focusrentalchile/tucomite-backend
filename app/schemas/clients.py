@@ -15,6 +15,8 @@ class ClientResponse(BaseModel):
     license_starts_at: str | None = None
     license_ends_at: str | None = None
     license_status: str | None = None
+    email_sent: bool | None = None
+    email_error: str | None = None
 
 
 class ClientListResponse(BaseModel):

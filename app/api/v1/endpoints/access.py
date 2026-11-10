@@ -275,6 +275,8 @@ def create_user(
         to_email=user.email,
         name=user.full_name,
         building_name=building_name,
+        login_email=user.email,
+        temporary_password=body.password,
     )
     return _user_response(
         user,

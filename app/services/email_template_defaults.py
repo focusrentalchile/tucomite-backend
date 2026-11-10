@@ -61,13 +61,18 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Nos alegra que tu comunidad sea parte de esta nueva forma de organizar, comunicar y gestionar las decisiones de su edificio.</p>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Sabemos que liderar un comité implica tiempo, compromiso y muchas conversaciones. Por eso creamos <strong>TuComité.cl</strong>, una plataforma diseñada para ayudarte a transformar esas conversaciones en decisiones claras, organizadas y con seguimiento.</p>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>Como presidente del comité, serás quien dé el primer paso.</strong></p>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>Tus datos de acceso:</strong></p>
+              <ul style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
+                <li>Correo: <strong>{{email}}</strong></li>
+                <li>Clave temporal: <strong>{{password}}</strong></li>
+              </ul>
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>Para comenzar:</strong></p>
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Ingresa a <a href="{{invite_url}}" style="color:#1554d1;">crear tu cuenta</a>.</li>
-                <li>Crea tu cuenta y configura el perfil de tu edificio.</li>
-                <li>Invita a los demás integrantes del comité: en configuración, usuarios y el botón +Agregar.</li>
-                <li>Incorpora al administrador y al mayordomo, si corresponde.</li>
-                <li>Crea el primer tema que quieran gestionar como comunidad.</li>
+                <li>Ingresá a <a href="{{invite_url}}" style="color:#1554d1;">TuComité</a> con el correo y la clave de arriba.</li>
+                <li>Configurá el perfil de tu edificio.</li>
+                <li>Invitá a los demás integrantes del comité: en configuración, usuarios y el botón +Agregar.</li>
+                <li>Incorporá al administrador y al mayordomo, si corresponde.</li>
+                <li>Creá el primer tema que quieran gestionar como comunidad.</li>
               </ol>
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>¿Qué podrán hacer desde ahora?</strong></p>
               <ul style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">

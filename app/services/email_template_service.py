@@ -58,6 +58,8 @@ class EmailTemplateService:
         invite_url: str = "",
         site_url: str = "https://tucomite.cl",
         logo_url: str = "https://tucomite.cl/logo-email.png",
+        login_email: str = "",
+        temporary_password: str = "",
     ) -> tuple[str, str]:
         """Replace placeholders in subject and HTML."""
         mapping = {
@@ -66,6 +68,8 @@ class EmailTemplateService:
             "{{invite_url}}": invite_url.strip() or site_url.strip() or "https://tucomite.cl/login",
             "{{site_url}}": site_url.strip() or "https://tucomite.cl",
             "{{logo_url}}": logo_url.strip() or "https://tucomite.cl/logo-email.png",
+            "{{email}}": login_email.strip(),
+            "{{password}}": temporary_password,
         }
         subject = template.subject
         body = template.html_body
@@ -84,7 +88,10 @@ class EmailTemplateService:
         invite_url: str = "",
         site_url: str = "https://tucomite.cl",
         logo_url: str = "https://tucomite.cl/logo-email.png",
+        login_email: str = "",
+        temporary_password: str = "",
         smtp: SmtpDeliveryConfig | None = None,
+        raise_on_error: bool = False,
     ) -> bool:
         """Send the matching invite template for a role. Returns False if skipped."""
         template_key = ROLE_TO_TEMPLATE.get(role_key.casefold())
@@ -100,6 +107,8 @@ class EmailTemplateService:
             invite_url=invite_url,
             site_url=site_url,
             logo_url=logo_url,
+            login_email=login_email or to_email,
+            temporary_password=temporary_password,
         )
         try:
             send_html_email(
@@ -109,5 +118,7 @@ class EmailTemplateService:
                 smtp=smtp,
             )
         except (EmailNotConfigured, EmailSendError):
+            if raise_on_error:
+                raise
             return False
         return True
