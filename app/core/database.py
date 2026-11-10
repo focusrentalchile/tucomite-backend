@@ -156,6 +156,21 @@ def init_database() -> None:
                 connection.execute(
                     text("ALTER TABLE `blog_posts` MODIFY COLUMN `cover_image` MEDIUMTEXT NOT NULL"),
                 )
+            for column, ddl in (
+                ("seo_title", "ALTER TABLE `blog_posts` ADD COLUMN `seo_title` VARCHAR(200) NOT NULL DEFAULT ''"),
+                ("cover_alt", "ALTER TABLE `blog_posts` ADD COLUMN `cover_alt` VARCHAR(200) NOT NULL DEFAULT ''"),
+                ("category", "ALTER TABLE `blog_posts` ADD COLUMN `category` VARCHAR(80) NOT NULL DEFAULT ''"),
+                ("author", "ALTER TABLE `blog_posts` ADD COLUMN `author` VARCHAR(120) NOT NULL DEFAULT ''"),
+            ):
+                has_column = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        f"AND TABLE_NAME = 'blog_posts' AND COLUMN_NAME = '{column}'"
+                    ),
+                ).scalar()
+                if not has_column:
+                    connection.execute(text(ddl))
         topics_exist = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.TABLES "

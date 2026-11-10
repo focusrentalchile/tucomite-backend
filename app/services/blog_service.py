@@ -11,13 +11,20 @@ from app.domain.blog import BlogPostNotFound, BlogPostRecord, DuplicateBlogSlug
 from app.repositories.blog_repository import BlogRepository
 
 _SLUG_SAFE = re.compile(r"[^a-z0-9]+")
+_DEFAULT_AUTHOR = "Tu Comité"
 
 
-def _slugify(value: str) -> str:
+def _slugify(value: str, *, max_length: int = 160) -> str:
     normalized = unicodedata.normalize("NFKD", value.strip().lower())
     ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
     slug = _SLUG_SAFE.sub("-", ascii_text).strip("-")
-    return slug[:160] or "articulo"
+    return slug[:max_length] or "articulo"
+
+
+def suggest_slug_from_title(title: str) -> str:
+    """Build a short URL slug from the first few title words (not the full title)."""
+    words = [part for part in re.split(r"\s+", title.strip()) if part][:6]
+    return _slugify(" ".join(words), max_length=60)
 
 
 class BlogService:
@@ -48,24 +55,33 @@ class BlogService:
         self,
         *,
         title: str,
+        seo_title: str,
         keywords: str,
         description: str,
         body_html: str,
         cover_image: str,
+        cover_alt: str,
+        category: str,
+        author: str,
         published: bool,
         slug: str | None = None,
     ) -> BlogPostRecord:
         """Create a new blog article."""
         now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-        resolved = self._unique_slug(slug or title)
+        cleaned_title = title.strip()[:200]
+        resolved = self._unique_slug((slug or "").strip() or suggest_slug_from_title(cleaned_title))
         post = BlogPostRecord(
             id=str(uuid4()),
             slug=resolved,
-            title=title.strip()[:200],
+            title=cleaned_title,
+            seo_title=(seo_title.strip() or cleaned_title)[:200],
             keywords=keywords.strip()[:300],
-            description=description.strip()[:500],
+            description=(description.strip() or cleaned_title)[:500],
             body_html=body_html.strip(),
             cover_image=cover_image.strip(),
+            cover_alt=(cover_alt.strip() or cleaned_title)[:200],
+            category=category.strip()[:80],
+            author=(author.strip() or _DEFAULT_AUTHOR)[:120],
             published=published,
             created_at=now,
             updated_at=now,
@@ -77,10 +93,14 @@ class BlogService:
         post_id: str,
         *,
         title: str,
+        seo_title: str,
         keywords: str,
         description: str,
         body_html: str,
         cover_image: str,
+        cover_alt: str,
+        category: str,
+        author: str,
         published: bool,
         slug: str | None = None,
     ) -> BlogPostRecord:
@@ -88,17 +108,22 @@ class BlogService:
         current = self._repository.get_by_id(post_id)
         if current is None:
             raise BlogPostNotFound()
-        desired = (slug or title).strip()
+        cleaned_title = title.strip()[:200]
+        desired = (slug or "").strip() or current.slug
         resolved = self._unique_slug(desired, ignore_id=post_id)
         now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         post = BlogPostRecord(
             id=current.id,
             slug=resolved,
-            title=title.strip()[:200],
+            title=cleaned_title,
+            seo_title=(seo_title.strip() or cleaned_title)[:200],
             keywords=keywords.strip()[:300],
-            description=description.strip()[:500],
+            description=(description.strip() or cleaned_title)[:500],
             body_html=body_html.strip(),
             cover_image=cover_image.strip(),
+            cover_alt=(cover_alt.strip() or cleaned_title)[:200],
+            category=category.strip()[:80],
+            author=(author.strip() or _DEFAULT_AUTHOR)[:120],
             published=published,
             created_at=current.created_at,
             updated_at=now,
@@ -112,7 +137,7 @@ class BlogService:
         self._repository.delete(post_id)
 
     def _unique_slug(self, raw: str, *, ignore_id: str | None = None) -> str:
-        base = _slugify(raw)
+        base = _slugify(raw, max_length=60)
         candidate = base
         suffix = 2
         while True:
@@ -121,5 +146,5 @@ class BlogService:
                 return candidate
             if suffix > 50:
                 raise DuplicateBlogSlug()
-            candidate = f"{base}-{suffix}"
+            candidate = f"{base}-{suffix}"[:60]
             suffix += 1

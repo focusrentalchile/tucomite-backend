@@ -62,10 +62,14 @@ class SqlBlogRepository(BlogRepository):
                 id=post.id,
                 slug=post.slug,
                 title=post.title,
+                seo_title=post.seo_title,
                 keywords=post.keywords,
                 description=post.description,
                 body_html=post.body_html,
                 cover_image=post.cover_image,
+                cover_alt=post.cover_alt,
+                category=post.category,
+                author=post.author,
                 published=post.published,
                 created_at=datetime.fromisoformat(post.created_at),
                 updated_at=datetime.fromisoformat(post.updated_at),
@@ -80,10 +84,14 @@ class SqlBlogRepository(BlogRepository):
             return self.add(post)
         row.slug = post.slug
         row.title = post.title
+        row.seo_title = post.seo_title
         row.keywords = post.keywords
         row.description = post.description
         row.body_html = post.body_html
         row.cover_image = post.cover_image
+        row.cover_alt = post.cover_alt
+        row.category = post.category
+        row.author = post.author
         row.published = post.published
         row.updated_at = datetime.fromisoformat(post.updated_at)
         self._session.commit()
@@ -101,10 +109,14 @@ class SqlBlogRepository(BlogRepository):
             id=row.id,
             slug=row.slug,
             title=row.title,
+            seo_title=getattr(row, "seo_title", None) or "",
             keywords=row.keywords or "",
             description=row.description or "",
             body_html=row.body_html or "",
             cover_image=row.cover_image or "",
+            cover_alt=getattr(row, "cover_alt", None) or "",
+            category=getattr(row, "category", None) or "",
+            author=getattr(row, "author", None) or "",
             published=bool(row.published),
             created_at=row.created_at.isoformat() if row.created_at else "",
             updated_at=row.updated_at.isoformat() if row.updated_at else "",

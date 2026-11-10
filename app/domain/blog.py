@@ -18,10 +18,14 @@ class BlogPostRecord:
     id: str
     slug: str
     title: str
+    seo_title: str
     keywords: str
     description: str
     body_html: str
     cover_image: str
+    cover_alt: str
+    category: str
+    author: str
     published: bool
     created_at: str
     updated_at: str
