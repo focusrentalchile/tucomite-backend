@@ -18,6 +18,19 @@ class SupportTypeListResponse(BaseModel):
     items: list[SupportTypeResponse]
 
 
+class SupportStatusResponse(BaseModel):
+    """One support status from the statuses table."""
+
+    key: str
+    label: str
+
+
+class SupportStatusListResponse(BaseModel):
+    """Support statuses catalog."""
+
+    items: list[SupportStatusResponse]
+
+
 class SupportAttachmentPayload(BaseModel):
     """Attachment uploaded with a support ticket."""
 
@@ -59,6 +72,7 @@ class SupportTicketResponse(BaseModel):
     subject: str
     body: str
     status: str
+    status_label: str = ""
     contact_name: str | None = None
     contact_email: str | None = None
     created_at: str
@@ -92,3 +106,15 @@ class UpdateSupportReplyRequest(BaseModel):
     """Body for editing an existing chat reply."""
 
     body: str = Field(min_length=1, max_length=8000)
+
+
+class UpdateSupportTicketBodyRequest(BaseModel):
+    """Body for editing the original ticket message."""
+
+    body: str = Field(min_length=1, max_length=8000)
+
+
+class UpdateSupportTicketStatusRequest(BaseModel):
+    """Body for changing a ticket status (super admin)."""
+
+    status: str = Field(min_length=1, max_length=32)

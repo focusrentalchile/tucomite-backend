@@ -199,6 +199,17 @@ def init_database() -> None:
             ).scalar()
             if not has_user_period:
                 connection.execute(text("ALTER TABLE `users` ADD COLUMN `period_id` VARCHAR(36) NULL"))
+            has_apartment = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'apartment_number'"
+                ),
+            ).scalar()
+            if not has_apartment:
+                connection.execute(
+                    text("ALTER TABLE `users` ADD COLUMN `apartment_number` VARCHAR(40) NULL"),
+                )
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)
@@ -331,7 +342,9 @@ def init_database() -> None:
         ensure_topic_statuses(SqlTopicRepository(session))
         ensure_topic_priorities(session)
         SqlMessageRepository(session).ensure_default_types()
-        SqlSupportRepository(session).ensure_default_types()
+        support_repo = SqlSupportRepository(session)
+        support_repo.ensure_default_types()
+        support_repo.ensure_default_statuses()
         session.commit()
     except Exception:
         session.rollback()

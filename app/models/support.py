@@ -8,6 +8,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
+class SupportStatusModel(Base):
+    """Catalog row for support ticket statuses (Enviado / Respondido / Resuelto)."""
+
+    __tablename__ = "platform_support_statuses"
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(80), nullable=False)
+
+
 class SupportTypeModel(Base):
     """Catalog row for support ticket types."""
 
@@ -32,7 +41,7 @@ class SupportTicketModel(Base):
     )
     subject: Mapped[str] = mapped_column(String(160), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="sent")
     contact_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -309,6 +309,12 @@ def _ensure_demo_building_users(
 ) -> None:
     """Ensure demo users for administrator, committee, caretaker, resident, and legal."""
     by_name = {role.name.casefold(): role for role in repository.list_roles()}
+    demo_apartments = {
+        "residente@demo.tucomite.local": "101",
+        "residente1@tucomite.cl": "102",
+        "residente2@tucomite.cl": "201",
+        "residente3@tucomite.cl": "301",
+    }
     seeds = (
         ("administrator", "Administrador demo", "administrador@demo.tucomite.local"),
         ("committee", "Comité demo", "comite@demo.tucomite.local"),
@@ -326,6 +332,7 @@ def _ensure_demo_building_users(
         role = by_name.get(role_name)
         if role is None:
             continue
+        apartment = demo_apartments.get(email)
         existing = repository.get_user_by_email(email)
         if existing is not None:
             # Keep demo seed accounts on this building, role, and shared demo password.
@@ -334,6 +341,7 @@ def _ensure_demo_building_users(
                 and existing.role_id == role.id
                 and existing.password_hash == password_hash
                 and (existing.full_name or "") == full_name
+                and (existing.apartment_number or None) == apartment
             ):
                 continue
             repository.save_user(
@@ -344,6 +352,7 @@ def _ensure_demo_building_users(
                     password_hash=password_hash,
                     role_id=role.id,
                     client_id=client_id,
+                    apartment_number=apartment if apartment is not None else existing.apartment_number,
                 ),
             )
             continue
@@ -355,6 +364,7 @@ def _ensure_demo_building_users(
                 password_hash=password_hash,
                 role_id=role.id,
                 client_id=client_id,
+                apartment_number=apartment,
             ),
         )
 

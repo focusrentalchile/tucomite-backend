@@ -173,6 +173,7 @@ class UserService:
             role_id=assigned_role_id,
             client_id=current.client_id,
             period_id=current.period_id,
+            apartment_number=current.apartment_number,
         )
         self._repository.save_user(updated)
         return updated

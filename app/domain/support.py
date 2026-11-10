@@ -2,17 +2,33 @@
 
 from dataclasses import dataclass
 
-SUPPORT_STATUS_OPEN = "open"
+SUPPORT_STATUS_SENT = "sent"
 SUPPORT_STATUS_ANSWERED = "answered"
-SUPPORT_STATUS_CLOSED = "closed"
+SUPPORT_STATUS_RESOLVED = "resolved"
+
+# Legacy keys rewritten on bootstrap to the statuses table.
+LEGACY_SUPPORT_STATUS_RENAMES = {
+    "open": SUPPORT_STATUS_SENT,
+    "closed": SUPPORT_STATUS_RESOLVED,
+}
 
 SUPPORT_STATUSES = frozenset(
     {
-        SUPPORT_STATUS_OPEN,
+        SUPPORT_STATUS_SENT,
         SUPPORT_STATUS_ANSWERED,
-        SUPPORT_STATUS_CLOSED,
+        SUPPORT_STATUS_RESOLVED,
     }
 )
+
+DEFAULT_SUPPORT_STATUSES: tuple[tuple[str, str], ...] = (
+    (SUPPORT_STATUS_SENT, "Enviado"),
+    (SUPPORT_STATUS_ANSWERED, "Respondido"),
+    (SUPPORT_STATUS_RESOLVED, "Resuelto"),
+)
+
+# Backward-compatible aliases used by older call sites / tests.
+SUPPORT_STATUS_OPEN = SUPPORT_STATUS_SENT
+SUPPORT_STATUS_CLOSED = SUPPORT_STATUS_RESOLVED
 
 # 1 = Soporte (building users). 2 = Mensaje (public web contact).
 SUPPORT_TYPE_SUPPORT = "Soporte"
@@ -26,6 +42,14 @@ LEGACY_SUPPORT_TYPE_RENAMES = {
 
 DEFAULT_SUPPORT_TYPE_NAMES = (SUPPORT_TYPE_SUPPORT, SUPPORT_TYPE_MESSAGE)
 CREATABLE_SUPPORT_TYPE_NAMES = frozenset({SUPPORT_TYPE_SUPPORT})
+
+
+@dataclass(frozen=True)
+class SupportStatusRecord:
+    """One row in the support statuses catalog."""
+
+    key: str
+    label: str
 
 
 @dataclass(frozen=True)
@@ -72,6 +96,7 @@ class SupportTicketRecord:
     status: str
     created_at: str
     updated_at: str
+    status_label: str = ""
     client_id: str | None = None
     author_user_id: str | None = None
     author_name: str = ""

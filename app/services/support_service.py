@@ -6,13 +6,16 @@ from uuid import uuid4
 from app.domain.support import (
     CREATABLE_SUPPORT_TYPE_NAMES,
     SUPPORT_STATUS_ANSWERED,
-    SUPPORT_STATUS_OPEN,
+    SUPPORT_STATUS_RESOLVED,
+    SUPPORT_STATUS_SENT,
+    SUPPORT_STATUSES,
     SUPPORT_TYPE_MESSAGE,
     SUPPORT_TYPE_SUPPORT,
     InvalidSupportType,
     SupportAttachmentRecord,
     SupportEmailError,
     SupportReplyRecord,
+    SupportStatusRecord,
     SupportTicketNotFound,
     SupportTicketRecord,
     SupportTypeNotFound,
@@ -74,12 +77,18 @@ class SupportService:
             return types
         return [item for item in types if item.name in CREATABLE_SUPPORT_TYPE_NAMES]
 
+    def list_statuses(self) -> list[SupportStatusRecord]:
+        """Catalog of support ticket statuses from the statuses table."""
+        return self._repository.list_statuses()
+
     def list_for_super_admin(self) -> list[SupportTicketRecord]:
         """Every ticket for the platform inbox."""
+        self._repository.ensure_default_statuses()
         return self._repository.list_all_tickets()
 
     def list_for_client(self, client_id: str) -> list[SupportTicketRecord]:
         """Tickets belonging to one building."""
+        self._repository.ensure_default_statuses()
         return self._repository.list_tickets_for_client(client_id)
 
     def get(self, ticket_id: str) -> SupportTicketRecord:
@@ -124,7 +133,7 @@ class SupportService:
             support_type_name=support_type.name,
             subject=cleaned_subject,
             body=cleaned_body,
-            status=SUPPORT_STATUS_OPEN,
+            status=SUPPORT_STATUS_SENT,
             created_at=now,
             updated_at=now,
         )
@@ -158,7 +167,7 @@ class SupportService:
             support_type_name=support_type.name,
             subject=subject,
             body=cleaned_message,
-            status=SUPPORT_STATUS_OPEN,
+            status=SUPPORT_STATUS_SENT,
             contact_name=cleaned_name,
             contact_email=cleaned_email,
             author_name=cleaned_name,
@@ -181,6 +190,8 @@ class SupportService:
     ) -> SupportTicketRecord:
         """Append a chat reply; staff replies to Mensaje also email the visitor."""
         ticket = self.get(ticket_id)
+        if ticket.status == SUPPORT_STATUS_RESOLVED:
+            raise ValueError("Resolved tickets cannot accept new replies.")
         cleaned = body.strip()
         if not cleaned:
             raise ValueError("Reply body is required.")
@@ -196,10 +207,10 @@ class SupportService:
         )
         self._repository.add_reply(reply)
         status = ticket.status
-        if from_staff and ticket.status == SUPPORT_STATUS_OPEN:
+        if from_staff and ticket.status == SUPPORT_STATUS_SENT:
             status = SUPPORT_STATUS_ANSWERED
         elif not from_staff and ticket.status == SUPPORT_STATUS_ANSWERED:
-            status = SUPPORT_STATUS_OPEN
+            status = SUPPORT_STATUS_SENT
         updated = SupportTicketRecord(
             id=ticket.id,
             client_id=ticket.client_id,
@@ -250,7 +261,9 @@ class SupportService:
         is_super_admin: bool,
     ) -> SupportTicketRecord:
         """Edit one reply when the actor owns it or is platform staff."""
-        self.get(ticket_id)
+        ticket = self.get(ticket_id)
+        if ticket.status == SUPPORT_STATUS_RESOLVED:
+            raise ValueError("Resolved tickets cannot be edited.")
         reply = self._repository.get_reply(reply_id)
         if reply is None or reply.ticket_id != ticket_id:
             raise SupportTicketNotFound()
@@ -271,11 +284,69 @@ class SupportService:
         is_super_admin: bool,
     ) -> SupportTicketRecord:
         """Delete one reply when the actor owns it or is platform staff."""
-        self.get(ticket_id)
+        ticket = self.get(ticket_id)
+        if ticket.status == SUPPORT_STATUS_RESOLVED:
+            raise ValueError("Resolved tickets cannot be edited.")
         reply = self._repository.get_reply(reply_id)
         if reply is None or reply.ticket_id != ticket_id:
             raise SupportTicketNotFound()
         if not is_super_admin and reply.author_user_id != actor_user_id:
             raise PermissionError("Forbidden.")
         self._repository.delete_reply(reply_id)
+        return self.get(ticket_id)
+
+    def update_ticket_body(
+        self,
+        ticket_id: str,
+        *,
+        body: str,
+        actor_user_id: str,
+        is_super_admin: bool,
+    ) -> SupportTicketRecord:
+        """Edit the original ticket message when the actor owns it or is staff."""
+        ticket = self.get(ticket_id)
+        if ticket.status == SUPPORT_STATUS_RESOLVED:
+            raise ValueError("Resolved tickets cannot be edited.")
+        if not is_super_admin and ticket.author_user_id != actor_user_id:
+            raise PermissionError("Forbidden.")
+        cleaned = body.strip()
+        if not cleaned:
+            raise ValueError("Ticket body is required.")
+        updated = SupportTicketRecord(
+            **{**ticket.__dict__, "body": cleaned, "updated_at": _now()},
+        )
+        self._repository.save_ticket(updated)
+        return self.get(ticket_id)
+
+    def delete_ticket(
+        self,
+        ticket_id: str,
+        *,
+        actor_user_id: str,
+        is_super_admin: bool,
+    ) -> None:
+        """Delete a ticket when the actor owns it or is platform staff."""
+        ticket = self.get(ticket_id)
+        if not is_super_admin and ticket.author_user_id != actor_user_id:
+            raise PermissionError("Forbidden.")
+        self._repository.delete_ticket(ticket_id)
+
+    def update_status(
+        self,
+        ticket_id: str,
+        *,
+        status: str,
+        is_super_admin: bool,
+    ) -> SupportTicketRecord:
+        """Change ticket status (super admin). Resolved locks further replies."""
+        if not is_super_admin:
+            raise PermissionError("Forbidden.")
+        cleaned = status.strip().lower()
+        if cleaned not in SUPPORT_STATUSES:
+            raise ValueError("Invalid support status.")
+        ticket = self.get(ticket_id)
+        updated = SupportTicketRecord(
+            **{**ticket.__dict__, "status": cleaned, "updated_at": _now()},
+        )
+        self._repository.save_ticket(updated)
         return self.get(ticket_id)

@@ -29,6 +29,17 @@ def test_committee_creates_ticket_and_super_admin_replies() -> None:
     )
     assert created.status_code == 201, created.text
     ticket_id = created.json()["id"]
+    assert created.json()["status"] == "sent"
+    assert created.json()["status_label"] == "Enviado"
+
+    statuses = client.get("/api/v1/support/statuses")
+    assert statuses.status_code == 200
+    labels = {item["key"]: item["label"] for item in statuses.json()["items"]}
+    assert labels == {
+        "sent": "Enviado",
+        "answered": "Respondido",
+        "resolved": "Resuelto",
+    }
 
     listed = client.get("/api/v1/support/tickets")
     assert listed.status_code == 200
@@ -46,7 +57,22 @@ def test_committee_creates_ticket_and_super_admin_replies() -> None:
     )
     assert replied.status_code == 201, replied.text
     assert replied.json()["status"] == "answered"
+    assert replied.json()["status_label"] == "Respondido"
     assert len(replied.json()["replies"]) == 1
+
+    resolved = client.patch(
+        f"/api/v1/support/tickets/{ticket_id}/status",
+        json={"status": "resolved"},
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["status"] == "resolved"
+    assert resolved.json()["status_label"] == "Resuelto"
+
+    blocked = client.post(
+        f"/api/v1/support/tickets/{ticket_id}/replies",
+        json={"body": "No debería"},
+    )
+    assert blocked.status_code == 422
 
 
 def test_contact_creates_mensaje_ticket_and_email_reply() -> None:

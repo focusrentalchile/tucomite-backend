@@ -22,6 +22,7 @@ class LoginResponse(BaseModel):
     is_super_admin: bool
     client_id: str | None
     is_committee_member: bool
+    apartment_number: str | None = None
     license_status: str | None = None
     license_starts_at: str | None = None
     license_ends_at: str | None = None

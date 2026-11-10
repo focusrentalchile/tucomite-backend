@@ -59,8 +59,10 @@ def test_v1_router_includes_health_path() -> None:
     assert "/support/types" in paths
     assert "/support/tickets" in paths
     assert "/support/tickets/{ticket_id}" in paths
+    assert "/support/statuses" in paths
     assert "/support/tickets/{ticket_id}/replies" in paths
     assert "/support/tickets/{ticket_id}/replies/{reply_id}" in paths
+    assert "/support/tickets/{ticket_id}/status" in paths
     assert "/building-wall/posts" in paths
     assert "/building-wall/posts/{post_id}" in paths
     assert "/platform-settings" in paths

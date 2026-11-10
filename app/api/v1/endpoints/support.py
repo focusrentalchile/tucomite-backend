@@ -16,14 +16,18 @@ from app.repositories.platform_settings_repository import SqlPlatformSettingsRep
 from app.repositories.support_repository import SqlSupportRepository
 from app.schemas.support import (
     CreateSupportReplyRequest,
-    UpdateSupportReplyRequest,
     CreateSupportTicketRequest,
     SupportAttachmentResponse,
     SupportReplyResponse,
+    SupportStatusListResponse,
+    SupportStatusResponse,
     SupportTicketListResponse,
     SupportTicketResponse,
     SupportTypeListResponse,
     SupportTypeResponse,
+    UpdateSupportReplyRequest,
+    UpdateSupportTicketBodyRequest,
+    UpdateSupportTicketStatusRequest,
 )
 from app.services.email_service import SmtpDeliveryConfig
 from app.services.platform_settings_service import PlatformSettingsService
@@ -48,6 +52,7 @@ def _ticket_response(ticket) -> SupportTicketResponse:
         subject=ticket.subject,
         body=ticket.body,
         status=ticket.status,
+        status_label=ticket.status_label,
         contact_name=ticket.contact_name,
         contact_email=ticket.contact_email,
         created_at=ticket.created_at,
@@ -93,6 +98,19 @@ def list_support_types(
     _ = actor
     items = service.list_types(creatable_only=creatable_only)
     return SupportTypeListResponse(items=[SupportTypeResponse(id=i.id, name=i.name) for i in items])
+
+
+@router.get("/statuses", response_model=SupportStatusListResponse)
+def list_support_statuses(
+    actor: Actor = Depends(get_current_actor),
+    service: SupportService = Depends(get_support_service),
+) -> SupportStatusListResponse:
+    """List support statuses from the statuses table."""
+    _ = actor
+    items = service.list_statuses()
+    return SupportStatusListResponse(
+        items=[SupportStatusResponse(key=item.key, label=item.label) for item in items],
+    )
 
 
 @router.get("/tickets", response_model=SupportTicketListResponse)
@@ -161,6 +179,72 @@ def read_support_ticket(
     if ticket.client_id != actor.client_id:
         raise HTTPException(status_code=403, detail="Forbidden.")
     return _ticket_response(ticket)
+
+
+@router.patch("/tickets/{ticket_id}", response_model=SupportTicketResponse)
+def update_support_ticket_body(
+    ticket_id: str,
+    body: UpdateSupportTicketBodyRequest,
+    actor: Actor = Depends(get_current_actor),
+    service: SupportService = Depends(get_support_service),
+) -> SupportTicketResponse:
+    """Edit the original ticket message when the actor owns it or is staff."""
+    try:
+        updated = service.update_ticket_body(
+            ticket_id,
+            body=body.body,
+            actor_user_id=actor.user_id,
+            is_super_admin=actor.is_super_admin,
+        )
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail="Forbidden.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _ticket_response(updated)
+
+
+@router.patch("/tickets/{ticket_id}/status", response_model=SupportTicketResponse)
+def update_support_ticket_status(
+    ticket_id: str,
+    body: UpdateSupportTicketStatusRequest,
+    actor: Actor = Depends(require_super_admin),
+    service: SupportService = Depends(get_support_service),
+) -> SupportTicketResponse:
+    """Mark a ticket status (super admin). Resuelto locks the chat."""
+    try:
+        updated = service.update_status(
+            ticket_id,
+            status=body.status,
+            is_super_admin=actor.is_super_admin,
+        )
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail="Forbidden.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _ticket_response(updated)
+
+
+@router.delete("/tickets/{ticket_id}", status_code=204)
+def delete_support_ticket(
+    ticket_id: str,
+    actor: Actor = Depends(get_current_actor),
+    service: SupportService = Depends(get_support_service),
+) -> None:
+    """Delete a ticket owned by the actor (or any ticket if super admin)."""
+    try:
+        service.delete_ticket(
+            ticket_id,
+            actor_user_id=actor.user_id,
+            is_super_admin=actor.is_super_admin,
+        )
+    except SupportTicketNotFound as error:
+        raise HTTPException(status_code=404, detail="Support ticket not found.") from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail="Forbidden.") from error
 
 
 @router.post("/tickets/{ticket_id}/replies", response_model=SupportTicketResponse, status_code=201)

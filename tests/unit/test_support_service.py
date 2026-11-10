@@ -6,13 +6,15 @@ import pytest
 
 from app.domain.support import (
     SUPPORT_STATUS_ANSWERED,
-    SUPPORT_STATUS_OPEN,
+    SUPPORT_STATUS_RESOLVED,
+    SUPPORT_STATUS_SENT,
     SUPPORT_TYPE_MESSAGE,
     SUPPORT_TYPE_SUPPORT,
     InvalidSupportType,
     SupportAttachmentRecord,
     SupportEmailError,
     SupportReplyRecord,
+    SupportStatusRecord,
     SupportTicketRecord,
     SupportTypeRecord,
 )
@@ -30,6 +32,16 @@ class MemorySupportRepository:
 
     def ensure_default_types(self) -> None:
         return None
+
+    def ensure_default_statuses(self) -> None:
+        return None
+
+    def list_statuses(self) -> list[SupportStatusRecord]:
+        return [
+            SupportStatusRecord(key=SUPPORT_STATUS_SENT, label="Enviado"),
+            SupportStatusRecord(key=SUPPORT_STATUS_ANSWERED, label="Respondido"),
+            SupportStatusRecord(key=SUPPORT_STATUS_RESOLVED, label="Resuelto"),
+        ]
 
     def list_types(self) -> list[SupportTypeRecord]:
         return list(self.types)
@@ -68,6 +80,9 @@ class MemorySupportRepository:
 
     def save_ticket(self, record: SupportTicketRecord) -> None:
         self.tickets[record.id] = record
+
+    def delete_ticket(self, ticket_id: str) -> bool:
+        return self.tickets.pop(ticket_id, None) is not None
 
     def add_reply(self, record: SupportReplyRecord) -> None:
         current = self.tickets[record.ticket_id]
@@ -152,7 +167,7 @@ def test_create_and_reply_chat() -> None:
             {"kind": "file", "name": "nota.pdf", "url": "data:application/pdf;base64,xyz"},
         ],
     )
-    assert created.status == SUPPORT_STATUS_OPEN
+    assert created.status == SUPPORT_STATUS_SENT
     assert created.support_type_name == SUPPORT_TYPE_SUPPORT
     assert len(created.attachments) == 2
     assert created.attachments[0].name == "foto.png"
@@ -185,6 +200,20 @@ def test_create_and_reply_chat() -> None:
         is_super_admin=True,
     )
     assert cleared.replies == ()
+    resolved = service.update_status(
+        created.id,
+        status=SUPPORT_STATUS_RESOLVED,
+        is_super_admin=True,
+    )
+    assert resolved.status == SUPPORT_STATUS_RESOLVED
+    with pytest.raises(ValueError, match="Resolved"):
+        service.add_reply(
+            created.id,
+            author_user_id="staff",
+            author_name="Tu Comité",
+            body="No debería",
+            from_staff=True,
+        )
 
 
 def test_web_message_staff_reply_sends_email() -> None:

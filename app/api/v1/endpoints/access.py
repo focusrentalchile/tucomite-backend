@@ -61,6 +61,7 @@ def _user_response(
         role_id=user.role_id,
         role_key=role_key,
         protected=protected,
+        apartment_number=user.apartment_number,
     )
 
 
@@ -124,6 +125,7 @@ def read_me(
         is_committee_member=is_listed_committee_member(db, user.id),
         is_super_admin=actor.is_super_admin,
         client_id=user.client_id,
+        apartment_number=user.apartment_number,
     )
 
 
