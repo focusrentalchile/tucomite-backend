@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.access_catalog import access_catalog
 from app.core.database import get_db
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.account_repository import SqlAccountClosureRepository
 from app.repositories.client_repository import SqlClientRepository
+from app.repositories.client_settings_repository import SqlClientSettingsRepository
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.project_repository import SqlProjectRepository
@@ -17,9 +19,11 @@ from app.repositories.blog_repository import SqlBlogRepository
 from app.repositories.contact_repository import SqlContactRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.access_service import PermissionPolicy, RoleService, UserService
+from app.services.account_service import AccountService
 from app.services.agreement_service import AgreementService
 from app.services.blog_service import BlogService
 from app.services.client_service import ClientService
+from app.services.client_settings_service import ClientSettingsService
 from app.services.contact_service import ContactService
 from app.services.committee_access import ensure_committee_access
 from app.services.committee_service import CommitteeService
@@ -58,6 +62,29 @@ def get_client_service(db: Session = Depends(get_db)) -> ClientService:
 def get_topic_service(db: Session = Depends(get_db)) -> TopicService:
     """Build a topic service bound to the request session."""
     return TopicService(SqlTopicRepository(db))
+
+
+def get_client_settings_service(db: Session = Depends(get_db)) -> ClientSettingsService:
+    """Build a client settings service bound to the request session."""
+    return ClientSettingsService(SqlClientSettingsRepository(db))
+
+
+def get_account_service(db: Session = Depends(get_db)) -> AccountService:
+    """Build an account service bound to the request session."""
+    from app.repositories.legal_repository import SqlLegalRepository
+    from app.repositories.message_repository import SqlMessageRepository
+
+    return AccountService(
+        access=SqlAccessRepository(db),
+        clients=SqlClientRepository(db),
+        topics=SqlTopicRepository(db),
+        agreements=SqlAgreementRepository(db),
+        periods=SqlPeriodRepository(db),
+        closures=SqlAccountClosureRepository(db),
+        legal=SqlLegalRepository(db),
+        messages=SqlMessageRepository(db),
+        projects=SqlProjectRepository(db),
+    )
 
 
 def get_committee_service(db: Session = Depends(get_db)) -> CommitteeService:
@@ -112,7 +139,7 @@ def get_current_actor(request: Request, db: Session = Depends(get_db)) -> Actor:
         raise HTTPException(status_code=401, detail="Authentication required.")
     repository = SqlAccessRepository(db)
     user = repository.get_user(str(user_id))
-    if user is None:
+    if user is None or user.account_closed_at:
         request.session.clear()
         raise HTTPException(status_code=401, detail="Authentication required.")
     role = repository.get_role(user.role_id)

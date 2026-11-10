@@ -15,6 +15,7 @@ from app.domain.topics import (
     InvalidTopicStatus,
     InvalidVoteChoice,
     InvalidVoteOptions,
+    InvalidVotingWindow,
     TopicAttachmentRecord,
     TopicConfirmationRecord,
     TopicNotFound,
@@ -22,8 +23,10 @@ from app.domain.topics import (
     TopicRecord,
     TopicVoteRecord,
     VoteAlreadyCast,
+    VotingWindowClosed,
 )
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.client_settings_repository import SqlClientSettingsRepository
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
@@ -46,7 +49,9 @@ from app.schemas.topics import (
     UpsertOpinionResponse,
 )
 from app.services.committee_access import is_listed_committee_member
+from app.services.client_settings_service import ClientSettingsService
 from app.services.period_service import PeriodService
+from app.services.topic_scope import list_topics_for_building
 from app.services.topic_service import TopicService
 
 MIN_COMMITTEE_FOR_VOTE = 3
@@ -115,6 +120,9 @@ def _topic_response(
         vote_options=[
             {"id": option.id, "label": option.label} for option in topic.vote_options
         ],
+        client_id=topic.client_id,
+        voting_starts_at=topic.voting_starts_at,
+        voting_ends_at=topic.voting_ends_at,
         votes=[_vote_response(vote) for vote in votes],
         opinions=[_opinion_response(item) for item in (opinions or [])],
         attachments=[_attachment_response(item) for item in (attachments or [])],
@@ -133,38 +141,8 @@ def _topics_for_open_period(
     *,
     client_id: str,
 ) -> list[TopicRecord]:
-    """Return topics for this building's open period only.
-
-    Also reclaims unfinished topics stranded on a closed period of the same
-    building (or a legacy period with no client_id) so creates stay visible.
-    """
-    period_repo = SqlPeriodRepository(db)
-    periods = PeriodService(period_repo)
-    open_period = periods.ensure_current_month_open(client_id)
-    client_period_ids = {period.id for period in periods.list_periods(client_id)}
-    topics = service.list_topics()
-    scoped: list[TopicRecord] = []
-    for topic in topics:
-        if topic.period_id == open_period.id:
-            scoped.append(topic)
-            continue
-        if topic.status_id == CLOSED_STATUS_ID:
-            continue
-        if topic.period_id in client_period_ids:
-            reclaimed = service.reassign_period(topic.id, open_period.id)
-            scoped.append(reclaimed)
-            continue
-        period = period_repo.get_period(topic.period_id) if topic.period_id else None
-        # Legacy rows predating per-building periods have client_id NULL.
-        if period is not None and period.client_id is None:
-            period_repo.assign_client(period.id, client_id)
-            reclaimed = service.reassign_period(topic.id, open_period.id)
-            scoped.append(reclaimed)
-            continue
-        if topic.period_id is None:
-            reclaimed = service.reassign_period(topic.id, open_period.id)
-            scoped.append(reclaimed)
-    return scoped
+    """Return the building's topics (shared by committee and owner of the same client_id)."""
+    return list_topics_for_building(service, SqlPeriodRepository(db), client_id=client_id)
 
 
 @router.get("/topics", response_model=TopicListResponse)
@@ -241,11 +219,22 @@ def create_topic(
             attachments=[item.model_dump() for item in body.attachments],
             vote_type=body.vote_type,
             vote_options=[item.model_dump() for item in body.vote_options],
+            client_id=actor.client_id,
+            voting_starts_at=body.voting_starts_at,
+            voting_ends_at=body.voting_ends_at,
+            default_window_hours=ClientSettingsService(
+                SqlClientSettingsRepository(db),
+            ).hours_for_priority(actor.client_id, body.priority_id),
         )
     except InvalidVoteOptions as error:
         raise HTTPException(
             status_code=422,
             detail="Custom polls need at least two answer options.",
+        ) from error
+    except InvalidVotingWindow as error:
+        raise HTTPException(
+            status_code=422,
+            detail="Voting window must have valid dates and end after it starts.",
         ) from error
     stored = service.list_attachments_for_topics([topic.id])
     return _topic_response(topic, [], attachments=stored)
@@ -427,6 +416,13 @@ def cast_vote(
         raise HTTPException(status_code=422, detail="Invalid vote choice for this poll.") from error
     except VoteAlreadyCast as error:
         raise HTTPException(status_code=409, detail="Vote already cast.") from error
+    except VotingWindowClosed as error:
+        detail = (
+            "Voting has not started yet."
+            if error.reason == "not_started"
+            else "Voting has ended."
+        )
+        raise HTTPException(status_code=409, detail=detail) from error
     return CastVoteResponse(
         topic_id=topic.id,
         status_id=topic.status_id,

@@ -51,6 +51,9 @@ class TopicModel(Base):
     period_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("periods.id"), nullable=True, index=True)
     completion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     completion_submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    client_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    voting_starts_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    voting_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class TopicVoteModel(Base):

@@ -1,5 +1,7 @@
 """In-memory access repository for service unit tests."""
 
+from dataclasses import replace
+
 from app.domain.access import ModuleDefinition, ModuleRecord, RoleRecord, UserRecord
 
 
@@ -77,6 +79,12 @@ class InMemoryAccessRepository:
 
     def delete_user(self, user_id: str) -> None:
         self.users = [user for user in self.users if user.id != user_id]
+
+    def close_user_account(self, user_id: str, closed_at: str) -> None:
+        self.users = [
+            replace(user, account_closed_at=closed_at) if user.id == user_id else user
+            for user in self.users
+        ]
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
         return next((user for user in self.users if user.email == email), None)

@@ -18,6 +18,7 @@ from app.schemas.management import (
     CreateManagementMessageRequest,
     CreateManagementTaskRequest,
     CreateManagementWorkspaceImportRequest,
+    ManagementAttachmentResponse,
     ManagementMessageResponse,
     ManagementTaskListResponse,
     ManagementTaskResponse,
@@ -44,6 +45,15 @@ def get_management_service(db: Session = Depends(get_db)) -> ManagementService:
     )
 
 
+def _attachment_response(item) -> ManagementAttachmentResponse:
+    return ManagementAttachmentResponse(
+        id=item.id,
+        kind=item.kind,
+        name=item.name,
+        url=item.url,
+    )
+
+
 def _message_response(message) -> ManagementMessageResponse:
     return ManagementMessageResponse(
         id=message.id,
@@ -52,6 +62,7 @@ def _message_response(message) -> ManagementMessageResponse:
         body=message.body,
         created_at=message.created_at,
         from_staff=message.from_staff,
+        attachments=[_attachment_response(item) for item in message.attachments],
     )
 
 
@@ -71,6 +82,7 @@ def _task_response(ticket) -> ManagementTaskResponse:
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         messages=[_message_response(item) for item in ticket.messages],
+        attachments=[_attachment_response(item) for item in ticket.attachments],
     )
 
 
@@ -360,6 +372,7 @@ def create_task(
             from_staff=False,
             priority_id=body.priority_id,
             due_date=body.due_date,
+            attachments=[item.model_dump() for item in body.attachments],
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
@@ -387,6 +400,7 @@ def create_message(
             author_user_id=actor.user_id,
             author_name=_actor_name(db, actor.user_id),
             from_staff=actor.is_super_admin,
+            attachments=[item.model_dump() for item in body.attachments],
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None

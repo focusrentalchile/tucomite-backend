@@ -17,6 +17,25 @@ LEGACY_MANAGEMENT_STATUS_MAP = {
 }
 
 
+MANAGEMENT_ATTACHMENT_KINDS = frozenset({"image", "video", "file"})
+# Extensions accepted for kind "file" (images and videos are validated by kind only).
+MANAGEMENT_FILE_EXTENSIONS = frozenset(
+    {".pdf", ".xlsx", ".xls", ".doc", ".docx", ".csv", ".txt", ".jpg", ".jpeg", ".png"},
+)
+
+
+@dataclass(frozen=True)
+class ManagementAttachmentRecord:
+    """One image, video, or file on a task or on one of its messages (url may be a data URL)."""
+
+    id: str
+    task_id: str
+    kind: str
+    name: str
+    url: str
+    message_id: str | None = None
+
+
 @dataclass(frozen=True)
 class ManagementMessageRecord:
     """One message inside a management task."""
@@ -28,6 +47,7 @@ class ManagementMessageRecord:
     body: str
     created_at: str
     from_staff: bool
+    attachments: tuple[ManagementAttachmentRecord, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -48,10 +68,19 @@ class ManagementTaskRecord:
     created_at: str
     updated_at: str
     messages: tuple[ManagementMessageRecord, ...] = ()
+    # Files added when the task was opened (message_id is None on each).
+    attachments: tuple[ManagementAttachmentRecord, ...] = ()
 
 
 class TaskNotFound(Exception):
     """Raised when a management task id does not exist."""
+
+
+class InvalidManagementAttachment(ValueError):
+    """Raised when an attachment has an unknown kind, no data, or a file type that is not allowed."""
+
+    def __init__(self) -> None:
+        super().__init__("Attachments must be images, videos, or .pdf .xlsx .doc .jpg files.")
 
 
 IMPORT_STATUS_PENDING = "pending"

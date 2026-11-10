@@ -55,6 +55,8 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
     user = access.get_user_by_email(body.email.strip().lower())
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
+    if user.account_closed_at:
+        raise HTTPException(status_code=403, detail="account_closed")
     role = access.get_role(user.role_id)
     if role is None:
         raise HTTPException(status_code=503, detail="Role is not available.")

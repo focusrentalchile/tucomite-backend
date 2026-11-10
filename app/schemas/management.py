@@ -1,6 +1,25 @@
 """HTTP schemas for management tasks and Gestión workspace imports."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+
+class ManagementAttachmentPayload(BaseModel):
+    """One image, video, or file sent with a task or a reply (url may be a data URL)."""
+
+    kind: Literal["image", "video", "file"]
+    name: str = Field(min_length=1, max_length=255)
+    url: str = Field(min_length=1)
+
+
+class ManagementAttachmentResponse(BaseModel):
+    """One stored attachment."""
+
+    id: str
+    kind: Literal["image", "video", "file"]
+    name: str
+    url: str
 
 
 class ManagementMessageResponse(BaseModel):
@@ -12,6 +31,7 @@ class ManagementMessageResponse(BaseModel):
     body: str
     created_at: str
     from_staff: bool
+    attachments: list[ManagementAttachmentResponse] = []
 
 
 class ManagementTaskResponse(BaseModel):
@@ -31,6 +51,7 @@ class ManagementTaskResponse(BaseModel):
     created_at: str
     updated_at: str
     messages: list[ManagementMessageResponse] = []
+    attachments: list[ManagementAttachmentResponse] = []
 
 
 class ManagementTaskListResponse(BaseModel):
@@ -47,12 +68,14 @@ class CreateManagementTaskRequest(BaseModel):
     priority_id: int = Field(default=2, ge=1, le=3)
     due_date: str | None = Field(default=None, max_length=10)
     client_id: str | None = Field(default=None, max_length=36)
+    attachments: list[ManagementAttachmentPayload] = []
 
 
 class CreateManagementMessageRequest(BaseModel):
     """Reply inside a ticket."""
 
     body: str = Field(min_length=1, max_length=5000)
+    attachments: list[ManagementAttachmentPayload] = []
 
 
 class UpdateManagementTaskStatusRequest(BaseModel):

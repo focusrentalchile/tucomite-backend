@@ -7,7 +7,14 @@ from app.models.building_wall import BuildingWallPostModel
 from app.models.contact import ContactMessageModel
 from app.models.committee import CommitteeMemberModel
 from app.models.legal import LegalCaseAttachmentModel, LegalCaseModel
-from app.models.management import ManagementMessageModel, ManagementTaskModel, ManagementWorkspaceImportModel
+from app.models.account import AccountClosureRequestModel
+from app.models.client_settings import ClientSettingsModel
+from app.models.management import (
+    ManagementAttachmentModel,
+    ManagementMessageModel,
+    ManagementTaskModel,
+    ManagementWorkspaceImportModel,
+)
 from app.models.notifications import NotificationModel
 from app.models.periods import PeriodModel
 from app.models.platform_settings import PlatformSettingsModel
@@ -28,7 +35,10 @@ from app.models.topics import (
 )
 
 __all__ = [
+    "AccountClosureRequestModel",
     "AgreementModel",
+    "ClientSettingsModel",
+    "ManagementAttachmentModel",
     "BlogPostModel",
     "BuildingWallPostModel",
     "ContactMessageModel",

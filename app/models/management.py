@@ -3,6 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -42,6 +43,19 @@ class ManagementMessageModel(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     from_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ManagementAttachmentModel(Base):
+    """One image, video, or file on a management task (message_id set when sent with a reply)."""
+
+    __tablename__ = "management_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("management_tasks.id"), nullable=False, index=True)
+    message_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"), nullable=False)
 
 
 class ManagementWorkspaceImportModel(Base):

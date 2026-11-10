@@ -32,6 +32,8 @@ class CreateTopicRequest(BaseModel):
     vote_type: Literal["yes_no", "custom"] = "yes_no"
     vote_options: list[TopicVoteOptionPayload] = []
     attachments: list[TopicAttachmentPayload] = []
+    voting_starts_at: str | None = Field(default=None, max_length=40)
+    voting_ends_at: str | None = Field(default=None, max_length=40)
 
 
 class UpdateTopicRequest(BaseModel):
@@ -136,6 +138,9 @@ class TopicResponse(BaseModel):
     due_date: str | None = None
     vote_type: Literal["yes_no", "custom"] = "yes_no"
     vote_options: list[TopicVoteOptionResponse] = []
+    client_id: str | None = None
+    voting_starts_at: str | None = None
+    voting_ends_at: str | None = None
     votes: list[TopicVoteResponse]
     opinions: list[TopicOpinionResponse] = []
     attachments: list[TopicAttachmentResponse] = []

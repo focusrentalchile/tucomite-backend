@@ -1,0 +1,23 @@
+                                        INFO:     127.0.0.1:58060 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:58066 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:58067 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52674 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52675 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61214 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61215 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61216 - "GET /api/v1/topics HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61151 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61152 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61153 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:49677 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:49678 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51667 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51666 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51668 - "GET /api/v1/topics HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51690 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51691 - "GET /api/v1/notifications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59231 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59232 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59233 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:60604 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60604 - "GET /openapi.json HTTP/1.1" 200 OK

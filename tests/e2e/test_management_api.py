@@ -75,6 +75,66 @@ def test_building_admin_opens_ticket_and_staff_replies() -> None:
     assert closed.json()["status"] == "done"
 
 
+def test_building_admin_creates_ticket_with_attachments_and_reply_files() -> None:
+    _login_as_building_administrator()
+    created = client.post(
+        "/api/v1/management/tasks",
+        json={
+            "subject": "Cotización de ascensor",
+            "body": "Adjunto las cotizaciones.",
+            "attachments": [
+                {"kind": "file", "name": "cotizacion.pdf", "url": "data:application/pdf;base64,aaa"},
+                {"kind": "file", "name": "gastos.xlsx", "url": "data:application/vnd.ms-excel;base64,bbb"},
+                {"kind": "image", "name": "ascensor.jpg", "url": "data:image/jpeg;base64,ccc"},
+            ],
+        },
+    )
+    assert created.status_code == 201, created.text
+    task_id = created.json()["id"]
+    assert {item["name"] for item in created.json()["attachments"]} == {
+        "cotizacion.pdf",
+        "gastos.xlsx",
+        "ascensor.jpg",
+    }
+
+    replied = client.post(
+        f"/api/v1/management/tasks/{task_id}/messages",
+        json={
+            "body": "Falta el acta.",
+            "attachments": [{"kind": "file", "name": "acta.doc", "url": "data:application/msword;base64,ddd"}],
+        },
+    )
+    assert replied.status_code == 201, replied.text
+    # Messages created within the same second have no stable order, so match by body.
+    reply = next(item for item in replied.json()["messages"] if item["body"] == "Falta el acta.")
+    first = next(item for item in replied.json()["messages"] if item["body"] == "Adjunto las cotizaciones.")
+    assert [item["name"] for item in reply["attachments"]] == ["acta.doc"]
+    assert first["attachments"] == []
+    assert len(replied.json()["attachments"]) == 3
+
+    read = client.get(f"/api/v1/management/tasks/{task_id}")
+    assert read.status_code == 200
+    assert len(read.json()["attachments"]) == 3
+
+    deleted = client.delete(f"/api/v1/management/tasks/{task_id}")
+    assert deleted.status_code == 204
+
+
+def test_ticket_rejects_unsupported_file_types() -> None:
+    _login_as_building_administrator()
+
+    response = client.post(
+        "/api/v1/management/tasks",
+        json={
+            "subject": "Archivo raro",
+            "body": "No debería entrar.",
+            "attachments": [{"kind": "file", "name": "programa.exe", "url": "data:application/x;base64,aaa"}],
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_building_admin_deletes_own_ticket() -> None:
     _login_as_building_administrator()
     created = client.post(

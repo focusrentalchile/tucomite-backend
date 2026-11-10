@@ -66,6 +66,8 @@ def test_v1_router_includes_health_path() -> None:
     assert "/building-wall/posts" in paths
     assert "/building-wall/posts/{post_id}" in paths
     assert "/platform-settings" in paths
+    assert "/account/close" in paths
+    assert "/building-settings/vote-window" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:

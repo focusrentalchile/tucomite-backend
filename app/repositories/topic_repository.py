@@ -29,6 +29,25 @@ from app.models.topics import (
 )
 
 
+def _to_naive_utc(value: str | None) -> datetime | None:
+    """Convert a stored UTC ISO string into the naive UTC datetime MySQL keeps."""
+    if not value:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _to_utc_iso(value: datetime | None) -> str | None:
+    """Return a naive UTC datetime read from MySQL as an aware ISO-8601 string."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat()
+
+
 class TopicRepository(Protocol):
     """Persistence port used by the topic service."""
 
@@ -161,8 +180,14 @@ class SqlTopicRepository:
                     if topic.completion_submitted_at
                     else None
                 ),
+                client_id=topic.client_id,
+                voting_starts_at=_to_naive_utc(topic.voting_starts_at),
+                voting_ends_at=_to_naive_utc(topic.voting_ends_at),
             ),
         )
+        # Attachments, votes, and opinions reference this row by foreign key only (no ORM
+        # relationship), so the unit of work does not order their inserts after it.
+        self._session.flush()
 
     def get_topic(self, topic_id: str) -> TopicRecord | None:
         row = self._session.get(TopicModel, topic_id)
@@ -198,6 +223,9 @@ class SqlTopicRepository:
         row.start_date = date.fromisoformat(topic.start_date) if topic.start_date else None
         row.due_date = date.fromisoformat(topic.due_date) if topic.due_date else None
         row.period_id = topic.period_id
+        row.client_id = topic.client_id
+        row.voting_starts_at = _to_naive_utc(topic.voting_starts_at)
+        row.voting_ends_at = _to_naive_utc(topic.voting_ends_at)
         row.completion_note = topic.completion_note
         row.completion_submitted_at = (
             datetime.fromisoformat(topic.completion_submitted_at)
@@ -375,6 +403,7 @@ class SqlTopicRepository:
                     url=attachment.url,
                 ),
             )
+        self._session.flush()
 
     def list_completion_attachments_for_topics(
         self,
@@ -415,6 +444,7 @@ class SqlTopicRepository:
                     url=attachment.url,
                 ),
             )
+        self._session.flush()
 
     def list_confirmations_for_topics(self, topic_ids: list[str]) -> list[TopicConfirmationRecord]:
         if not topic_ids:
@@ -481,6 +511,9 @@ class SqlTopicRepository:
             ),
             vote_type=getattr(row, "vote_type", None) or VOTE_TYPE_YES_NO,
             vote_options=self._parse_options(getattr(row, "vote_options_json", None)),
+            client_id=getattr(row, "client_id", None),
+            voting_starts_at=_to_utc_iso(getattr(row, "voting_starts_at", None)),
+            voting_ends_at=_to_utc_iso(getattr(row, "voting_ends_at", None)),
         )
 
     def _options_json(self, options: tuple[TopicVoteOptionRecord, ...]) -> str:

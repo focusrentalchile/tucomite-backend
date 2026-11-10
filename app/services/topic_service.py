@@ -1,6 +1,7 @@
 """Seeds the status table, creates topics, and stores votes."""
 
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from app.domain.topics import (
@@ -35,6 +36,8 @@ from app.domain.topics import (
     TopicVoteRecord,
     VoteAlreadyCast,
     completion_quorum_met,
+    ensure_voting_open,
+    resolve_voting_window,
 )
 from app.repositories.topic_repository import TopicRepository
 
@@ -66,28 +69,7 @@ def ensure_topic_priorities(session) -> None:
 
 def _copy_topic(topic: TopicRecord, **changes) -> TopicRecord:
     """Return a TopicRecord with selected fields replaced."""
-    data = {
-        "id": topic.id,
-        "title": topic.title,
-        "description": topic.description,
-        "category_key": topic.category_key,
-        "attachment_name": topic.attachment_name,
-        "decision": topic.decision,
-        "status_id": topic.status_id,
-        "priority_id": topic.priority_id,
-        "assignee_user_id": topic.assignee_user_id,
-        "start_date": topic.start_date,
-        "due_date": topic.due_date,
-        "created_at": topic.created_at,
-        "closed_at": topic.closed_at,
-        "period_id": topic.period_id,
-        "completion_note": topic.completion_note,
-        "completion_submitted_at": topic.completion_submitted_at,
-        "vote_type": topic.vote_type,
-        "vote_options": topic.vote_options,
-    }
-    data.update(changes)
-    return TopicRecord(**data)
+    return replace(topic, **changes)
 
 
 def _normalize_vote_options(
@@ -205,12 +187,24 @@ class TopicService:
         self._repository.add_opinion(opinion)
         return opinion
 
-    def reassign_period(self, topic_id: str, period_id: str) -> TopicRecord:
-        """Move one topic onto another period (used to recover stranded WIP topics)."""
+    def reassign_period(
+        self,
+        topic_id: str,
+        period_id: str,
+        client_id: str | None = None,
+    ) -> TopicRecord:
+        """Move one topic onto another period (used to recover stranded WIP topics).
+
+        When the topic has no building yet, ``client_id`` stamps it so it stays visible
+        to everyone in that building.
+        """
         current = self._repository.get_topic(topic_id)
         if current is None:
             raise TopicNotFound()
-        topic = _copy_topic(current, period_id=period_id)
+        changes: dict = {"period_id": period_id}
+        if client_id and not current.client_id:
+            changes["client_id"] = client_id
+        topic = _copy_topic(current, **changes)
         self._repository.save_topic(topic)
         return topic
 
@@ -226,12 +220,26 @@ class TopicService:
         attachments: list[dict[str, str]] | None = None,
         vote_type: str = VOTE_TYPE_YES_NO,
         vote_options: list[dict[str, str]] | None = None,
+        client_id: str | None = None,
+        voting_starts_at: str | None = None,
+        voting_ends_at: str | None = None,
+        default_window_hours: int | None = None,
     ) -> TopicRecord:
-        """Store a topic in the open status."""
+        """Store a topic in the open status.
+
+        ``client_id`` is the creator's building, so everyone in it sees the topic.
+        The voting window comes from the given dates; when no end is given and
+        ``default_window_hours`` is set, the window closes that many hours after it opens.
+        """
         if priority_id not in PRIORITY_IDS:
             raise InvalidTopicPriority()
         normalized_type = (vote_type or VOTE_TYPE_YES_NO).strip().lower()
         options = _normalize_vote_options(normalized_type, vote_options)
+        window_starts, window_ends = resolve_voting_window(
+            voting_starts_at,
+            voting_ends_at,
+            default_hours=default_window_hours,
+        )
         topic = TopicRecord(
             id=str(uuid.uuid4()),
             title=title.strip(),
@@ -244,6 +252,9 @@ class TopicService:
             period_id=period_id,
             vote_type=normalized_type,
             vote_options=options,
+            client_id=client_id,
+            voting_starts_at=window_starts,
+            voting_ends_at=window_ends,
         )
         self._repository.add_topic(topic)
         self._repository.replace_attachments(topic.id, self._normalize_attachments(topic.id, attachments))
@@ -381,11 +392,17 @@ class TopicService:
         author_id: str,
         author_name: str,
         choice: str,
+        now: datetime | None = None,
     ) -> tuple[TopicRecord, TopicVoteRecord]:
-        """Store one person's first vote and move the topic to waiting."""
+        """Store one person's first vote and move the topic to waiting.
+
+        Raises VotingWindowClosed when the topic has a voting window and ``now``
+        (default: the current UTC time) is outside it.
+        """
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
+        ensure_voting_open(topic, now)
         normalized = choice.strip()
         allowed = (
             {option.id for option in topic.vote_options} | {"abstain"}

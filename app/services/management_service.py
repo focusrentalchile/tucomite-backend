@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
+from pathlib import PurePath
 
 from app.domain.management import (
     ALLOWED_MANAGEMENT_STATUSES,
@@ -10,7 +11,11 @@ from app.domain.management import (
     IMPORT_STATUS_PENDING,
     IMPORT_STATUS_REJECTED,
     IMPORT_STATUS_REVOKED,
+    MANAGEMENT_ATTACHMENT_KINDS,
+    MANAGEMENT_FILE_EXTENSIONS,
     MANAGEMENT_STATUS_TODO,
+    InvalidManagementAttachment,
+    ManagementAttachmentRecord,
     ManagementMessageRecord,
     ManagementTaskRecord,
     ManagementWorkspaceClientRecord,
@@ -27,6 +32,34 @@ from app.repositories.notification_repository import NotificationRepository
 from app.repositories.period_repository import PeriodRepository
 
 AGREEMENT_CONTEXT_PERIODS = 6
+
+
+def normalize_management_attachments(
+    task_id: str,
+    message_id: str | None,
+    items: list[dict[str, str]] | None,
+) -> tuple[ManagementAttachmentRecord, ...]:
+    """Validate attachment payloads. Files must be .pdf .xlsx .doc .jpg (or similar office/image)."""
+    stored: list[ManagementAttachmentRecord] = []
+    for item in items or []:
+        kind = str(item.get("kind", "")).strip().lower()
+        name = str(item.get("name", "")).strip()
+        url = str(item.get("url", "")).strip()
+        if kind not in MANAGEMENT_ATTACHMENT_KINDS or not name or not url:
+            raise InvalidManagementAttachment()
+        if kind == "file" and PurePath(name.lower()).suffix not in MANAGEMENT_FILE_EXTENSIONS:
+            raise InvalidManagementAttachment()
+        stored.append(
+            ManagementAttachmentRecord(
+                id=str(uuid.uuid4()),
+                task_id=task_id,
+                kind=kind,
+                name=name[:255],
+                url=url,
+                message_id=message_id,
+            ),
+        )
+    return tuple(stored)
 
 
 class ManagementService:
@@ -402,8 +435,9 @@ class ManagementService:
         due_date: str | None = None,
         assignee_user_id: str | None = None,
         topic_id: str | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> ManagementTaskRecord:
-        """Open a ticket in the Tareas column with the first message."""
+        """Open a ticket in the Tareas column with the first message and optional files."""
         cleaned_subject = subject.strip()
         cleaned_body = body.strip()
         if not cleaned_subject or not cleaned_body:
@@ -412,6 +446,7 @@ class ManagementService:
             raise ValueError("Unknown ticket priority.")
         now = datetime.now(timezone.utc).isoformat()
         task_id = str(uuid.uuid4())
+        stored_attachments = normalize_management_attachments(task_id, None, attachments)
         message = ManagementMessageRecord(
             id=str(uuid.uuid4()),
             task_id=task_id,
@@ -436,6 +471,7 @@ class ManagementService:
             created_at=now,
             updated_at=now,
             messages=(message,),
+            attachments=stored_attachments,
         )
         self._repository.add_task(ticket)
         return self.get_task(task_id)
@@ -448,20 +484,23 @@ class ManagementService:
         author_user_id: str,
         author_name: str,
         from_staff: bool,
+        attachments: list[dict[str, str]] | None = None,
     ) -> ManagementTaskRecord:
-        """Append a reply to an existing ticket."""
+        """Append a reply, with optional files, to an existing ticket."""
         task = self.get_task(task_id)
         cleaned_body = body.strip()
         if not cleaned_body:
             raise ValueError("Message body is required.")
+        message_id = str(uuid.uuid4())
         message = ManagementMessageRecord(
-            id=str(uuid.uuid4()),
+            id=message_id,
             task_id=task.id,
             author_user_id=author_user_id,
             author_name=author_name,
             body=cleaned_body,
             created_at=datetime.now(timezone.utc).isoformat(),
             from_staff=from_staff,
+            attachments=normalize_management_attachments(task.id, message_id, attachments),
         )
         self._repository.add_message(message)
         if task.status == MANAGEMENT_STATUS_TODO and from_staff:

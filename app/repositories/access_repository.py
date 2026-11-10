@@ -1,5 +1,6 @@
 """MySQL repository for the access catalog, roles, and users."""
 
+from datetime import datetime, timezone
 from typing import Protocol
 
 from sqlalchemy import delete, select
@@ -56,6 +57,9 @@ class AccessRepository(Protocol):
 
     def delete_user(self, user_id: str) -> None:
         """Delete one user and related committee membership."""
+
+    def close_user_account(self, user_id: str, closed_at: str) -> None:
+        """Mark one user as closed (soft delete). The row and its history stay."""
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
         """Return the user with this email, or None."""
@@ -218,6 +222,7 @@ class SqlAccessRepository:
         """Delete a user and every row that still points at them with a FK."""
         from app.models.committee import CommitteeMemberModel
         from app.models.management import (
+            ManagementAttachmentModel,
             ManagementMessageModel,
             ManagementTaskModel,
             ManagementWorkspaceImportModel,
@@ -246,6 +251,15 @@ class SqlAccessRepository:
                 ManagementWorkspaceImportModel.administrator_user_id == user_id,
             ),
         )
+        authored_management_ids = self._session.scalars(
+            select(ManagementMessageModel.id).where(ManagementMessageModel.author_user_id == user_id),
+        ).all()
+        if authored_management_ids:
+            self._session.execute(
+                delete(ManagementAttachmentModel).where(
+                    ManagementAttachmentModel.message_id.in_(authored_management_ids),
+                ),
+            )
         self._session.execute(
             delete(ManagementMessageModel).where(ManagementMessageModel.author_user_id == user_id),
         )
@@ -257,6 +271,9 @@ class SqlAccessRepository:
             select(ManagementTaskModel).where(ManagementTaskModel.created_by_user_id == user_id),
         ).all()
         for task in owned_tasks:
+            self._session.execute(
+                delete(ManagementAttachmentModel).where(ManagementAttachmentModel.task_id == task.id),
+            )
             self._session.execute(
                 delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task.id),
             )
@@ -300,6 +317,16 @@ class SqlAccessRepository:
             self._session.delete(row)
             self._session.flush()
 
+    def close_user_account(self, user_id: str, closed_at: str) -> None:
+        row = self._session.get(UserModel, user_id)
+        if row is None:
+            return
+        parsed = datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        row.account_closed_at = parsed
+        self._session.flush()
+
     def get_user_by_email(self, email: str) -> UserRecord | None:
         row = self._session.scalar(select(UserModel).where(UserModel.email == email))
         if row is None:
@@ -338,4 +365,9 @@ class SqlAccessRepository:
             period_id=getattr(row, "period_id", None),
             floor_number=getattr(row, "floor_number", None),
             apartment_number=getattr(row, "apartment_number", None),
+            account_closed_at=(
+                closed.replace(tzinfo=timezone.utc).isoformat()
+                if (closed := getattr(row, "account_closed_at", None)) is not None
+                else None
+            ),
         )

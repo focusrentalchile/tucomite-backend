@@ -1,8 +1,8 @@
 """MySQL tables for modules, roles, permissions, and users."""
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -88,3 +88,4 @@ class UserModel(Base):
     period_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("periods.id"), nullable=True, index=True)
     floor_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
     apartment_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    account_closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

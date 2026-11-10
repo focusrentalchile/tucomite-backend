@@ -42,6 +42,8 @@ class UserRecord:
     period_id: str | None = None
     floor_number: str | None = None
     apartment_number: str | None = None
+    # UTC ISO instant when the owner closed the account. Set means the user cannot sign in.
+    account_closed_at: str | None = None
 
 
 @dataclass(frozen=True)

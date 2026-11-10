@@ -1,5 +1,6 @@
 """Persistence for management tasks and messages."""
 
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from typing import Protocol
 
@@ -11,13 +12,19 @@ from app.domain.management import (
     IMPORT_STATUS_PENDING,
     LEGACY_MANAGEMENT_STATUS_MAP,
     MANAGEMENT_STATUS_TODO,
+    ManagementAttachmentRecord,
     ManagementMessageRecord,
     ManagementTaskRecord,
     ManagementWorkspaceImportRecord,
 )
 from app.domain.topics import MEDIUM_PRIORITY_ID
 from app.models.access import ClientModel, UserModel
-from app.models.management import ManagementMessageModel, ManagementTaskModel, ManagementWorkspaceImportModel
+from app.models.management import (
+    ManagementAttachmentModel,
+    ManagementMessageModel,
+    ManagementTaskModel,
+    ManagementWorkspaceImportModel,
+)
 
 
 class ManagementRepository(Protocol):
@@ -127,6 +134,7 @@ class SqlManagementRepository:
         self._session.flush()
         for message in ticket.messages:
             self.add_message(message)
+        self._add_attachments(ticket.attachments)
         self._session.flush()
 
     def add_message(self, message: ManagementMessageRecord) -> None:
@@ -143,6 +151,21 @@ class SqlManagementRepository:
         if ticket is not None:
             ticket.updated_at = datetime.now(timezone.utc)
         self._session.flush()
+        self._add_attachments(message.attachments)
+        self._session.flush()
+
+    def _add_attachments(self, attachments: tuple[ManagementAttachmentRecord, ...]) -> None:
+        for item in attachments:
+            self._session.add(
+                ManagementAttachmentModel(
+                    id=item.id,
+                    task_id=item.task_id,
+                    message_id=item.message_id,
+                    kind=item.kind,
+                    name=item.name,
+                    url=item.url,
+                ),
+            )
 
     def save_task_status(self, task_id: str, status: str) -> None:
         row = self._session.get(ManagementTaskModel, task_id)
@@ -152,6 +175,9 @@ class SqlManagementRepository:
         row.updated_at = datetime.now(timezone.utc)
 
     def delete_task(self, task_id: str) -> None:
+        self._session.execute(
+            delete(ManagementAttachmentModel).where(ManagementAttachmentModel.task_id == task_id),
+        )
         self._session.execute(
             delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task_id),
         )
@@ -169,13 +195,26 @@ class SqlManagementRepository:
         author = self._session.get(UserModel, row.created_by_user_id)
         status = LEGACY_MANAGEMENT_STATUS_MAP.get(row.status, row.status)
         messages: tuple[ManagementMessageRecord, ...] = ()
+        task_attachments: tuple[ManagementAttachmentRecord, ...] = ()
         if include_messages:
             message_rows = self._session.execute(
                 select(ManagementMessageModel)
                 .where(ManagementMessageModel.task_id == row.id)
                 .order_by(ManagementMessageModel.created_at.asc(), ManagementMessageModel.id.asc()),
             ).scalars().all()
-            messages = tuple(self._message(item) for item in message_rows)
+            attachment_rows = self._session.execute(
+                select(ManagementAttachmentModel)
+                .where(ManagementAttachmentModel.task_id == row.id)
+                .order_by(ManagementAttachmentModel.name.asc(), ManagementAttachmentModel.id.asc()),
+            ).scalars().all()
+            by_message: dict[str | None, list[ManagementAttachmentRecord]] = {}
+            for attachment in attachment_rows:
+                by_message.setdefault(attachment.message_id, []).append(self._attachment(attachment))
+            messages = tuple(
+                replace(self._message(item), attachments=tuple(by_message.get(item.id, [])))
+                for item in message_rows
+            )
+            task_attachments = tuple(by_message.get(None, []))
         return ManagementTaskRecord(
             id=row.id,
             client_id=row.client_id,
@@ -191,6 +230,17 @@ class SqlManagementRepository:
             created_at=row.created_at.isoformat() if row.created_at else "",
             updated_at=row.updated_at.isoformat() if row.updated_at else "",
             messages=messages,
+            attachments=task_attachments,
+        )
+
+    def _attachment(self, row: ManagementAttachmentModel) -> ManagementAttachmentRecord:
+        return ManagementAttachmentRecord(
+            id=row.id,
+            task_id=row.task_id,
+            kind=row.kind,
+            name=row.name,
+            url=row.url,
+            message_id=row.message_id,
         )
 
     def _message(self, row: ManagementMessageModel) -> ManagementMessageRecord:

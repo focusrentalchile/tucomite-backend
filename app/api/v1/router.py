@@ -4,10 +4,12 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     access,
+    account,
     agreements,
     auth,
     blog,
     building_wall,
+    client_settings,
     clients,
     committee,
     contact,
@@ -29,6 +31,8 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(access.router)
+api_router.include_router(account.router)
+api_router.include_router(client_settings.router)
 api_router.include_router(blog.router)
 api_router.include_router(clients.router)
 api_router.include_router(contact.router)

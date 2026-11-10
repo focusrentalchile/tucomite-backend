@@ -57,6 +57,8 @@ def init_database() -> None:
     from app.models import building_wall as building_wall_models  # noqa: F401
     from app.models import email_templates as email_template_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
+    from app.models import client_settings as client_settings_models  # noqa: F401
+    from app.models import account as account_models  # noqa: F401
     from app.models import platform_settings as platform_settings_models  # noqa: F401
     from app.repositories.access_repository import SqlAccessRepository
     from app.repositories.message_repository import SqlMessageRepository
@@ -221,6 +223,17 @@ def init_database() -> None:
                 connection.execute(
                     text("ALTER TABLE `users` ADD COLUMN `floor_number` VARCHAR(40) NULL"),
                 )
+            has_account_closed = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'account_closed_at'"
+                ),
+            ).scalar()
+            if not has_account_closed:
+                connection.execute(
+                    text("ALTER TABLE `users` ADD COLUMN `account_closed_at` DATETIME NULL"),
+                )
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)
@@ -333,6 +346,38 @@ def init_database() -> None:
                 ).scalar()
                 if not has_column:
                     connection.execute(text(ddl))
+            for column_name, ddl in (
+                ("client_id", "ALTER TABLE `topics` ADD COLUMN `client_id` VARCHAR(36) NULL"),
+                ("voting_starts_at", "ALTER TABLE `topics` ADD COLUMN `voting_starts_at` DATETIME NULL"),
+                ("voting_ends_at", "ALTER TABLE `topics` ADD COLUMN `voting_ends_at` DATETIME NULL"),
+            ):
+                has_column = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        f"AND TABLE_NAME = 'topics' AND COLUMN_NAME = '{column_name}'"
+                    ),
+                ).scalar()
+                if not has_column:
+                    connection.execute(text(ddl))
+            has_topic_client_index = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'topics' AND INDEX_NAME = 'ix_topics_client_id'"
+                ),
+            ).scalar()
+            if not has_topic_client_index:
+                connection.execute(text("CREATE INDEX `ix_topics_client_id` ON `topics` (`client_id`)"))
+            if periods_exist:
+                # Backfill: topics created before the column belong to their period's building.
+                connection.execute(
+                    text(
+                        "UPDATE `topics` t INNER JOIN `periods` p ON p.id = t.period_id "
+                        "SET t.client_id = p.client_id "
+                        "WHERE t.client_id IS NULL AND p.client_id IS NOT NULL"
+                    ),
+                )
             vote_choice_len = connection.execute(
                 text(
                     "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS "
