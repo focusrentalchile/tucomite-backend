@@ -139,6 +139,7 @@ class UserService:
             period_id=period_id,
             floor_number=cleaned_floor,
             apartment_number=cleaned_apartment,
+            must_change_password=True,
         )
         self._repository.add_user(user)
         return user
@@ -204,6 +205,8 @@ class UserService:
             period_id=current.period_id,
             floor_number=cleaned_floor,
             apartment_number=cleaned_apartment,
+            account_closed_at=current.account_closed_at,
+            must_change_password=True if password else current.must_change_password,
         )
         self._repository.save_user(updated)
         return updated

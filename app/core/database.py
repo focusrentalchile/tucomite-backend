@@ -234,6 +234,20 @@ def init_database() -> None:
                 connection.execute(
                     text("ALTER TABLE `users` ADD COLUMN `account_closed_at` DATETIME NULL"),
                 )
+            has_must_change = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'must_change_password'"
+                ),
+            ).scalar()
+            if not has_must_change:
+                connection.execute(
+                    text(
+                        "ALTER TABLE `users` ADD COLUMN `must_change_password` "
+                        "TINYINT(1) NOT NULL DEFAULT 0"
+                    ),
+                )
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)

@@ -44,6 +44,8 @@ class UserRecord:
     apartment_number: str | None = None
     # UTC ISO instant when the owner closed the account. Set means the user cannot sign in.
     account_closed_at: str | None = None
+    # True when an admin issued a temporary password that must be replaced on first sign-in.
+    must_change_password: bool = False
 
 
 @dataclass(frozen=True)

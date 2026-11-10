@@ -49,6 +49,8 @@ class ClientService:
         license_ends_at: str,
         address: str = "",
         responsible_name: str = "",
+        *,
+        must_change_password: bool = False,
     ) -> tuple[ClientRecord, UserRecord]:
         """Create a client owner and a default building administrator for that license."""
         cleaned_name = name.strip()
@@ -80,6 +82,7 @@ class ClientService:
             password_hash=password_hash,
             role_id=owner_role.id,
             client_id=client_id,
+            must_change_password=must_change_password,
         )
         self._access.add_user(user)
         client = ClientRecord(
@@ -179,6 +182,11 @@ class ClientService:
             password_hash=hash_password(password) if password else admin.password_hash,
             role_id=admin.role_id,
             client_id=client_id,
+            period_id=admin.period_id,
+            floor_number=admin.floor_number,
+            apartment_number=admin.apartment_number,
+            account_closed_at=admin.account_closed_at,
+            must_change_password=True if password else admin.must_change_password,
         )
         self._access.save_user(updated_admin)
         updated = ClientRecord(

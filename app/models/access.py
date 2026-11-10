@@ -89,3 +89,4 @@ class UserModel(Base):
     floor_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
     apartment_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
     account_closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

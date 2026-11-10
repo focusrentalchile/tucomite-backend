@@ -107,6 +107,7 @@ def test_public_register_creates_client_without_session() -> None:
     assert body["admin_email"] == payload["email"]
     assert body["address"] == payload["address"]
     assert body["responsible_name"] == payload["responsible_name"]
+    assert body.get("email_sent") is None
 
     signed_in = client.post(
         "/api/v1/auth/login",
@@ -114,6 +115,48 @@ def test_public_register_creates_client_without_session() -> None:
     )
     assert signed_in.status_code == 200
     assert signed_in.json()["email"] == payload["email"]
+    assert signed_in.json()["must_change_password"] is False
+
+
+def test_admin_created_client_must_change_temporary_password() -> None:
+    login_as_super_admin(client)
+    email = f"temp.{uuid.uuid4().hex[:8]}@demo.local"
+    created = client.post(
+        "/api/v1/clients",
+        json={
+            "name": f"Temp {uuid.uuid4().hex[:6]}",
+            "email": email,
+            "password": SEED_PASSWORD,
+            "address": "Calle 1",
+            "responsible_name": "Temporal",
+            "license_starts_at": "2026-01-01",
+            "license_ends_at": "2027-01-01",
+        },
+    )
+    assert created.status_code == 201
+
+    client.post("/api/v1/auth/logout")
+    signed_in = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": SEED_PASSWORD},
+    )
+    assert signed_in.status_code == 200
+    assert signed_in.json()["must_change_password"] is True
+
+    changed = client.post(
+        "/api/v1/auth/change-password",
+        json={"password": "nuevaClave9", "password_confirm": "nuevaClave9"},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["must_change_password"] is False
+
+    client.post("/api/v1/auth/logout")
+    again = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "nuevaClave9"},
+    )
+    assert again.status_code == 200
+    assert again.json()["must_change_password"] is False
 
 
 def test_demo_admin_cannot_list_clients() -> None:

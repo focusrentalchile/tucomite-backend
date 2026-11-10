@@ -200,6 +200,7 @@ class SqlAccessRepository:
                 period_id=user.period_id,
                 floor_number=user.floor_number,
                 apartment_number=user.apartment_number,
+                must_change_password=bool(user.must_change_password),
             ),
         )
         self._session.flush()
@@ -216,6 +217,7 @@ class SqlAccessRepository:
         row.period_id = user.period_id
         row.floor_number = user.floor_number
         row.apartment_number = user.apartment_number
+        row.must_change_password = bool(user.must_change_password)
         self._session.flush()
 
     def delete_user(self, user_id: str) -> None:
@@ -370,4 +372,5 @@ class SqlAccessRepository:
                 if (closed := getattr(row, "account_closed_at", None)) is not None
                 else None
             ),
+            must_change_password=bool(getattr(row, "must_change_password", False)),
         )

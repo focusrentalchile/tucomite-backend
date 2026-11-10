@@ -61,6 +61,7 @@ def _user_response(
         role_id=user.role_id,
         role_key=role_key,
         protected=protected,
+        client_id=user.client_id,
         floor_number=user.floor_number,
         apartment_number=user.apartment_number,
     )

@@ -47,8 +47,10 @@ def _create_client_account(
     body: CreateClientRequest,
     service: ClientService,
     db: Session,
+    *,
+    send_temporary_password_email: bool,
 ) -> ClientResponse:
-    """Shared create path for admin and public registration."""
+    """Shared create path for admin (temp password email) and public self-registration."""
     try:
         client, admin = service.create_client(
             body.name,
@@ -58,6 +60,7 @@ def _create_client_account(
             body.license_ends_at,
             address=body.address,
             responsible_name=body.responsible_name,
+            must_change_password=send_temporary_password_email,
         )
     except DuplicateClientName:
         raise HTTPException(status_code=409, detail="Client name already exists.") from None
@@ -65,6 +68,8 @@ def _create_client_account(
         raise HTTPException(status_code=409, detail="Email already registered.") from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
+    if not send_temporary_password_email:
+        return _client_response(client, admin.email, email_sent=None, email_error=None)
     invite = send_role_invite_email(
         db,
         role_key="client",
@@ -104,7 +109,7 @@ def register_client(
     db: Session = Depends(get_db),
 ) -> ClientResponse:
     """Public self-service registration for a new building client."""
-    return _create_client_account(body, service, db)
+    return _create_client_account(body, service, db, send_temporary_password_email=False)
 
 
 @router.post("", response_model=ClientResponse, status_code=201)
@@ -115,7 +120,7 @@ def create_client(
     _: object = Depends(require_permission("clients", "create")),
 ) -> ClientResponse:
     """Create a client and its administrator account."""
-    return _create_client_account(body, service, db)
+    return _create_client_account(body, service, db, send_temporary_password_email=True)
 
 
 @router.put("/{client_id}", response_model=ClientResponse)

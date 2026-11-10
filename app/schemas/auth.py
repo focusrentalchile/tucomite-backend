@@ -10,6 +10,13 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=6, max_length=128)
 
 
+class ChangePasswordRequest(BaseModel):
+    """New password pair required after a temporary invite password."""
+
+    password: str = Field(min_length=6, max_length=128)
+    password_confirm: str = Field(min_length=6, max_length=128)
+
+
 class LoginResponse(BaseModel):
     """Signed-in person returned after a successful login."""
 
@@ -28,3 +35,4 @@ class LoginResponse(BaseModel):
     license_starts_at: str | None = None
     license_ends_at: str | None = None
     license_days_remaining: int | None = None
+    must_change_password: bool = False

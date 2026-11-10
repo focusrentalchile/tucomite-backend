@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     role_id: str
     role_key: str = ""
     protected: bool = False
+    client_id: str | None = None
     floor_number: str | None = None
     apartment_number: str | None = None
 
@@ -65,9 +66,6 @@ class MeResponse(UserResponse):
     permissions: list[str] = []
     is_committee_member: bool
     is_super_admin: bool = False
-    client_id: str | None = None
-    floor_number: str | None = None
-    apartment_number: str | None = None
 
 
 class UserListResponse(BaseModel):
