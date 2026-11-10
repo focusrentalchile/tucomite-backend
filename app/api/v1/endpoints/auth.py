@@ -11,7 +11,7 @@ from app.domain.access import UserRecord
 from app.domain.license import evaluate_license
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.client_repository import SqlClientRepository
-from app.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse
+from app.schemas.auth import ActivateAccountRequest, ChangePasswordRequest, LoginRequest, LoginResponse
 from app.services.committee_access import ensure_committee_access, is_listed_committee_member
 from app.utils.passwords import hash_password, verify_password
 
@@ -61,6 +61,8 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     if user.account_closed_at:
         raise HTTPException(status_code=403, detail="account_closed")
+    if user.activation_token:
+        raise HTTPException(status_code=403, detail="account_inactive")
     role = access.get_role(user.role_id)
     if role is None:
         raise HTTPException(status_code=503, detail="Role is not available.")
@@ -93,6 +95,47 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
 def logout(request: Request) -> None:
     """Clear the session cookie."""
     request.session.clear()
+
+
+@router.post("/activate", response_model=LoginResponse)
+def activate_account(
+    body: ActivateAccountRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    """Activate a self-registered account from the welcome email token and open a session."""
+    access = SqlAccessRepository(db)
+    user = access.get_user_by_activation_token(body.token)
+    if user is None:
+        raise HTTPException(status_code=404, detail="invalid_activation_token")
+    if user.account_closed_at:
+        raise HTTPException(status_code=403, detail="account_closed")
+    activated = replace(user, activation_token=None)
+    access.save_user(activated)
+    role = access.get_role(activated.role_id)
+    if role is None:
+        raise HTTPException(status_code=503, detail="Role is not available.")
+    client = SqlClientRepository(db).get_client(activated.client_id) if activated.client_id else None
+    if not role.system and activated.client_id:
+        if client is None:
+            raise HTTPException(status_code=403, detail="license_inactive")
+        license = evaluate_license(client.license_starts_at, client.license_ends_at)
+        if license.status == "inactive":
+            raise HTTPException(status_code=403, detail="license_inactive")
+    request.session.clear()
+    request.session[SESSION_USER_KEY] = activated.id
+    role_key = "super_admin" if role.system else role.name
+    permissions = sorted(role.permissions)
+    if not role.system:
+        ensure_committee_access(db, activated.id, role.name, role.permissions)
+    return _login_response(
+        user=activated,
+        role_key=role_key,
+        permissions=permissions,
+        is_super_admin=role.system,
+        is_committee_member=is_listed_committee_member(db, activated.id),
+        client=client,
+    )
 
 
 @router.post("/change-password", response_model=LoginResponse)

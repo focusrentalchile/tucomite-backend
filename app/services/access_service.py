@@ -207,6 +207,7 @@ class UserService:
             apartment_number=cleaned_apartment,
             account_closed_at=current.account_closed_at,
             must_change_password=True if password else current.must_change_password,
+            activation_token=current.activation_token,
         )
         self._repository.save_user(updated)
         return updated

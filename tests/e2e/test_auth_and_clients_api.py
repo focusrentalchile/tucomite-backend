@@ -90,7 +90,7 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
     assert client_id not in {item["id"] for item in listed_again.json()["items"]}
 
 
-def test_public_register_creates_client_without_session() -> None:
+def test_public_register_requires_email_activation() -> None:
     payload = {
         "name": f"Registro {uuid.uuid4().hex[:6]}",
         "email": f"registro.{uuid.uuid4().hex[:8]}@demo.local",
@@ -107,15 +107,34 @@ def test_public_register_creates_client_without_session() -> None:
     assert body["admin_email"] == payload["email"]
     assert body["address"] == payload["address"]
     assert body["responsible_name"] == payload["responsible_name"]
-    assert body.get("email_sent") is None
+    assert "email_sent" in body
 
-    signed_in = client.post(
+    blocked = client.post(
         "/api/v1/auth/login",
         json={"email": payload["email"], "password": payload["password"]},
     )
-    assert signed_in.status_code == 200
-    assert signed_in.json()["email"] == payload["email"]
-    assert signed_in.json()["must_change_password"] is False
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"] == "account_inactive"
+
+    from app.core.database import SessionLocal
+    from app.models.access import UserModel
+
+    db = SessionLocal()
+    try:
+        owner = db.query(UserModel).filter(UserModel.email == payload["email"]).one()
+        token = owner.activation_token
+    finally:
+        db.close()
+    assert token
+
+    activated = client.post("/api/v1/auth/activate", json={"token": token})
+    assert activated.status_code == 200
+    assert activated.json()["email"] == payload["email"]
+    assert activated.json()["must_change_password"] is False
+
+    session = client.get("/api/v1/auth/session")
+    assert session.status_code == 200
+    assert session.json()["email"] == payload["email"]
 
 
 def test_admin_created_client_must_change_temporary_password() -> None:

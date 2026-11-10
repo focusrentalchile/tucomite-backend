@@ -46,6 +46,8 @@ class UserRecord:
     account_closed_at: str | None = None
     # True when an admin issued a temporary password that must be replaced on first sign-in.
     must_change_password: bool = False
+    # One-time token for self-registration email activation. Set means login is blocked.
+    activation_token: str | None = None
 
 
 @dataclass(frozen=True)

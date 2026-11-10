@@ -248,6 +248,26 @@ def init_database() -> None:
                         "TINYINT(1) NOT NULL DEFAULT 0"
                     ),
                 )
+            has_activation_token = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'activation_token'"
+                ),
+            ).scalar()
+            if not has_activation_token:
+                connection.execute(
+                    text(
+                        "ALTER TABLE `users` ADD COLUMN `activation_token` "
+                        "VARCHAR(128) NULL"
+                    ),
+                )
+                connection.execute(
+                    text(
+                        "CREATE UNIQUE INDEX `ix_users_activation_token` "
+                        "ON `users` (`activation_token`)"
+                    ),
+                )
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)

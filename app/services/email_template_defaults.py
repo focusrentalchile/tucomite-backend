@@ -3,6 +3,7 @@
 from app.domain.email_templates import (
     TEMPLATE_ADMINISTRATOR_INVITE,
     TEMPLATE_CARETAKER_INVITE,
+    TEMPLATE_CLIENT_ACTIVATION,
     TEMPLATE_CLIENT_WELCOME,
     TEMPLATE_COMMITTEE_INVITE,
     TEMPLATE_RESIDENT_INVITE,
@@ -50,6 +51,25 @@ def _shell(*, title: str, inner: str) -> str:
 
 
 DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
+    TEMPLATE_CLIENT_ACTIVATION: {
+        "name": "Activación de cuenta",
+        "subject": "Activa tu cuenta en TuComité",
+        "html_body": _shell(
+            title="Activación de cuenta",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">¡Bienvenido a TuComité!</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Recibimos el registro de <strong>{{building_name}}</strong>. Para comenzar, activá tu cuenta con el botón de abajo.</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Correo de acceso: <strong>{{email}}</strong></p>
+              <p style="margin:28px 0;text-align:center;">
+                <a href="{{invite_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Activar cuenta</a>
+              </p>
+              <p style="margin:0 0 14px;font-size:14px;line-height:1.55;color:#5a6a8a;">Si el botón no funciona, abrí este enlace:<br />
+              <a href="{{invite_url}}" style="color:#1554d1;word-break:break-all;">{{invite_url}}</a></p>
+              <p style="margin:0;font-size:15px;line-height:1.6;">Después de activar, vas a ingresar al panel de TuComité.</p>
+            """,
+        ),
+    },
     TEMPLATE_CLIENT_WELCOME: {
         "name": "Bienvenida cliente",
         "subject": "¡Bienvenido a TuComité! Tu comunidad comienza una nueva etapa",

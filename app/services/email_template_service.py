@@ -78,10 +78,10 @@ class EmailTemplateService:
             body = body.replace(key, value)
         return subject, body
 
-    def send_for_role(
+    def send_by_key(
         self,
         *,
-        role_key: str,
+        template_key: str,
         to_email: str,
         name: str,
         building_name: str = "",
@@ -93,10 +93,7 @@ class EmailTemplateService:
         smtp: SmtpDeliveryConfig | None = None,
         raise_on_error: bool = False,
     ) -> bool:
-        """Send the matching invite template for a role. Returns False if skipped."""
-        template_key = ROLE_TO_TEMPLATE.get(role_key.casefold())
-        if template_key is None:
-            return False
+        """Send one template by key. Returns False if the key is unknown."""
         template = self._repository.get_by_key(template_key)
         if template is None:
             raise EmailTemplateNotFound()
@@ -122,3 +119,36 @@ class EmailTemplateService:
                 raise
             return False
         return True
+
+    def send_for_role(
+        self,
+        *,
+        role_key: str,
+        to_email: str,
+        name: str,
+        building_name: str = "",
+        invite_url: str = "",
+        site_url: str = "https://tucomite.cl",
+        logo_url: str = "https://tucomite.cl/logo-email.png",
+        login_email: str = "",
+        temporary_password: str = "",
+        smtp: SmtpDeliveryConfig | None = None,
+        raise_on_error: bool = False,
+    ) -> bool:
+        """Send the matching invite template for a role. Returns False if skipped."""
+        template_key = ROLE_TO_TEMPLATE.get(role_key.casefold())
+        if template_key is None:
+            return False
+        return self.send_by_key(
+            template_key=template_key,
+            to_email=to_email,
+            name=name,
+            building_name=building_name,
+            invite_url=invite_url,
+            site_url=site_url,
+            logo_url=logo_url,
+            login_email=login_email,
+            temporary_password=temporary_password,
+            smtp=smtp,
+            raise_on_error=raise_on_error,
+        )

@@ -1,5 +1,6 @@
 """Use cases for platform clients and their first admin user."""
 
+import secrets
 import uuid
 from datetime import date
 
@@ -51,6 +52,7 @@ class ClientService:
         responsible_name: str = "",
         *,
         must_change_password: bool = False,
+        require_activation: bool = False,
     ) -> tuple[ClientRecord, UserRecord]:
         """Create a client owner and a default building administrator for that license."""
         cleaned_name = name.strip()
@@ -75,6 +77,7 @@ class ClientService:
         user_id = str(uuid.uuid4())
         password_hash = hash_password(password)
         cleaned_responsible = responsible_name.strip()
+        activation_token = secrets.token_urlsafe(32) if require_activation else None
         user = UserRecord(
             id=user_id,
             full_name=cleaned_responsible or cleaned_name,
@@ -83,6 +86,7 @@ class ClientService:
             role_id=owner_role.id,
             client_id=client_id,
             must_change_password=must_change_password,
+            activation_token=activation_token,
         )
         self._access.add_user(user)
         client = ClientRecord(
@@ -187,6 +191,7 @@ class ClientService:
             apartment_number=admin.apartment_number,
             account_closed_at=admin.account_closed_at,
             must_change_password=True if password else admin.must_change_password,
+            activation_token=admin.activation_token,
         )
         self._access.save_user(updated_admin)
         updated = ClientRecord(

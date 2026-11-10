@@ -39,6 +39,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/clients" in paths
     assert "/clients/register" in paths
     assert "/auth/change-password" in paths
+    assert "/auth/activate" in paths
     assert "/management/workspace/imports" in paths
     assert "/management/workspace/imports/{import_id}/approve" in paths
     assert "/management/workspace/imports/{import_id}/reject" in paths

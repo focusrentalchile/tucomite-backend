@@ -64,6 +64,9 @@ class AccessRepository(Protocol):
     def get_user_by_email(self, email: str) -> UserRecord | None:
         """Return the user with this email, or None."""
 
+    def get_user_by_activation_token(self, token: str) -> UserRecord | None:
+        """Return the user waiting to activate with this token, or None."""
+
 
 class SqlAccessRepository:
     """SQLAlchemy adapter for the MySQL access tables."""
@@ -201,6 +204,7 @@ class SqlAccessRepository:
                 floor_number=user.floor_number,
                 apartment_number=user.apartment_number,
                 must_change_password=bool(user.must_change_password),
+                activation_token=user.activation_token,
             ),
         )
         self._session.flush()
@@ -218,6 +222,7 @@ class SqlAccessRepository:
         row.floor_number = user.floor_number
         row.apartment_number = user.apartment_number
         row.must_change_password = bool(user.must_change_password)
+        row.activation_token = user.activation_token
         self._session.flush()
 
     def delete_user(self, user_id: str) -> None:
@@ -335,6 +340,17 @@ class SqlAccessRepository:
             return None
         return self._user(row)
 
+    def get_user_by_activation_token(self, token: str) -> UserRecord | None:
+        cleaned = token.strip()
+        if not cleaned:
+            return None
+        row = self._session.scalar(
+            select(UserModel).where(UserModel.activation_token == cleaned),
+        )
+        if row is None:
+            return None
+        return self._user(row)
+
     def _insert_permissions(self, role: RoleRecord) -> None:
         for key in sorted(role.permissions):
             module_key, functionality_key = key.split(".", 1)
@@ -373,4 +389,5 @@ class SqlAccessRepository:
                 else None
             ),
             must_change_password=bool(getattr(row, "must_change_password", False)),
+            activation_token=getattr(row, "activation_token", None),
         )

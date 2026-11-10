@@ -17,6 +17,12 @@ class ChangePasswordRequest(BaseModel):
     password_confirm: str = Field(min_length=6, max_length=128)
 
 
+class ActivateAccountRequest(BaseModel):
+    """One-time token from the self-registration welcome email."""
+
+    token: str = Field(min_length=16, max_length=128)
+
+
 class LoginResponse(BaseModel):
     """Signed-in person returned after a successful login."""
 

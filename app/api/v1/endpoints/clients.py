@@ -15,7 +15,7 @@ from app.schemas.clients import (
     UpdateClientRequest,
 )
 from app.services.client_service import ClientNotFound, ClientService, DuplicateClientName
-from app.services.onboarding_email import send_role_invite_email
+from app.services.onboarding_email import send_client_activation_email, send_role_invite_email
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -49,6 +49,7 @@ def _create_client_account(
     db: Session,
     *,
     send_temporary_password_email: bool,
+    require_activation: bool = False,
 ) -> ClientResponse:
     """Shared create path for admin (temp password email) and public self-registration."""
     try:
@@ -61,6 +62,7 @@ def _create_client_account(
             address=body.address,
             responsible_name=body.responsible_name,
             must_change_password=send_temporary_password_email,
+            require_activation=require_activation,
         )
     except DuplicateClientName:
         raise HTTPException(status_code=409, detail="Client name already exists.") from None
@@ -68,6 +70,21 @@ def _create_client_account(
         raise HTTPException(status_code=409, detail="Email already registered.") from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
+    if require_activation:
+        token = admin.activation_token or ""
+        invite = send_client_activation_email(
+            db,
+            to_email=admin.email,
+            name=admin.full_name or client.responsible_name or client.name,
+            building_name=client.name,
+            activation_token=token,
+        )
+        return _client_response(
+            client,
+            admin.email,
+            email_sent=invite.sent,
+            email_error=invite.error or None,
+        )
     if not send_temporary_password_email:
         return _client_response(client, admin.email, email_sent=None, email_error=None)
     invite = send_role_invite_email(
@@ -109,7 +126,13 @@ def register_client(
     db: Session = Depends(get_db),
 ) -> ClientResponse:
     """Public self-service registration for a new building client."""
-    return _create_client_account(body, service, db, send_temporary_password_email=False)
+    return _create_client_account(
+        body,
+        service,
+        db,
+        send_temporary_password_email=False,
+        require_activation=True,
+    )
 
 
 @router.post("", response_model=ClientResponse, status_code=201)

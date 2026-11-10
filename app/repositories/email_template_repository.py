@@ -64,6 +64,9 @@ class SqlEmailTemplateRepository:
                 if key == "client_welcome" and "{{password}}" not in (row.html_body or ""):
                     row.subject = defaults["subject"]
                     row.html_body = defaults["html_body"]
+                if key == "client_activation" and "Activar cuenta" not in (row.html_body or ""):
+                    row.subject = defaults["subject"]
+                    row.html_body = defaults["html_body"]
         self._session.flush()
 
     def list_templates(self) -> list[EmailTemplateRecord]:
