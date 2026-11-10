@@ -43,29 +43,12 @@ def _client_response(
     )
 
 
-@router.get("", response_model=ClientListResponse)
-def list_clients(
-    service: ClientService = Depends(get_client_service),
-    db: Session = Depends(get_db),
-    _: object = Depends(require_permission("clients", "view")),
-) -> ClientListResponse:
-    """Return every client for the platform super admin."""
-    access = SqlAccessRepository(db)
-    items: list[ClientResponse] = []
-    for client in service.list_clients():
-        admin = access.get_user(client.admin_user_id)
-        items.append(_client_response(client, admin.email if admin else ""))
-    return ClientListResponse(items=items)
-
-
-@router.post("", response_model=ClientResponse, status_code=201)
-def create_client(
+def _create_client_account(
     body: CreateClientRequest,
-    service: ClientService = Depends(get_client_service),
-    db: Session = Depends(get_db),
-    _: object = Depends(require_permission("clients", "create")),
+    service: ClientService,
+    db: Session,
 ) -> ClientResponse:
-    """Create a client and its administrator account."""
+    """Shared create path for admin and public registration."""
     try:
         client, admin = service.create_client(
             body.name,
@@ -97,6 +80,42 @@ def create_client(
         email_sent=invite.sent,
         email_error=invite.error or None,
     )
+
+
+@router.get("", response_model=ClientListResponse)
+def list_clients(
+    service: ClientService = Depends(get_client_service),
+    db: Session = Depends(get_db),
+    _: object = Depends(require_permission("clients", "view")),
+) -> ClientListResponse:
+    """Return every client for the platform super admin."""
+    access = SqlAccessRepository(db)
+    items: list[ClientResponse] = []
+    for client in service.list_clients():
+        admin = access.get_user(client.admin_user_id)
+        items.append(_client_response(client, admin.email if admin else ""))
+    return ClientListResponse(items=items)
+
+
+@router.post("/register", response_model=ClientResponse, status_code=201)
+def register_client(
+    body: CreateClientRequest,
+    service: ClientService = Depends(get_client_service),
+    db: Session = Depends(get_db),
+) -> ClientResponse:
+    """Public self-service registration for a new building client."""
+    return _create_client_account(body, service, db)
+
+
+@router.post("", response_model=ClientResponse, status_code=201)
+def create_client(
+    body: CreateClientRequest,
+    service: ClientService = Depends(get_client_service),
+    db: Session = Depends(get_db),
+    _: object = Depends(require_permission("clients", "create")),
+) -> ClientResponse:
+    """Create a client and its administrator account."""
+    return _create_client_account(body, service, db)
 
 
 @router.put("/{client_id}", response_model=ClientResponse)

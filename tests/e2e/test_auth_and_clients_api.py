@@ -90,6 +90,32 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
     assert client_id not in {item["id"] for item in listed_again.json()["items"]}
 
 
+def test_public_register_creates_client_without_session() -> None:
+    payload = {
+        "name": f"Registro {uuid.uuid4().hex[:6]}",
+        "email": f"registro.{uuid.uuid4().hex[:8]}@demo.local",
+        "password": SEED_PASSWORD,
+        "address": "Av. Apoquindo 100",
+        "responsible_name": "Ana Ruiz",
+        "license_starts_at": "2026-01-01",
+        "license_ends_at": "2027-01-01",
+    }
+    created = client.post("/api/v1/clients/register", json=payload)
+    assert created.status_code == 201
+    body = created.json()
+    assert body["name"] == payload["name"]
+    assert body["admin_email"] == payload["email"]
+    assert body["address"] == payload["address"]
+    assert body["responsible_name"] == payload["responsible_name"]
+
+    signed_in = client.post(
+        "/api/v1/auth/login",
+        json={"email": payload["email"], "password": payload["password"]},
+    )
+    assert signed_in.status_code == 200
+    assert signed_in.json()["email"] == payload["email"]
+
+
 def test_demo_admin_cannot_list_clients() -> None:
     login_as_demo_admin(client)
     me = client.get("/api/v1/access/me")
