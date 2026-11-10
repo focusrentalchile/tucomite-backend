@@ -238,6 +238,51 @@ def test_create_user_assigns_a_role_and_rejects_a_duplicate_email() -> None:
         users.create_user("Luis", "luis@example.com", "secreto-2", "missing")
 
 
+def test_create_and_update_resident_requires_floor_and_apartment() -> None:
+    repository = InMemoryAccessRepository()
+    registered = catalog()
+    bootstrap_access(repository, registered)
+    role = next(item for item in repository.list_roles() if item.name == "resident")
+    users = UserService(repository)
+
+    with pytest.raises(ValueError, match="floor and apartment"):
+        users.create_user("Vecino", "vecino@example.com", "secreto-1", role.id)
+
+    created = users.create_user(
+        "Vecino",
+        "vecino@example.com",
+        "secreto-1",
+        role.id,
+        floor_number="3",
+        apartment_number="301",
+    )
+    assert created.floor_number == "3"
+    assert created.apartment_number == "301"
+
+    updated = users.update_user(
+        created.id,
+        "Vecino Uno",
+        "vecino@example.com",
+        None,
+        role.id,
+        floor_number="4",
+        apartment_number="402",
+    )
+    assert updated.floor_number == "4"
+    assert updated.apartment_number == "402"
+
+    with pytest.raises(ValueError, match="floor and apartment"):
+        users.update_user(
+            created.id,
+            "Vecino Uno",
+            "vecino@example.com",
+            None,
+            role.id,
+            floor_number="",
+            apartment_number="402",
+        )
+
+
 def test_update_and_delete_user() -> None:
     repository = InMemoryAccessRepository()
     registered = catalog()

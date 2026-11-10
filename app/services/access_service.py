@@ -112,6 +112,8 @@ class UserService:
         role_id: str | None = None,
         client_id: str | None = None,
         period_id: str | None = None,
+        floor_number: str | None = None,
+        apartment_number: str | None = None,
     ) -> UserRecord:
         """Create a user when the email is free and the role exists."""
         normalized = email.strip().lower()
@@ -123,6 +125,10 @@ class UserService:
             raise UnknownRole(assigned_role_id)
         if role.system or role.name.casefold() in {name.casefold() for name in NON_ASSIGNABLE_ROLES}:
             raise UnknownRole(assigned_role_id)
+        cleaned_floor = (floor_number or "").strip() or None
+        cleaned_apartment = (apartment_number or "").strip() or None
+        if role.name.casefold() == "resident" and (not cleaned_floor or not cleaned_apartment):
+            raise ValueError("Resident floor and apartment are required.")
         user = UserRecord(
             id=str(uuid.uuid4()),
             full_name=full_name.strip(),
@@ -131,6 +137,8 @@ class UserService:
             role_id=assigned_role_id,
             client_id=client_id,
             period_id=period_id,
+            floor_number=cleaned_floor,
+            apartment_number=cleaned_apartment,
         )
         self._repository.add_user(user)
         return user
@@ -142,10 +150,12 @@ class UserService:
         email: str,
         password: str | None = None,
         role_id: str | None = None,
+        floor_number: str | None = None,
+        apartment_number: str | None = None,
         *,
         protected_user_ids: frozenset[str] | None = None,
     ) -> UserRecord:
-        """Update name, email, optional password, and optional role."""
+        """Update name, email, optional password, optional role, and unit location."""
         current = self._repository.get_user(user_id)
         if current is None:
             raise UserNotFound()
@@ -156,6 +166,7 @@ class UserService:
         if other is not None and other.id != user_id:
             raise DuplicateEmail(normalized)
         assigned_role_id = current.role_id
+        role = None
         if role_id is not None:
             role = self._repository.get_role(role_id)
             if (
@@ -165,6 +176,24 @@ class UserService:
             ):
                 raise UnknownRole(role_id)
             assigned_role_id = role_id
+        else:
+            role = self._repository.get_role(assigned_role_id)
+        cleaned_floor = (
+            (floor_number.strip() if isinstance(floor_number, str) else None)
+            if floor_number is not None
+            else current.floor_number
+        )
+        cleaned_apartment = (
+            (apartment_number.strip() if isinstance(apartment_number, str) else None)
+            if apartment_number is not None
+            else current.apartment_number
+        )
+        cleaned_floor = cleaned_floor or None
+        cleaned_apartment = cleaned_apartment or None
+        if role is not None and role.name.casefold() == "resident" and (
+            not cleaned_floor or not cleaned_apartment
+        ):
+            raise ValueError("Resident floor and apartment are required.")
         updated = UserRecord(
             id=current.id,
             full_name=full_name.strip(),
@@ -173,7 +202,8 @@ class UserService:
             role_id=assigned_role_id,
             client_id=current.client_id,
             period_id=current.period_id,
-            apartment_number=current.apartment_number,
+            floor_number=cleaned_floor,
+            apartment_number=cleaned_apartment,
         )
         self._repository.save_user(updated)
         return updated

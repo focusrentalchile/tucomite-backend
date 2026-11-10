@@ -194,6 +194,7 @@ class SqlAccessRepository:
                 role_id=user.role_id,
                 client_id=user.client_id,
                 period_id=user.period_id,
+                floor_number=user.floor_number,
                 apartment_number=user.apartment_number,
             ),
         )
@@ -209,6 +210,7 @@ class SqlAccessRepository:
         row.role_id = user.role_id
         row.client_id = user.client_id
         row.period_id = user.period_id
+        row.floor_number = user.floor_number
         row.apartment_number = user.apartment_number
         self._session.flush()
 
@@ -334,5 +336,6 @@ class SqlAccessRepository:
             role_id=row.role_id,
             client_id=getattr(row, "client_id", None),
             period_id=getattr(row, "period_id", None),
+            floor_number=getattr(row, "floor_number", None),
             apartment_number=getattr(row, "apartment_number", None),
         )

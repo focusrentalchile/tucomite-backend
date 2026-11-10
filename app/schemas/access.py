@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     role_id: str
     role_key: str = ""
     protected: bool = False
+    floor_number: str | None = None
     apartment_number: str | None = None
 
 
@@ -65,6 +66,7 @@ class MeResponse(UserResponse):
     is_committee_member: bool
     is_super_admin: bool = False
     client_id: str | None = None
+    floor_number: str | None = None
     apartment_number: str | None = None
 
 
@@ -81,6 +83,8 @@ class CreateUserRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=6, max_length=128)
     role_id: str | None = Field(default=None, max_length=36)
+    floor_number: str | None = Field(default=None, max_length=40)
+    apartment_number: str | None = Field(default=None, max_length=40)
 
 
 class UpdateUserRequest(BaseModel):
@@ -90,3 +94,5 @@ class UpdateUserRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
     password: str | None = Field(default=None, min_length=6, max_length=128)
     role_id: str | None = Field(default=None, max_length=36)
+    floor_number: str | None = Field(default=None, max_length=40)
+    apartment_number: str | None = Field(default=None, max_length=40)

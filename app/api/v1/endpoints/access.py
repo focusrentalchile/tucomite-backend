@@ -61,6 +61,7 @@ def _user_response(
         role_id=user.role_id,
         role_key=role_key,
         protected=protected,
+        floor_number=user.floor_number,
         apartment_number=user.apartment_number,
     )
 
@@ -125,6 +126,7 @@ def read_me(
         is_committee_member=is_listed_committee_member(db, user.id),
         is_super_admin=actor.is_super_admin,
         client_id=user.client_id,
+        floor_number=user.floor_number,
         apartment_number=user.apartment_number,
     )
 
@@ -246,11 +248,15 @@ def create_user(
             body.role_id,
             client_id=None if actor.is_super_admin else actor.client_id,
             period_id=None,
+            floor_number=body.floor_number,
+            apartment_number=body.apartment_number,
         )
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already exists.") from None
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     admin_id = _client_admin_id(db, actor.client_id)
     access = SqlAccessRepository(db)
     role = access.get_role(user.role_id)
@@ -294,6 +300,8 @@ def update_user(
             body.email,
             body.password,
             body.role_id,
+            floor_number=body.floor_number,
+            apartment_number=body.apartment_number,
             protected_user_ids=protected_ids,
         )
     except UserNotFound:
@@ -304,6 +312,8 @@ def update_user(
         raise HTTPException(status_code=409, detail="The building admin cannot be changed.") from None
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     role = SqlAccessRepository(db).get_role(user.role_id)
     return _user_response(
         user,

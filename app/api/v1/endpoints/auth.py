@@ -39,6 +39,7 @@ def _login_response(
         is_super_admin=is_super_admin,
         client_id=user.client_id,
         is_committee_member=is_committee_member,
+        floor_number=user.floor_number,
         apartment_number=user.apartment_number,
         license_status=None if license is None else license.status,
         license_starts_at=None if license is None else license.starts_at,

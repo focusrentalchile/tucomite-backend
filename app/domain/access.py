@@ -40,6 +40,7 @@ class UserRecord:
     role_id: str
     client_id: str | None = None
     period_id: str | None = None
+    floor_number: str | None = None
     apartment_number: str | None = None
 
 

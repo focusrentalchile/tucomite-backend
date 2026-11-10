@@ -210,6 +210,17 @@ def init_database() -> None:
                 connection.execute(
                     text("ALTER TABLE `users` ADD COLUMN `apartment_number` VARCHAR(40) NULL"),
                 )
+            has_floor = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'floor_number'"
+                ),
+            ).scalar()
+            if not has_floor:
+                connection.execute(
+                    text("ALTER TABLE `users` ADD COLUMN `floor_number` VARCHAR(40) NULL"),
+                )
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)
