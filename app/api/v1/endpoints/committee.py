@@ -1,18 +1,28 @@
 """Committee membership endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_committee_service, require_committee_roster_access, require_permission
+from app.api.deps import (
+    Actor,
+    get_committee_service,
+    get_current_actor,
+    require_committee_roster_access,
+    require_permission,
+)
+from app.core.database import get_db
 from app.domain.committee import (
     CommitteeMemberNotFound,
     CommitteeMemberRecord,
     DuplicateCommitteeMember,
     UnknownCommitteeUser,
 )
+from app.repositories.committee_repository import SqlCommitteeRepository
 from app.schemas.committee import (
     AddCommitteeMemberRequest,
     CommitteeMemberListResponse,
     CommitteeMemberResponse,
+    CommitteeVoterSeatsResponse,
 )
 from app.services.committee_service import CommitteeService
 
@@ -25,6 +35,22 @@ def _member_response(member: CommitteeMemberRecord) -> CommitteeMemberResponse:
         full_name=member.full_name,
         email=member.email,
     )
+
+
+@router.get("/committee/voter-seats", response_model=CommitteeVoterSeatsResponse)
+def read_committee_voter_seats(
+    actor: Actor = Depends(get_current_actor),
+    _: Actor = Depends(require_committee_roster_access),
+    db: Session = Depends(get_db),
+) -> CommitteeVoterSeatsResponse:
+    """Return how many committee/client voters the actor's building has.
+
+    Used by Temas so committee users can vote without needing ``users.view``.
+    """
+    if not actor.client_id:
+        return CommitteeVoterSeatsResponse(count=0)
+    count = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
+    return CommitteeVoterSeatsResponse(count=count)
 
 
 @router.get("/committee/members", response_model=CommitteeMemberListResponse)

@@ -19,8 +19,8 @@ class CommitteeRepository(Protocol):
     def list_members(self) -> list[CommitteeMemberRecord]:
         """Return every committee member ordered by name."""
 
-    def count_voter_seats(self) -> int:
-        """Return how many users have committee or client roles."""
+    def count_voter_seats(self, client_id: str | None = None) -> int:
+        """Return how many users have committee or client roles in one building."""
 
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:
         """Return one committee member when present."""
@@ -49,13 +49,16 @@ class SqlCommitteeRepository:
         ).scalars().all()
         return [self._member(row) for row in rows]
 
-    def count_voter_seats(self) -> int:
+    def count_voter_seats(self, client_id: str | None = None) -> int:
         """Count building users whose role is committee or client."""
-        rows = self._session.execute(
+        stmt = (
             select(UserModel.id)
             .join(RoleModel, RoleModel.id == UserModel.role_id)
-            .where(RoleModel.name.in_(tuple(VOTER_ROLE_NAMES))),
-        ).all()
+            .where(RoleModel.name.in_(tuple(VOTER_ROLE_NAMES)))
+        )
+        if client_id:
+            stmt = stmt.where(UserModel.client_id == client_id)
+        rows = self._session.execute(stmt).all()
         return len(rows)
 
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:

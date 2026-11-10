@@ -21,3 +21,9 @@ class CommitteeMemberListResponse(BaseModel):
     """Committee members currently stored."""
 
     items: list[CommitteeMemberResponse]
+
+
+class CommitteeVoterSeatsResponse(BaseModel):
+    """How many committee/client voters the building currently has."""
+
+    count: int = Field(ge=0)

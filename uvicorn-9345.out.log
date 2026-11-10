@@ -21,3 +21,11 @@ INFO:     127.0.0.1:59232 - "GET /api/v1/building-settings/vote-window HTTP/1.1"
 INFO:     127.0.0.1:59233 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
 INFO:     127.0.0.1:60604 - "GET /api/v1/health HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60604 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55455 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:55456 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:55457 - "GET /api/v1/building-settings/vote-window HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:55513 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55513 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52232 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52924 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52924 - "GET /api/v1/health HTTP/1.1" 200 OK

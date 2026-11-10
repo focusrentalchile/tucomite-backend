@@ -3,9 +3,28 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.helpers.auth import login_as_super_admin
+from tests.helpers.auth import login_as_demo_admin, login_as_super_admin
+from tests.helpers.platform_accounts import SEED_PASSWORD
 
 client = TestClient(app)
+
+
+def test_committee_user_reads_building_voter_seats() -> None:
+    """Committee voters share the same seat count as the building owner."""
+    login_as_demo_admin(client)
+    owner = client.get("/api/v1/committee/voter-seats")
+    assert owner.status_code == 200
+    owner_count = owner.json()["count"]
+    assert owner_count >= 3
+
+    signed = client.post(
+        "/api/v1/auth/login",
+        json={"email": "comite@demo.tucomite.local", "password": SEED_PASSWORD},
+    )
+    assert signed.status_code == 200
+    committee = client.get("/api/v1/committee/voter-seats")
+    assert committee.status_code == 200
+    assert committee.json()["count"] == owner_count
 
 
 def test_committee_member_can_be_added_listed_and_removed() -> None:
