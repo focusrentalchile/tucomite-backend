@@ -6,6 +6,7 @@ from app.domain.email_templates import (
     TEMPLATE_CLIENT_ACTIVATION,
     TEMPLATE_CLIENT_WELCOME,
     TEMPLATE_COMMITTEE_INVITE,
+    TEMPLATE_PLATFORM_INVITE,
     TEMPLATE_RESIDENT_INVITE,
 )
 
@@ -51,6 +52,43 @@ def _shell(*, title: str, inner: str) -> str:
 
 
 DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
+    TEMPLATE_PLATFORM_INVITE: {
+        "name": "Invitación plataforma",
+        "subject": "¡Bienvenido a TuComité! Tu comunidad comienza una nueva etapa",
+        "html_body": _shell(
+            title="Invitación plataforma",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">¡Bienvenido a TuComité!💙</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Nos alegra que tu comunidad sea parte de esta nueva forma de organizar, comunicar y gestionar las decisiones de su edificio.</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Sabemos que liderar un comité implica tiempo, compromiso y muchas conversaciones. Por eso creamos <strong>TuComité.cl</strong>, una plataforma diseñada para ayudarte a transformar esas conversaciones en decisiones claras, organizadas y con seguimiento.</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>Como presidente del comité, serás quien dé el primer paso.</strong></p>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>Para comenzar:</strong></p>
+              <p style="margin:22px 0;text-align:center;">
+                <a href="{{invite_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Regístrate</a>
+              </p>
+              <ul style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
+                <li>Invita a los demás integrantes del comité.</li>
+                <li>Incorpora al administrador y al mayordomo, si corresponde.</li>
+                <li>Crea el primer tema que quieran gestionar como comunidad.</li>
+              </ul>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>¿Qué podrán hacer desde ahora?</strong></p>
+              <ul style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
+                <li>Organizar los temas importantes del edificio.</li>
+                <li>Participar en votaciones y registrar decisiones.</li>
+                <li>Consultar los acuerdos y su historial.</li>
+                <li>Dar seguimiento al avance de los asuntos del comité.</li>
+              </ul>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>Tu opinión también construye TuComité.</strong></p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Estás participando en nuestras primeras experiencias con comunidades reales. Queremos escucharte, acompañarte y mejorar la herramienta junto a ustedes.</p>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;">¿Necesitas ayuda para comenzar?</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Solicita una video llamada con nuestro equipo para guiarte y acompañarte:<br />
+              <a href="mailto:hola@tucomite.cl" style="color:#1554d1;">hola@tucomite.cl</a><br />
+              +56 9 5801 6449</p>
+              <p style="margin:0;font-size:15px;line-height:1.6;"><strong>Bienvenido a una gestión más simple, conectada y organizada.</strong></p>
+            """,
+        ),
+    },
     TEMPLATE_CLIENT_ACTIVATION: {
         "name": "Activación de cuenta",
         "subject": "Activa tu cuenta en TuComité",

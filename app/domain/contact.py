@@ -14,6 +14,7 @@ class ContactMessageRecord:
     privacy_accepted: bool
     privacy_accepted_at: str | None
     created_at: str
+    subject: str = ""
 
 
 class PrivacyConsentRequired(Exception):

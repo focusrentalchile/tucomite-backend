@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     email_templates,
     management,
     health,
+    invitations,
     legal,
     messages,
     notifications,
@@ -50,5 +51,6 @@ api_router.include_router(support.router)
 api_router.include_router(building_wall.router)
 api_router.include_router(platform_settings.router)
 api_router.include_router(email_templates.router)
+api_router.include_router(invitations.router)
 api_router.include_router(topics.router)
 api_router.include_router(agreements.router)

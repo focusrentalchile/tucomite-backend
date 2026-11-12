@@ -56,6 +56,7 @@ def init_database() -> None:
     from app.models import support as support_models  # noqa: F401
     from app.models import building_wall as building_wall_models  # noqa: F401
     from app.models import email_templates as email_template_models  # noqa: F401
+    from app.models import invitations as invitation_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
     from app.models import client_settings as client_settings_models  # noqa: F401
     from app.models import account as account_models  # noqa: F401

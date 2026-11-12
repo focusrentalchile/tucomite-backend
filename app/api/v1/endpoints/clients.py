@@ -121,17 +121,12 @@ def list_clients(
 
 @router.post("/register", response_model=ClientResponse, status_code=201)
 def register_client(
-    body: CreateClientRequest,
-    service: ClientService = Depends(get_client_service),
-    db: Session = Depends(get_db),
+    _body: CreateClientRequest,
 ) -> ClientResponse:
-    """Public self-service registration for a new building client."""
-    return _create_client_account(
-        body,
-        service,
-        db,
-        send_temporary_password_email=False,
-        require_activation=True,
+    """Legacy public register is closed; invitations own the secure path."""
+    raise HTTPException(
+        status_code=403,
+        detail="Registration requires a valid invitation link.",
     )
 
 

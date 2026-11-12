@@ -8,6 +8,7 @@ class CreateContactMessageRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=160)
     email: str = Field(min_length=3, max_length=255)
+    subject: str = Field(default="", max_length=200)
     message: str = Field(min_length=1, max_length=5000)
     privacy_accepted: bool
 
@@ -18,6 +19,7 @@ class ContactMessageResponse(BaseModel):
     id: str
     name: str
     email: str
+    subject: str = ""
     message: str
     privacy_accepted: bool
     privacy_accepted_at: str | None

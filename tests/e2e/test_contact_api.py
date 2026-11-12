@@ -25,6 +25,7 @@ def test_contact_message_requires_privacy_and_lists_for_super_admin() -> None:
         json={
             "name": "Ana",
             "email": "ana@edificio.cl",
+            "subject": "Quiero registrar mi edificio en Tu Comité",
             "message": "Quiero una demo",
             "privacy_accepted": True,
         },
@@ -33,6 +34,8 @@ def test_contact_message_requires_privacy_and_lists_for_super_admin() -> None:
     payload = created.json()
     assert payload["privacy_accepted"] is True
     assert payload["privacy_accepted_at"]
+    assert payload["subject"] == "Quiero registrar mi edificio en Tu Comité"
+    assert "Asunto: Quiero registrar mi edificio en Tu Comité" in payload["message"]
 
     login_as_super_admin(client)
     listed = client.get("/api/v1/contact/messages")

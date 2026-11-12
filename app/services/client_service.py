@@ -67,6 +67,10 @@ class ClientService:
         if self._access.get_user_by_email(normalized) is not None:
             raise DuplicateEmail(normalized)
 
+        from app.core.access_catalog import access_catalog
+        from app.services.access_bootstrap import _ensure_starter_roles
+
+        _ensure_starter_roles(self._access, access_catalog.permission_keys())
         owner_role = next(
             (role for role in self._access.list_roles() if role.name.casefold() == "client"),
             None,

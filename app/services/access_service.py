@@ -114,6 +114,8 @@ class UserService:
         period_id: str | None = None,
         floor_number: str | None = None,
         apartment_number: str | None = None,
+        *,
+        must_change_password: bool = True,
     ) -> UserRecord:
         """Create a user when the email is free and the role exists."""
         normalized = email.strip().lower()
@@ -139,7 +141,7 @@ class UserService:
             period_id=period_id,
             floor_number=cleaned_floor,
             apartment_number=cleaned_apartment,
-            must_change_password=True,
+            must_change_password=must_change_password,
         )
         self._repository.add_user(user)
         return user

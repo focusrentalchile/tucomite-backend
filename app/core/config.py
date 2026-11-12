@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
     public_site_url: str = "https://tucomite.cl"
+    api_public_url: str = "https://api.tucomite.cl"
+    contact_notify_emails: str = (
+        "ricardo@tucomite.cl,hola@tucomite.cl,javier@tucomite.cl"
+    )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

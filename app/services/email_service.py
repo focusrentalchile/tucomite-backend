@@ -98,6 +98,17 @@ def build_support_reply_html(*, visitor_name: str, reply_body: str, site_url: st
 </html>"""
 
 
+def format_from_header(from_address: str, display_name: str = "TuComité") -> str:
+    """Build a From header that shows TuComité instead of a bare no-reply local-part."""
+    address = (from_address or "").strip()
+    if not address:
+        return display_name
+    if "<" in address and ">" in address:
+        inner = address.split("<", 1)[1].rsplit(">", 1)[0].strip()
+        return f"{display_name} <{inner}>" if inner else f"{display_name} <{address}>"
+    return f"{display_name} <{address}>"
+
+
 def send_html_email(
     *,
     to_email: str,
@@ -115,7 +126,7 @@ def send_html_email(
         raise EmailNotConfigured("SMTP is not configured.")
     message = EmailMessage()
     message["Subject"] = subject
-    message["From"] = cfg.from_address
+    message["From"] = format_from_header(cfg.from_address)
     message["To"] = to_email
     message.set_content("Abrí este correo en un cliente que soporte HTML para ver la respuesta.")
     message.add_alternative(html_body, subtype="html")

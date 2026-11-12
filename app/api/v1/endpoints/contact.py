@@ -19,6 +19,7 @@ def _response(message) -> ContactMessageResponse:
         id=message.id,
         name=message.name,
         email=message.email,
+        subject=getattr(message, "subject", "") or "",
         message=message.message,
         privacy_accepted=message.privacy_accepted,
         privacy_accepted_at=message.privacy_accepted_at,
@@ -36,6 +37,7 @@ def create_contact_message(
         created = service.create_message(
             name=body.name,
             email=body.email,
+            subject=body.subject,
             message=body.message,
             privacy_accepted=body.privacy_accepted,
         )
