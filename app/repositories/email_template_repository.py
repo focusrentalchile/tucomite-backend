@@ -70,6 +70,14 @@ class SqlEmailTemplateRepository:
                 if key == "platform_invite" and "Regístrate" not in (row.html_body or ""):
                     row.subject = defaults["subject"]
                     row.html_body = defaults["html_body"]
+                if key in {
+                    "committee_invite",
+                    "administrator_invite",
+                    "caretaker_invite",
+                    "resident_invite",
+                } and "Regístrate" not in (row.html_body or ""):
+                    row.subject = defaults["subject"]
+                    row.html_body = defaults["html_body"]
         self._session.flush()
 
     def list_templates(self) -> list[EmailTemplateRecord]:

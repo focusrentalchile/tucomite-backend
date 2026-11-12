@@ -1,8 +1,11 @@
 """Unit tests for editable onboarding email templates."""
 
 from app.domain.email_templates import (
+    TEMPLATE_ADMINISTRATOR_INVITE,
+    TEMPLATE_CARETAKER_INVITE,
     TEMPLATE_CLIENT_WELCOME,
     TEMPLATE_COMMITTEE_INVITE,
+    TEMPLATE_RESIDENT_INVITE,
     EmailTemplateRecord,
 )
 from app.services.email_template_defaults import DEFAULT_TEMPLATES
@@ -55,6 +58,18 @@ def test_render_replaces_placeholders() -> None:
     assert "{{name}}" not in html
     assert "https://tucomite.cl/login" in html
     assert subject.startswith("¡Bienvenido")
+
+
+def test_building_invite_defaults_include_register_button() -> None:
+    for key in (
+        TEMPLATE_COMMITTEE_INVITE,
+        TEMPLATE_ADMINISTRATOR_INVITE,
+        TEMPLATE_CARETAKER_INVITE,
+        TEMPLATE_RESIDENT_INVITE,
+    ):
+        html = DEFAULT_TEMPLATES[key]["html_body"]
+        assert "Regístrate" in html
+        assert 'href="{{invite_url}}"' in html
 
 
 def test_update_subject_and_html() -> None:

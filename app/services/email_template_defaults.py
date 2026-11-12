@@ -51,6 +51,17 @@ def _shell(*, title: str, inner: str) -> str:
 </html>"""
 
 
+def _register_cta() -> str:
+    """Primary CTA that opens the public /register?token=… link."""
+    return """
+              <p style="margin:22px 0 10px;text-align:center;">
+                <a href="{{invite_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Regístrate</a>
+              </p>
+              <p style="margin:0 0 18px;font-size:14px;line-height:1.55;color:#5a6a8a;text-align:center;">Si el botón no funciona, abrí este enlace:<br />
+              <a href="{{invite_url}}" style="color:#1554d1;word-break:break-all;">{{invite_url}}</a></p>
+"""
+
+
 DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
     TEMPLATE_PLATFORM_INVITE: {
         "name": "Invitación plataforma",
@@ -168,11 +179,13 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
                 <li>Consultar el estado de los asuntos en desarrollo.</li>
               </ul>
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>¿Cómo comenzar?</strong></p>
+"""
+            + _register_cta()
+            + """
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Ingresa desde tu invitación: <a href="{{invite_url}}" style="color:#1554d1;">enlace de acceso</a>.</li>
-                <li>Activa tu cuenta.</li>
-                <li>Explora los temas de tu edificio.</li>
-                <li>¡Comienza a participar!</li>
+                <li>Tocá <strong>Regístrate</strong> y creá tu contraseña.</li>
+                <li>Explorá los temas de tu edificio.</li>
+                <li>¡Comenzá a participar!</li>
               </ol>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>Menos mensajes perdidos. Más decisiones claras.</strong></p>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Estamos comenzando esta experiencia con comunidades reales, por lo que tus sugerencias serán muy valiosas para seguir mejorando.</p>
@@ -201,11 +214,13 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
                 <li>Reducir la pérdida de información entre mensajes y conversaciones.</li>
               </ul>
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>Para comenzar:</strong></p>
+"""
+            + _register_cta()
+            + """
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Accede desde <a href="{{invite_url}}" style="color:#1554d1;">enlace de invitación</a>.</li>
-                <li>Activa tu cuenta de administrador.</li>
-                <li>Revisa la información disponible de tu comunidad.</li>
-                <li>Comienza a colaborar con el comité según los permisos habilitados.</li>
+                <li>Tocá <strong>Regístrate</strong> y creá tu cuenta de administrador.</li>
+                <li>Revisá la información disponible de tu comunidad.</li>
+                <li>Comenzá a colaborar con el comité según los permisos habilitados.</li>
               </ol>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>Una comunidad mejor organizada también facilita tu trabajo.</strong></p>
               <p style="margin:0;font-size:15px;line-height:1.6;">Si tienes dudas o sugerencias, estaremos encantados de ayudarte.<br />
@@ -232,10 +247,12 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
                 <li>Apoyar el seguimiento de las actividades que te correspondan.</li>
               </ul>
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>Comenzar es muy sencillo:</strong></p>
+"""
+            + _register_cta()
+            + """
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Ingresa desde <a href="{{invite_url}}" style="color:#1554d1;">enlace de invitación</a>.</li>
-                <li>Activa tu cuenta.</li>
-                <li>Revisa la información disponible para tu perfil.</li>
+                <li>Tocá <strong>Regístrate</strong> y creá tu contraseña.</li>
+                <li>Revisá la información disponible para tu perfil.</li>
               </ol>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Nuestro objetivo es facilitar el trabajo de todos, evitando confusiones y mejorando la coordinación.</p>
               <p style="margin:0;font-size:15px;line-height:1.6;">Si tienes dudas o sugerencias, estaremos encantados de ayudarte.<br />
@@ -258,8 +275,10 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>¿Qué significa esto para ti?</strong></p>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Una comunidad que puede trabajar de manera más organizada, con mejor comunicación y mayor claridad sobre los asuntos que se gestionan.</p>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">TuComité está creciendo y, progresivamente, incorporaremos nuevas funciones y beneficios pensados también para los residentes.</p>
-              <p style="margin:0 0 18px;font-size:15px;line-height:1.6;"><strong>Conoce más sobre esta iniciativa:</strong><br />
-              <a href="{{site_url}}" style="display:inline-block;margin-top:10px;padding:12px 20px;background:#1554d1;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:700;">Visitar TuComité.cl</a></p>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>Para unirte al edificio:</strong></p>
+"""
+            + _register_cta()
+            + """
               <p style="margin:0;font-size:15px;line-height:1.6;">Estamos construyendo una mejor experiencia para vivir en comunidad.<br />¡Bienvenido a esta nueva etapa!</p>
             """,
         ),
