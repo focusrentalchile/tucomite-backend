@@ -353,7 +353,9 @@ class InvitationService:
         if not template_key:
             return InviteEmailResult(sent=False, error="No hay plantilla de correo para este rol.")
         try:
-            template = service._repository.get_by_key(template_key)  # noqa: SLF001 — shared render path
+            # Isolate template DB work so a missing/broken table never aborts the invite row.
+            with self._db.begin_nested():
+                template = service._repository.get_by_key(template_key)  # noqa: SLF001
             if template is None:
                 return InviteEmailResult(sent=False, error="No hay plantilla de correo para esta invitación.")
             subject, html_body = service.render(
