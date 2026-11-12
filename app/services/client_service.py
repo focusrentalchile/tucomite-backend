@@ -3,7 +3,7 @@
 import secrets
 import uuid
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 
 from app.domain.access import (
     ClientRecord,
@@ -15,6 +15,8 @@ from app.repositories.access_repository import AccessRepository
 from app.repositories.client_repository import ClientRepository
 from app.utils.passwords import hash_password
 
+LICENSE_RENEWAL_DAYS = 30
+
 
 class DuplicateClientName(Exception):
     """Raised when a client name is already taken."""
@@ -22,6 +24,14 @@ class DuplicateClientName(Exception):
 
 class ClientNotFound(Exception):
     """Raised when a client id does not exist."""
+
+
+class LicenseStillActive(Exception):
+    """Raised when renewing a client whose license has not ended yet."""
+
+    def __init__(self, days_remaining: int) -> None:
+        self.days_remaining = days_remaining
+        super().__init__(f"License still has {days_remaining} day(s) remaining.")
 
 
 class ClientService:
@@ -210,6 +220,41 @@ class ClientService:
         )
         self._clients.save_client(updated)
         return updated, updated_admin
+
+    def renew_license(
+        self,
+        client_id: str,
+        *,
+        today: date | None = None,
+        days: int = LICENSE_RENEWAL_DAYS,
+    ) -> tuple[ClientRecord, UserRecord]:
+        """Extend a client license by ``days`` only when the current window has ended."""
+        client = self.get_client(client_id)
+        admin = self._access.get_user(client.admin_user_id)
+        if admin is None:
+            raise ClientNotFound(client_id)
+        current = today or date.today()
+        ends = None
+        if client.license_ends_at:
+            try:
+                ends = date.fromisoformat(client.license_ends_at.strip()[:10])
+            except ValueError as error:
+                raise ValueError("License end date must use YYYY-MM-DD.") from error
+        if ends is not None and current <= ends:
+            raise LicenseStillActive((ends - current).days)
+        starts = current
+        new_ends = current + timedelta(days=days)
+        updated = ClientRecord(
+            id=client.id,
+            name=client.name,
+            admin_user_id=client.admin_user_id,
+            address=client.address,
+            responsible_name=client.responsible_name,
+            license_starts_at=starts.isoformat(),
+            license_ends_at=new_ends.isoformat(),
+        )
+        self._clients.save_client(updated)
+        return updated, admin
 
     def delete_client(self, client_id: str) -> None:
         """Delete a client and every user belonging to that client."""

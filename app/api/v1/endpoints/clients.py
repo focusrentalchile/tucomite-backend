@@ -14,7 +14,12 @@ from app.schemas.clients import (
     CreateClientRequest,
     UpdateClientRequest,
 )
-from app.services.client_service import ClientNotFound, ClientService, DuplicateClientName
+from app.services.client_service import (
+    ClientNotFound,
+    ClientService,
+    DuplicateClientName,
+    LicenseStillActive,
+)
 from app.services.onboarding_email import send_client_activation_email, send_role_invite_email
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -166,6 +171,30 @@ def update_client(
         raise HTTPException(status_code=409, detail="Client name already exists.") from None
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already registered.") from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    return _client_response(client, admin.email)
+
+
+@router.post("/{client_id}/renew-license", response_model=ClientResponse)
+def renew_client_license(
+    client_id: str,
+    service: ClientService = Depends(get_client_service),
+    _: object = Depends(require_super_admin),
+) -> ClientResponse:
+    """Renew a client license for 30 days when the current window has ended."""
+    try:
+        client, admin = service.renew_license(client_id)
+    except ClientNotFound:
+        raise HTTPException(status_code=404, detail="Client not found.") from None
+    except LicenseStillActive as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "license_still_active",
+                "days_remaining": error.days_remaining,
+            },
+        ) from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     return _client_response(client, admin.email)

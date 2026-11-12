@@ -11,6 +11,7 @@ from app.repositories.contact_repository import ContactRepository
 from app.services.email_service import (
     EmailNotConfigured,
     EmailSendError,
+    SmtpDeliveryConfig,
     send_html_email,
     smtp_config_from_env,
 )
@@ -64,9 +65,11 @@ class ContactService:
         self,
         repository: ContactRepository,
         support_service: SupportService | None = None,
+        smtp: SmtpDeliveryConfig | None = None,
     ) -> None:
         self._repository = repository
         self._support = support_service
+        self._smtp = smtp
 
     def list_messages(self) -> list[ContactMessageRecord]:
         """Return every contact message for the super admin."""
@@ -142,7 +145,7 @@ class ContactService:
             subject=mail_subject,
             message=message,
         )
-        smtp = smtp_config_from_env()
+        smtp = self._smtp or smtp_config_from_env()
         for to_email in recipients:
             try:
                 send_html_email(

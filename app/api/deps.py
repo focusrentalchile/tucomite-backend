@@ -123,12 +123,25 @@ def get_blog_service(db: Session = Depends(get_db)) -> BlogService:
 
 def get_contact_service(db: Session = Depends(get_db)) -> ContactService:
     """Build a contact service bound to the request session."""
+    from app.repositories.platform_settings_repository import SqlPlatformSettingsRepository
     from app.repositories.support_repository import SqlSupportRepository
+    from app.services.email_service import SmtpDeliveryConfig
+    from app.services.platform_settings_service import PlatformSettingsService
     from app.services.support_service import SupportService
 
+    platform = PlatformSettingsService(SqlPlatformSettingsRepository(db)).get_settings()
+    smtp = SmtpDeliveryConfig(
+        host=platform.smtp_host,
+        port=platform.smtp_port,
+        user=platform.smtp_user,
+        password=platform.smtp_password,
+        from_address=platform.smtp_from,
+        use_tls=platform.smtp_use_tls,
+    )
     return ContactService(
         SqlContactRepository(db),
         SupportService(SqlSupportRepository(db)),
+        smtp=smtp,
     )
 
 
