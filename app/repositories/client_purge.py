@@ -1,12 +1,14 @@
 """Delete every row that still blocks removing a platform client."""
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.orm import Session
 
+from app.models.access import UserModel
 from app.models.account import AccountClosureRequestModel
 from app.models.agreements import AgreementModel
 from app.models.building_wall import BuildingWallPostModel
 from app.models.client_settings import ClientSettingsModel
+from app.models.committee import CommitteeMemberModel
 from app.models.invitations import InvitationModel
 from app.models.legal import LegalCaseAttachmentModel, LegalCaseMessageModel, LegalCaseModel
 from app.models.management import (
@@ -22,6 +24,7 @@ from app.models.messages import (
     ResidentMessageReplyModel,
     ResidentMessageStatusEventModel,
 )
+from app.models.notifications import NotificationModel
 from app.models.periods import PeriodModel
 from app.models.projects import ProjectAttachmentModel, ProjectModel
 from app.models.support import SupportAttachmentModel, SupportReplyModel, SupportTicketModel
@@ -56,8 +59,67 @@ def _purge_topics(session: Session, topic_ids: list[str]) -> None:
     session.execute(delete(TopicModel).where(TopicModel.id.in_(topic_ids)))
 
 
+def _purge_legacy_gestion_tables(session: Session, client_id: str, user_ids: list[str]) -> None:
+    """Remove leftover rows from renamed gestion_* tables that still keep MySQL FKs."""
+    from sqlalchemy import bindparam
+
+    session.execute(
+        text("DELETE FROM gestion_workspace_imports WHERE client_id = :client_id"),
+        {"client_id": client_id},
+    )
+    session.execute(
+        text("DELETE FROM gestion_tasks WHERE client_id = :client_id"),
+        {"client_id": client_id},
+    )
+    if not user_ids:
+        return
+    user_ids_param = bindparam("user_ids", expanding=True)
+    session.execute(
+        text(
+            "DELETE FROM gestion_workspace_imports WHERE administrator_user_id IN :user_ids"
+        ).bindparams(user_ids_param),
+        {"user_ids": user_ids},
+    )
+    session.execute(
+        text(
+            """
+            DELETE gm FROM gestion_messages gm
+            INNER JOIN gestion_tasks gt ON gt.id = gm.task_id
+            WHERE gt.created_by_user_id IN :user_ids
+               OR gt.assignee_user_id IN :user_ids
+               OR gm.author_user_id IN :user_ids
+            """
+        ).bindparams(user_ids_param),
+        {"user_ids": user_ids},
+    )
+    session.execute(
+        text(
+            """
+            DELETE FROM gestion_tasks
+            WHERE created_by_user_id IN :user_ids
+               OR assignee_user_id IN :user_ids
+            """
+        ).bindparams(user_ids_param),
+        {"user_ids": user_ids},
+    )
+
+
 def purge_client_dependencies(session: Session, client_id: str) -> None:
     """Remove building-scoped rows so the client (and its users) can be deleted."""
+    user_ids = list(
+        session.scalars(select(UserModel.id).where(UserModel.client_id == client_id)).all(),
+    )
+    if user_ids:
+        session.execute(
+            delete(CommitteeMemberModel).where(CommitteeMemberModel.user_id.in_(user_ids)),
+        )
+        session.execute(delete(NotificationModel).where(NotificationModel.user_id.in_(user_ids)))
+        session.execute(
+            delete(InvitationModel).where(InvitationModel.invited_by_user_id.in_(user_ids)),
+        )
+
+    _purge_legacy_gestion_tables(session, client_id, user_ids)
+
     period_ids = list(
         session.scalars(select(PeriodModel.id).where(PeriodModel.client_id == client_id)).all(),
     )

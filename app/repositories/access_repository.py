@@ -248,10 +248,9 @@ class SqlAccessRepository:
         from app.models.notifications import NotificationModel
         from app.models.support import SupportAttachmentModel, SupportReplyModel, SupportTicketModel
 
-        member = self._session.get(CommitteeMemberModel, user_id)
-        if member is not None:
-            self._session.delete(member)
-
+        self._session.execute(
+            delete(CommitteeMemberModel).where(CommitteeMemberModel.user_id == user_id),
+        )
         self._session.execute(delete(NotificationModel).where(NotificationModel.user_id == user_id))
         self._session.execute(
             delete(InvitationModel).where(InvitationModel.invited_by_user_id == user_id),

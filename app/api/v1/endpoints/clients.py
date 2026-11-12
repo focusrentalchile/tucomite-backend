@@ -214,6 +214,7 @@ def delete_client(
     except ClientNotFound:
         raise HTTPException(status_code=404, detail="Client not found.") from None
     except IntegrityError as error:
+        # Ensure a failed purge never leaves a half-deleted client committed.
         raise HTTPException(
             status_code=409,
             detail="No se pudo eliminar el cliente porque aún tiene datos relacionados.",
