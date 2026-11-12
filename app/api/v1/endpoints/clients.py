@@ -207,7 +207,14 @@ def delete_client(
     _: object = Depends(require_super_admin),
 ) -> None:
     """Delete a client and every user that belongs to it (super admin)."""
+    from sqlalchemy.exc import IntegrityError
+
     try:
         service.delete_client(client_id)
     except ClientNotFound:
         raise HTTPException(status_code=404, detail="Client not found.") from None
+    except IntegrityError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="No se pudo eliminar el cliente porque aún tiene datos relacionados.",
+        ) from error

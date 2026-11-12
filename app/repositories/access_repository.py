@@ -227,7 +227,11 @@ class SqlAccessRepository:
 
     def delete_user(self, user_id: str) -> None:
         """Delete a user and every row that still points at them with a FK."""
+        from app.models.account import AccountClosureRequestModel
+        from app.models.building_wall import BuildingWallPostModel
         from app.models.committee import CommitteeMemberModel
+        from app.models.invitations import InvitationModel
+        from app.models.legal import LegalCaseAttachmentModel, LegalCaseMessageModel, LegalCaseModel
         from app.models.management import (
             ManagementAttachmentModel,
             ManagementMessageModel,
@@ -242,12 +246,60 @@ class SqlAccessRepository:
             ResidentMessageStatusEventModel,
         )
         from app.models.notifications import NotificationModel
+        from app.models.support import SupportAttachmentModel, SupportReplyModel, SupportTicketModel
 
         member = self._session.get(CommitteeMemberModel, user_id)
         if member is not None:
             self._session.delete(member)
 
         self._session.execute(delete(NotificationModel).where(NotificationModel.user_id == user_id))
+        self._session.execute(
+            delete(InvitationModel).where(InvitationModel.invited_by_user_id == user_id),
+        )
+        self._session.execute(
+            delete(AccountClosureRequestModel).where(AccountClosureRequestModel.user_id == user_id),
+        )
+        self._session.execute(
+            delete(BuildingWallPostModel).where(BuildingWallPostModel.author_user_id == user_id),
+        )
+        authored_cases = list(
+            self._session.scalars(
+                select(LegalCaseModel.id).where(LegalCaseModel.created_by_user_id == user_id),
+            ).all(),
+        )
+        if authored_cases:
+            self._session.execute(
+                delete(LegalCaseAttachmentModel).where(
+                    LegalCaseAttachmentModel.case_id.in_(authored_cases),
+                ),
+            )
+            self._session.execute(
+                delete(LegalCaseMessageModel).where(LegalCaseMessageModel.case_id.in_(authored_cases)),
+            )
+            self._session.execute(delete(LegalCaseModel).where(LegalCaseModel.id.in_(authored_cases)))
+        self._session.execute(
+            delete(LegalCaseMessageModel).where(LegalCaseMessageModel.author_user_id == user_id),
+        )
+        authored_tickets = list(
+            self._session.scalars(
+                select(SupportTicketModel.id).where(SupportTicketModel.author_user_id == user_id),
+            ).all(),
+        )
+        if authored_tickets:
+            self._session.execute(
+                delete(SupportAttachmentModel).where(
+                    SupportAttachmentModel.ticket_id.in_(authored_tickets),
+                ),
+            )
+            self._session.execute(
+                delete(SupportReplyModel).where(SupportReplyModel.ticket_id.in_(authored_tickets)),
+            )
+            self._session.execute(
+                delete(SupportTicketModel).where(SupportTicketModel.id.in_(authored_tickets)),
+            )
+        self._session.execute(
+            delete(SupportReplyModel).where(SupportReplyModel.author_user_id == user_id),
+        )
         self._session.execute(
             delete(ResidentMessageParticipantModel).where(
                 ResidentMessageParticipantModel.user_id == user_id,
