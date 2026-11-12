@@ -6,6 +6,7 @@ from dataclasses import dataclass
 KIND_PLATFORM = "platform"
 KIND_BUILDING = "building"
 
+STATUS_FAILED = "failed"
 STATUS_SENT = "sent"
 STATUS_OPENED = "opened"
 STATUS_REGISTERED = "registered"
@@ -35,7 +36,9 @@ class InvitationRecord:
             return STATUS_REGISTERED
         if self.opened_at:
             return STATUS_OPENED
-        return STATUS_SENT
+        if self.sent_at:
+            return STATUS_SENT
+        return STATUS_FAILED
 
 
 class InvitationNotFound(Exception):
@@ -48,3 +51,11 @@ class InvitationAlreadyUsed(Exception):
 
 class InvitationForbidden(Exception):
     """Raised when the actor cannot manage the invitation."""
+
+
+class InvitationEmailFailed(Exception):
+    """Raised when the invitation row was prepared but SMTP delivery failed."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)

@@ -18,6 +18,7 @@ from app.domain.invitations import (
     KIND_BUILDING,
     KIND_PLATFORM,
     InvitationAlreadyUsed,
+    InvitationEmailFailed,
     InvitationForbidden,
     InvitationNotFound,
     InvitationRecord,
@@ -113,9 +114,11 @@ class InvitationService:
         )
         self._repository.add(record)
         result = self._send(record)
-        if result.sent:
-            record = replace(record, sent_at=_now_iso())
-            self._repository.save(record)
+        if not result.sent:
+            self._repository.delete(record.id)
+            raise InvitationEmailFailed(result.error or "No se pudo enviar el correo.")
+        record = replace(record, sent_at=_now_iso())
+        self._repository.save(record)
         return record, result
 
     def create_building(
@@ -159,9 +162,11 @@ class InvitationService:
         )
         self._repository.add(record)
         result = self._send(record)
-        if result.sent:
-            record = replace(record, sent_at=_now_iso())
-            self._repository.save(record)
+        if not result.sent:
+            self._repository.delete(record.id)
+            raise InvitationEmailFailed(result.error or "No se pudo enviar el correo.")
+        record = replace(record, sent_at=_now_iso())
+        self._repository.save(record)
         return record, result
 
     def resend(
@@ -187,9 +192,10 @@ class InvitationService:
         )
         self._repository.save(record)
         result = self._send(record)
-        if result.sent:
-            record = replace(record, sent_at=_now_iso())
-            self._repository.save(record)
+        if not result.sent:
+            raise InvitationEmailFailed(result.error or "No se pudo enviar el correo.")
+        record = replace(record, sent_at=_now_iso())
+        self._repository.save(record)
         return record, result
 
     def delete(

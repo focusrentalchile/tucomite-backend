@@ -8,6 +8,7 @@ from app.domain.access import DuplicateEmail
 from app.domain.invitations import (
     KIND_PLATFORM,
     InvitationAlreadyUsed,
+    InvitationEmailFailed,
     InvitationForbidden,
     InvitationNotFound,
 )
@@ -76,6 +77,8 @@ def create_platform_invitation(
         )
     except DuplicateEmail as error:
         raise HTTPException(status_code=409, detail="Email already registered.") from error
+    except InvitationEmailFailed as error:
+        raise HTTPException(status_code=502, detail=error.message) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return _response(record)
@@ -100,6 +103,8 @@ def create_building_invitation(
         )
     except DuplicateEmail as error:
         raise HTTPException(status_code=409, detail="Email already registered.") from error
+    except InvitationEmailFailed as error:
+        raise HTTPException(status_code=502, detail=error.message) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return _response(record)
@@ -127,6 +132,8 @@ def resend_invitation(
         raise HTTPException(status_code=403, detail="Forbidden.") from error
     except InvitationAlreadyUsed as error:
         raise HTTPException(status_code=409, detail="Invitation already registered.") from error
+    except InvitationEmailFailed as error:
+        raise HTTPException(status_code=502, detail=error.message) from error
     return _response(record)
 
 
