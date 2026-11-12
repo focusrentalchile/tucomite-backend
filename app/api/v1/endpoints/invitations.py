@@ -56,8 +56,6 @@ def list_invitations(
     if not actor.is_super_admin and "users.create" not in actor.permissions:
         raise HTTPException(status_code=403, detail="Forbidden.")
     items = service.list_for_actor(is_super_admin=actor.is_super_admin, client_id=actor.client_id)
-    if actor.is_super_admin:
-        items = [item for item in items if item.kind == KIND_PLATFORM]
     return InvitationListResponse(items=[_response(item) for item in items])
 
 

@@ -38,7 +38,7 @@ from app.services.platform_settings_service import PlatformSettingsService
 logger = logging.getLogger(__name__)
 
 ASSIGNABLE_INVITE_ROLES = frozenset(
-    {"administrator", "committee", "caretaker", "resident", "legal"},
+    {"administrator", "committee", "caretaker", "resident"},
 )
 
 # 1x1 transparent GIF
@@ -76,10 +76,16 @@ class InvitationService:
 
     def list_for_actor(self, *, is_super_admin: bool, client_id: str | None) -> list[InvitationRecord]:
         if is_super_admin:
-            return self._repository.list_all()
+            return [item for item in self._repository.list_all() if item.kind == KIND_PLATFORM]
         if not client_id:
             return []
-        return self._repository.list_for_client(client_id)
+        # Building owners only see invites they send for their building — never
+        # platform invites from the super admin (even after those are accepted).
+        return [
+            item
+            for item in self._repository.list_for_client(client_id)
+            if item.kind == KIND_BUILDING
+        ]
 
     def create_platform(
         self,
@@ -139,7 +145,7 @@ class InvitationService:
             raise ValueError("Name and a valid email are required.")
         if self._access.get_user_by_email(cleaned_email) is not None:
             raise DuplicateEmail()
-        client = SqlClientRepository(self._db).get(client_id)
+        client = SqlClientRepository(self._db).get_client(client_id)
         if client is None:
             raise ValueError("Building not found.")
         existing = self._repository.get_by_email(cleaned_email)

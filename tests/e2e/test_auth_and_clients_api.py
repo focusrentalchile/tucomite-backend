@@ -59,15 +59,14 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
 
     client_id = body["id"]
     roles = {item["name"]: item["id"] for item in client.get("/api/v1/roles").json()["items"]}
+    assert "administrator" in roles
+    assert "committee" in roles
     users = client.get("/api/v1/users")
     assert users.status_code == 200
     building_users = [item for item in users.json()["items"] if item.get("client_id") == client_id]
     assert any(item["role_id"] == roles["client"] for item in building_users)
-    assert any(item["role_id"] == roles["administrator"] for item in building_users)
-    assert any(
-        item["email"].startswith("administrador.") and item["role_id"] == roles["administrator"]
-        for item in building_users
-    )
+    assert not any(item["role_id"] == roles["administrator"] for item in building_users)
+    assert not any(item["email"].startswith("administrador.") for item in building_users)
     updated = client.put(
         f"/api/v1/clients/{client_id}",
         json={

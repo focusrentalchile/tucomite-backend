@@ -1,4 +1,4 @@
-"""Use cases for platform clients and their first admin user."""
+"""Use cases for platform clients and their building owner account."""
 
 import secrets
 import uuid
@@ -35,7 +35,7 @@ class LicenseStillActive(Exception):
 
 
 class ClientService:
-    """Creates, updates, and deletes clients with their building users."""
+    """Creates, updates, and deletes clients and their owner account."""
 
     def __init__(self, clients: ClientRepository, access: AccessRepository) -> None:
         self._clients = clients
@@ -65,7 +65,7 @@ class ClientService:
         must_change_password: bool = False,
         require_activation: bool = False,
     ) -> tuple[ClientRecord, UserRecord]:
-        """Create a client owner and a default building administrator for that license."""
+        """Create the building owner account and starter roles. No extra users."""
         cleaned_name = name.strip()
         if not cleaned_name:
             raise ValueError("Client name is required.")
@@ -80,6 +80,7 @@ class ClientService:
         from app.core.access_catalog import access_catalog
         from app.services.access_bootstrap import _ensure_starter_roles
 
+        # Roles only (committee, administrator, resident, …). Users join later by invite.
         _ensure_starter_roles(self._access, access_catalog.permission_keys())
         owner_role = next(
             (role for role in self._access.list_roles() if role.name.casefold() == "client"),
@@ -114,54 +115,7 @@ class ClientService:
             license_ends_at=ends,
         )
         self._clients.add_client(client)
-        self.ensure_default_administrator(
-            client_id=client_id,
-            owner_email=normalized,
-            password_hash=password_hash,
-            building_name=cleaned_name,
-        )
         return client, user
-
-    def ensure_default_administrator(
-        self,
-        *,
-        client_id: str,
-        owner_email: str,
-        password_hash: str,
-        building_name: str,
-    ) -> UserRecord | None:
-        """Ensure one administrator user for the building when a license is opened.
-
-        The administrator keeps this building as home (`client_id`) and can later
-        import other buildings into the same account via Gestión workspace links.
-        """
-        admin_role = next(
-            (role for role in self._access.list_roles() if role.name.casefold() == "administrator"),
-            None,
-        )
-        if admin_role is None:
-            return None
-
-        for existing in self._access.list_users():
-            if existing.client_id == client_id and existing.role_id == admin_role.id:
-                return existing
-
-        admin_email = self._default_administrator_email(owner_email)
-        if self._access.get_user_by_email(admin_email) is not None:
-            suffix = client_id.replace("-", "")[:8]
-            local, _, domain = admin_email.partition("@")
-            admin_email = f"{local}.{suffix}@{domain}" if domain else f"{admin_email}.{suffix}"
-
-        record = UserRecord(
-            id=str(uuid.uuid4()),
-            full_name=f"Administrador · {building_name}"[:120],
-            email=admin_email,
-            password_hash=password_hash,
-            role_id=admin_role.id,
-            client_id=client_id,
-        )
-        self._access.add_user(record)
-        return record
 
     def update_client(
         self,
@@ -273,12 +227,6 @@ class ClientService:
             if user.client_id == client_id:
                 self._access.delete_user(user.id)
         self._clients.delete_client(client_id)
-
-    def _default_administrator_email(self, owner_email: str) -> str:
-        local, sep, domain = owner_email.partition("@")
-        if not sep or not domain:
-            return f"administrador.{owner_email}@tucomite.local"
-        return f"administrador.{local}@{domain}"
 
     def _validated_license(self, starts_at: str, ends_at: str) -> tuple[str, str]:
         try:
