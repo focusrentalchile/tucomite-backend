@@ -274,6 +274,82 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
     assert match["assignee_user_id"] == admin_id
 
 
+def test_assigning_administrator_role_opens_gestion_task() -> None:
+    """When the assignee has the administrator role, Gestión gets a card automatically."""
+    import uuid
+
+    from tests.helpers.platform_accounts import SEED_PASSWORD
+
+    login_as_demo_admin(client)
+    roles = client.get("/api/v1/roles")
+    assert roles.status_code == 200
+    admin_role = next(item for item in roles.json()["items"] if item["name"] == "administrator")
+    email = f"asignee.admin.{uuid.uuid4().hex[:8]}@tucomite.local"
+    created_user = client.post(
+        "/api/v1/users",
+        json={
+            "full_name": "Administrador asignado",
+            "email": email,
+            "password": SEED_PASSWORD,
+            "role_id": admin_role["id"],
+        },
+    )
+    assert created_user.status_code == 201, created_user.text
+    assignee_id = created_user.json()["id"]
+
+    me = client.get("/api/v1/access/me")
+    assert me.status_code == 200
+    if not me.json().get("is_committee_member"):
+        login_as_super_admin(client)
+        added = client.post("/api/v1/committee/members", json={"user_id": me.json()["id"]})
+        assert added.status_code in {201, 409}
+        login_as_demo_admin(client)
+
+    created = client.post(
+        "/api/v1/topics",
+        json={
+            "title": "Cámaras exteriores",
+            "description": "Falta cobertura en el estacionamiento.",
+            "category_key": "security",
+            "attachment_name": "",
+            "decision": "¿Instalamos más cámaras?",
+            "priority_id": 3,
+        },
+    )
+    assert created.status_code == 201
+    topic_id = created.json()["id"]
+
+    moved = client.patch(
+        f"/api/v1/topics/{topic_id}/status",
+        json={
+            "status_id": 3,
+            "assignee_user_id": assignee_id,
+            "start_date": "2026-11-01",
+            "due_date": "2026-11-30",
+        },
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["status_id"] == 3
+    assert moved.json()["assignee_user_id"] == assignee_id
+
+    signed = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": SEED_PASSWORD},
+    )
+    assert signed.status_code == 200, signed.text
+    tickets = client.get("/api/v1/management/tasks")
+    assert tickets.status_code == 200
+    match = next(
+        (item for item in tickets.json()["items"] if item.get("topic_id") == topic_id),
+        None,
+    )
+    assert match is not None
+    assert match["status"] == "todo"
+    assert match["priority_id"] == 3
+    assert match["subject"] == "Cámaras exteriores"
+    assert match["assignee_user_id"] == assignee_id
+
+
 def test_completion_requires_quorum_before_close() -> None:
     from tests.helpers.platform_accounts import SEED_PASSWORD
 

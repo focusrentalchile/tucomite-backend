@@ -338,22 +338,39 @@ def move_topic(
         )
         topic = next(item for item in service.list_topics() if item.id == topic_id)
         client = SqlClientRepository(db).get_client(actor.client_id) if actor.client_id else None
-        if client is not None and body.assignee_user_id == client.admin_user_id:
-            access = SqlAccessRepository(db)
+        access = SqlAccessRepository(db)
+        assignee = access.get_user(body.assignee_user_id)
+        assignee_role = access.get_role(assignee.role_id) if assignee else None
+        assignee_role_name = (assignee_role.name if assignee_role else "").casefold()
+        # Gestión card for the building owner or an administrator assignee.
+        should_open_management = client is not None and (
+            body.assignee_user_id == client.admin_user_id or assignee_role_name == "administrator"
+        )
+        if should_open_management:
             actor_user = access.get_user(actor.user_id)
-            ManagementService(SqlManagementRepository(db)).create_task(
-                subject=topic.title,
-                body=topic.description or topic.decision,
-                created_by_user_id=actor.user_id,
-                created_by_name=actor_user.full_name if actor_user else "",
-                client_id=actor.client_id,
-                client_name=client.name,
-                from_staff=False,
-                priority_id=topic.priority_id,
-                due_date=body.due_date,
-                assignee_user_id=body.assignee_user_id,
-                topic_id=topic.id,
+            management = ManagementService(SqlManagementRepository(db))
+            existing = next(
+                (
+                    item
+                    for item in management.list_tasks(client_id=actor.client_id)
+                    if item.topic_id == topic.id
+                ),
+                None,
             )
+            if existing is None:
+                management.create_task(
+                    subject=topic.title,
+                    body=topic.description or topic.decision,
+                    created_by_user_id=actor.user_id,
+                    created_by_name=actor_user.full_name if actor_user else "",
+                    client_id=actor.client_id,
+                    client_name=client.name,
+                    from_staff=False,
+                    priority_id=topic.priority_id,
+                    due_date=body.due_date,
+                    assignee_user_id=body.assignee_user_id,
+                    topic_id=topic.id,
+                )
 
     votes = service.list_votes_for_topics([topic_id])
     refreshed = next((item for item in service.list_topics() if item.id == topic_id), topic)
