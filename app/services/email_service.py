@@ -128,7 +128,7 @@ def send_html_email(
     message["Subject"] = subject
     message["From"] = format_from_header(cfg.from_address)
     message["To"] = to_email
-    message.set_content("Abrí este correo en un cliente que soporte HTML para ver la respuesta.")
+    message.set_content("Abre este correo en un cliente que soporte HTML para ver la respuesta.")
     message.add_alternative(html_body, subtype="html")
     try:
         if cfg.port == 465:

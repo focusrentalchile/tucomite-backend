@@ -83,7 +83,7 @@ def send_role_invite_email(
         logger.warning("Onboarding email failed for %s: %s", to_email, error)
         return InviteEmailResult(
             sent=False,
-            error=f"No se pudo enviar el correo ({error}). Revisá host/puerto SMTP.",
+            error=f"No se pudo enviar el correo ({error}). Revisa host/puerto SMTP.",
         )
     except Exception as error:  # noqa: BLE001 — never block account creation on mail
         logger.exception("Unexpected onboarding email failure for %s", to_email)
@@ -122,7 +122,7 @@ def send_client_activation_email(
         logger.warning("Activation email failed for %s: %s", to_email, error)
         return InviteEmailResult(
             sent=False,
-            error=f"No se pudo enviar el correo ({error}). Revisá host/puerto SMTP.",
+            error=f"No se pudo enviar el correo ({error}). Revisa host/puerto SMTP.",
         )
     except Exception as error:  # noqa: BLE001 — never block account creation on mail
         logger.exception("Unexpected activation email failure for %s", to_email)

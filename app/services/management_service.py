@@ -401,12 +401,12 @@ class ManagementService:
         if titles:
             history = " · ".join(titles)
             body = (
-                f"Ya podés gestionar «{client_name}» en Gestión y Acuerdos. "
+                f"Ya puedes gestionar «{client_name}» en Gestión y Acuerdos. "
                 f"Historial de acuerdos (últimos 6 periodos): {history}."
             )
         else:
             body = (
-                f"Ya podés gestionar «{client_name}» en Gestión y Acuerdos. "
+                f"Ya puedes gestionar «{client_name}» en Gestión y Acuerdos. "
                 "Todavía no hay acuerdos en los últimos 6 periodos."
             )
         self._notifications.add(

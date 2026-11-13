@@ -141,7 +141,7 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
                 <li>Configurá el perfil de tu edificio.</li>
                 <li>Invitá a los demás integrantes del comité: en configuración, usuarios y el botón +Agregar.</li>
                 <li>Incorporá al administrador y al mayordomo, si corresponde.</li>
-                <li>Creá el primer tema que quieran gestionar como comunidad.</li>
+                <li>Crea el primer tema que quieran gestionar como comunidad.</li>
               </ol>
               <p style="margin:0 0 8px;font-size:15px;line-height:1.6;"><strong>¿Qué podrán hacer desde ahora?</strong></p>
               <ul style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
@@ -183,7 +183,7 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             + _register_cta()
             + """
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Tocá <strong>Regístrate</strong> y creá tu contraseña.</li>
+                <li>Toca <strong>Regístrate</strong> y crea tu contraseña.</li>
                 <li>Explorá los temas de tu edificio.</li>
                 <li>¡Comenzá a participar!</li>
               </ol>
@@ -218,8 +218,8 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             + _register_cta()
             + """
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Tocá <strong>Regístrate</strong> y creá tu cuenta de administrador.</li>
-                <li>Revisá la información disponible de tu comunidad.</li>
+                <li>Toca <strong>Regístrate</strong> y crea tu cuenta de administrador.</li>
+                <li>Revisa la información disponible de tu comunidad.</li>
                 <li>Comenzá a colaborar con el comité según los permisos habilitados.</li>
               </ol>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>Una comunidad mejor organizada también facilita tu trabajo.</strong></p>
@@ -251,8 +251,8 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             + _register_cta()
             + """
               <ol style="margin:0 0 18px;padding-left:20px;font-size:15px;line-height:1.65;">
-                <li>Tocá <strong>Regístrate</strong> y creá tu contraseña.</li>
-                <li>Revisá la información disponible para tu perfil.</li>
+                <li>Toca <strong>Regístrate</strong> y crea tu contraseña.</li>
+                <li>Revisa la información disponible para tu perfil.</li>
               </ol>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Nuestro objetivo es facilitar el trabajo de todos, evitando confusiones y mejorando la coordinación.</p>
               <p style="margin:0;font-size:15px;line-height:1.6;">Si tienes dudas o sugerencias, estaremos encantados de ayudarte.<br />

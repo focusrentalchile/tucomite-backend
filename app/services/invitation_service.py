@@ -394,7 +394,7 @@ class InvitationService:
             logger.warning("Invitation email failed for %s: %s", record.email, error)
             return InviteEmailResult(
                 sent=False,
-                error=f"No se pudo enviar el correo ({error}). Revisá host/puerto SMTP.",
+                error=f"No se pudo enviar el correo ({error}). Revisa host/puerto SMTP.",
             )
         except Exception as error:  # noqa: BLE001
             logger.exception("Unexpected invitation email failure for %s", record.email)
