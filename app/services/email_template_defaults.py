@@ -470,7 +470,7 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             inner="""
               <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
               <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">La votación terminó con la mayoría necesaria</p>
-              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">El tema de <strong>{{building_name}}</strong> reunió los votos requeridos y ya puedes asignar a la persona responsable de ejecutarlo.</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">El tema de <strong>{{building_name}}</strong> reunió más del 50% de votos. Cualquier miembro del comité puede asignar a la persona responsable de ejecutarlo.</p>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
                 <tr>
                   <td style="padding:16px 18px;">

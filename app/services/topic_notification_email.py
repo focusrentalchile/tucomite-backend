@@ -366,7 +366,10 @@ def notify_topic_assign_ready(
         user_ids=_voter_and_owner_user_ids(db, resolved_client),
         kind=NOTICE_KIND_TOPIC_ASSIGN_READY,
         title="Listo para asignar",
-        body=f"«{topic.title}» ({building}) ya tiene los votos para asignar a un responsable.",
+        body=(
+            f"«{topic.title}» ({building}) ya tiene más del 50% de votos. "
+            "Cualquier miembro del comité puede asignar al responsable en Temas → Asignar."
+        ),
     )
     return _send_to_committee(
         db,
