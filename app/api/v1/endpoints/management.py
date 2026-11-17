@@ -14,6 +14,7 @@ from app.domain.management import (
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.agreement_repository import SqlAgreementRepository
 from app.repositories.client_repository import SqlClientRepository
+from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.management_repository import SqlManagementRepository
 from app.repositories.notification_repository import SqlNotificationRepository
 from app.repositories.period_repository import SqlPeriodRepository
@@ -35,6 +36,11 @@ from app.schemas.management import (
     ManagementWorkspaceImportListResponse,
     ManagementWorkspaceImportResponse,
     UpdateManagementTaskStatusRequest,
+)
+from app.schemas.topics import (
+    TopicAttachmentResponse,
+    TopicCompletionRoundResponse,
+    TopicConfirmationResponse,
 )
 from app.services.management_service import ManagementService
 from app.services.management_task_status_notify import (
@@ -80,16 +86,72 @@ def _message_response(message) -> ManagementMessageResponse:
     )
 
 
-def _topic_completion_map(db: Session, topic_ids: list[str]) -> dict[str, str | None]:
-    """Return topic_id → completion_submitted_at for the given ids."""
+def _confirmation_response(item) -> TopicConfirmationResponse:
+    choice = (item.choice or "yes").casefold()
+    return TopicConfirmationResponse(
+        id=item.id,
+        author_id=item.author_id,
+        author_name=item.author_name,
+        created_at=item.created_at,
+        choice="no" if choice == "no" else "yes",
+        reason=item.reason,
+    )
+
+
+def _topic_attachment_response(item) -> TopicAttachmentResponse:
+    return TopicAttachmentResponse(
+        id=item.id,
+        kind=item.kind,
+        name=item.name,
+        url=item.url,
+    )
+
+
+def _completion_round_response(item) -> TopicCompletionRoundResponse:
+    outcome = item.outcome if item.outcome in {"failed", "passed"} else "failed"
+    return TopicCompletionRoundResponse(
+        round_number=item.round_number,
+        note=item.note,
+        submitted_at=item.submitted_at,
+        closed_at=item.closed_at,
+        outcome=outcome,
+        confirmations=[_confirmation_response(vote) for vote in item.confirmations],
+        attachments=[_topic_attachment_response(file) for file in item.attachments],
+    )
+
+
+def _topic_completion_snapshot(
+    db: Session,
+    topic_ids: list[str],
+) -> dict[str, dict]:
+    """Return topic_id → Resultado snapshot for Gestión fichas."""
     unique = [item for item in dict.fromkeys(topic_ids) if item]
     if not unique:
         return {}
     repo = SqlTopicRepository(db)
-    out: dict[str, str | None] = {}
+    topics = TopicService(repo)
+    committee = SqlCommitteeRepository(db)
+    seat_cache: dict[str, int] = {}
+    out: dict[str, dict] = {}
     for topic_id in unique:
         topic = repo.get_topic(topic_id)
-        out[topic_id] = topic.completion_submitted_at if topic is not None else None
+        if topic is None:
+            continue
+        client_id = topic.client_id or ""
+        if client_id not in seat_cache:
+            seat_cache[client_id] = committee.count_voter_seats(client_id) if client_id else 0
+        topic = topics.seal_failed_completion_if_needed(
+            topic,
+            committee_size=seat_cache[client_id],
+        )
+        confirmations = repo.list_confirmations_for_topics([topic.id])
+        out[topic_id] = {
+            "submitted_at": topic.completion_submitted_at,
+            "note": topic.completion_note,
+            "round": max(1, int(topic.completion_round or 1)),
+            "rounds": [_completion_round_response(item) for item in topic.completion_rounds],
+            "confirmations": [_confirmation_response(item) for item in confirmations],
+        }
     return out
 
 
@@ -97,6 +159,10 @@ def _task_response(
     ticket,
     *,
     topic_completion_submitted_at: str | None = None,
+    topic_completion_note: str | None = None,
+    topic_completion_round: int = 1,
+    topic_completion_rounds: list[TopicCompletionRoundResponse] | None = None,
+    topic_confirmations: list[TopicConfirmationResponse] | None = None,
 ) -> ManagementTaskResponse:
     return ManagementTaskResponse(
         id=ticket.id,
@@ -111,6 +177,10 @@ def _task_response(
         assignee_user_id=ticket.assignee_user_id,
         topic_id=ticket.topic_id,
         topic_completion_submitted_at=topic_completion_submitted_at,
+        topic_completion_note=topic_completion_note,
+        topic_completion_round=max(1, int(topic_completion_round or 1)),
+        topic_completion_rounds=topic_completion_rounds or [],
+        topic_confirmations=topic_confirmations or [],
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         status_entered_at=getattr(ticket, "status_entered_at", None) or ticket.created_at,
@@ -119,17 +189,27 @@ def _task_response(
     )
 
 
+def _task_response_from_snapshot(ticket, snapshot: dict | None) -> ManagementTaskResponse:
+    data = snapshot or {}
+    return _task_response(
+        ticket,
+        topic_completion_submitted_at=data.get("submitted_at"),
+        topic_completion_note=data.get("note"),
+        topic_completion_round=data.get("round", 1),
+        topic_completion_rounds=data.get("rounds") or [],
+        topic_confirmations=data.get("confirmations") or [],
+    )
+
+
 def _tasks_response(db: Session, tasks: list) -> list[ManagementTaskResponse]:
-    completion = _topic_completion_map(
+    completion = _topic_completion_snapshot(
         db,
         [item.topic_id for item in tasks if getattr(item, "topic_id", None)],
     )
     return [
-        _task_response(
+        _task_response_from_snapshot(
             item,
-            topic_completion_submitted_at=(
-                completion.get(item.topic_id) if item.topic_id else None
-            ),
+            completion.get(item.topic_id) if item.topic_id else None,
         )
         for item in tasks
     ]
@@ -565,10 +645,8 @@ def submit_management_completion(
             next_status=ticket.status,
             actor_name=actor_name,
         )
-    return _task_response(
-        ticket,
-        topic_completion_submitted_at=completed.completion_submitted_at,
-    )
+    snapshot = _topic_completion_snapshot(db, [completed.id]).get(completed.id)
+    return _task_response_from_snapshot(ticket, snapshot)
 
 
 @router.delete("/tasks/{task_id}", status_code=204)

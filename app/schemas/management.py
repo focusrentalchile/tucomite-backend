@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.topics import TopicCompletionRoundResponse, TopicConfirmationResponse
+
 
 class ManagementAttachmentPayload(BaseModel):
     """One image, video, or file sent with a task or a reply (url may be a data URL)."""
@@ -49,6 +51,10 @@ class ManagementTaskResponse(BaseModel):
     assignee_user_id: str | None = None
     topic_id: str | None = None
     topic_completion_submitted_at: str | None = None
+    topic_completion_note: str | None = None
+    topic_completion_round: int = 1
+    topic_completion_rounds: list[TopicCompletionRoundResponse] = []
+    topic_confirmations: list[TopicConfirmationResponse] = []
     created_at: str
     updated_at: str
     status_entered_at: str | None = None

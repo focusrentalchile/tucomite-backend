@@ -427,6 +427,23 @@ class TopicService:
             topic = self._fail_completion_round(topic, confirmations)
         return topic, confirmation
 
+    def seal_failed_completion_if_needed(
+        self,
+        topic: TopicRecord,
+        *,
+        committee_size: int,
+    ) -> TopicRecord:
+        """If an open Resultado already has a No majority, seal it and reopen Culminación.
+
+        Used when listing Gestión/Temas so stuck open deliveries heal after deploy.
+        """
+        if not topic.completion_submitted_at or committee_size <= 0:
+            return topic
+        confirmations = self._repository.list_confirmations_for_topics([topic.id])
+        if no_confirmation_count(confirmations) > (committee_size / 2):
+            return self._fail_completion_round(topic, confirmations)
+        return topic
+
     def _fail_completion_round(
         self,
         topic: TopicRecord,
