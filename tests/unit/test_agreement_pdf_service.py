@@ -1,7 +1,7 @@
 """Unit tests for the branded agreement PDF builder."""
 
 from app.domain.agreements import VOTE_RESULT_APPROVED, VOTE_RESULT_CUSTOM
-from app.domain.topics import TopicOpinionRecord, TopicVoteRecord
+from app.domain.topics import TopicConfirmationRecord, TopicOpinionRecord, TopicVoteRecord
 from app.services.agreement_pdf_service import build_agreement_pdf
 
 
@@ -33,6 +33,26 @@ def test_build_agreement_pdf_contains_pdf_header() -> None:
             ),
         ],
         building_name="Edificio Norte",
+        completion_note="Se instalaron 4 cámaras.",
+        confirmations=[
+            TopicConfirmationRecord(
+                id="c1",
+                topic_id="t1",
+                author_id="u1",
+                author_name="Ana",
+                created_at="2026-03-01T14:00:00",
+                choice="yes",
+            ),
+            TopicConfirmationRecord(
+                id="c2",
+                topic_id="t1",
+                author_id="u2",
+                author_name="Luis",
+                created_at="2026-03-01T14:05:00",
+                choice="no",
+                reason="Falta una cámara",
+            ),
+        ],
     )
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 1000

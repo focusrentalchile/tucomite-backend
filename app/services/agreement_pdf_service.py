@@ -27,7 +27,12 @@ from app.domain.agreements import (
     VOTE_RESULT_REJECTED,
     VOTE_RESULT_TIED,
 )
-from app.domain.topics import TopicOpinionRecord, TopicVoteRecord
+from app.domain.topics import (
+    TopicCompletionRoundRecord,
+    TopicConfirmationRecord,
+    TopicOpinionRecord,
+    TopicVoteRecord,
+)
 
 BRAND_NAVY = colors.HexColor("#001545")
 BRAND_ACTION = colors.HexColor("#1F4B99")
@@ -82,6 +87,10 @@ def build_agreement_pdf(
     building_name: str | None = None,
     vote_option_counts: list[tuple[str, int]] | None = None,
     vote_choice_labels: dict[str, str] | None = None,
+    completion_note: str | None = None,
+    confirmations: list[TopicConfirmationRecord] | None = None,
+    completion_rounds: list[TopicCompletionRoundRecord] | None = None,
+    assignee_name: str | None = None,
 ) -> bytes:
     """Return PDF bytes for one agreement acta."""
     buffer = BytesIO()
@@ -249,11 +258,84 @@ def build_agreement_pdf(
     else:
         story.append(Paragraph("No se registraron votos.", body_style))
 
+    story.append(Paragraph("Ejecución y solución", heading_style))
+    if assignee_name:
+        story.append(Paragraph(f"<b>Responsable:</b> {_escape(assignee_name)}", body_style))
+        story.append(Spacer(1, 0.12 * cm))
+    story.append(
+        Paragraph(
+            f"<b>Solución entregada:</b> {_escape(completion_note or 'Sin nota de solución.')}",
+            body_style,
+        ),
+    )
+
+    rounds = list(completion_rounds or [])
+    if rounds:
+        story.append(Paragraph("Historial de resultados rechazados", heading_style))
+        for round_item in rounds:
+            story.append(
+                Paragraph(
+                    f"<b>Resultado N° {round_item.round_number}</b> "
+                    f"({_escape(round_item.outcome or 'failed')})",
+                    body_style,
+                ),
+            )
+            story.append(Paragraph(_escape(round_item.note or "Sin nota."), body_style))
+            if round_item.confirmations:
+                for item in round_item.confirmations:
+                    choice = "Sí" if (item.choice or "yes").casefold() == "yes" else "No"
+                    reason = f" — {_escape(item.reason)}" if item.reason else ""
+                    story.append(
+                        Paragraph(
+                            f"• {_escape(item.author_name or 'Integrante')}: {choice}{reason}",
+                            body_style,
+                        ),
+                    )
+            story.append(Spacer(1, 0.2 * cm))
+
+    story.append(Paragraph("¿Quedó listo? (confirmación del comité)", heading_style))
+    confirmation_rows = list(confirmations or [])
+    if confirmation_rows:
+        ready_table_data = [["Integrante", "Voto", "Comentario"]]
+        for item in confirmation_rows:
+            choice = "Sí" if (item.choice or "yes").casefold() == "yes" else "No"
+            ready_table_data.append(
+                [
+                    _escape(item.author_name or "Sin nombre"),
+                    choice,
+                    _escape(item.reason or "—"),
+                ],
+            )
+        ready_table = Table(ready_table_data, colWidths=[5.5 * cm, 3 * cm, 8 * cm])
+        ready_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D5DEEA")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ],
+            ),
+        )
+        story.append(ready_table)
+    else:
+        story.append(Paragraph("No se registraron confirmaciones de Resultado.", body_style))
+
     story.append(Paragraph("Comentarios y opiniones", heading_style))
     if opinions:
         for opinion in opinions:
+            when = _format_date(opinion.created_at) if opinion.created_at else ""
+            author = _escape(opinion.author_name or "Integrante")
+            stamp = f" · {when}" if when else ""
             block = [
-                Paragraph(f"<b>{_escape(opinion.author_name or 'Integrante')}</b>", body_style),
+                Paragraph(f"<b>{author}</b>{stamp}", body_style),
                 Paragraph(_escape(opinion.body), body_style),
                 Spacer(1, 0.25 * cm),
             ]

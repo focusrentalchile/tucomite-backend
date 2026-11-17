@@ -17,10 +17,11 @@ from app.domain.agreements import (
 )
 from app.domain.topics import (
     CLOSED_STATUS_ID,
+    CONFIRMATION_YES,
     VOTE_TYPE_CUSTOM,
+    TopicConfirmationRecord,
     TopicNotFound,
     TopicOpinionRecord,
-    TopicRecord,
     TopicVoteRecord,
 )
 from app.repositories.agreement_repository import AgreementRepository
@@ -70,8 +71,10 @@ class AgreementService:
         if topic.status_id != CLOSED_STATUS_ID:
             return None
 
+        resolved_client = client_id or topic.client_id
         votes = self._topics.list_votes_for_topics([topic_id])
         opinions = self._topics.list_opinions_for_topics([topic_id])
+        confirmations = self._list_confirmations(topic_id)
         yes_count = sum(1 for vote in votes if vote.choice == "yes")
         no_count = sum(1 for vote in votes if vote.choice == "no")
         abstain_count = sum(1 for vote in votes if vote.choice == "abstain")
@@ -91,11 +94,19 @@ class AgreementService:
                 vote_choice_labels[option.id] = option.label
             option_lines.append(f"Abstenciones: {abstain_count}")
             vote_result = VOTE_RESULT_NO_VOTES if not votes else VOTE_RESULT_CUSTOM
-            summary = self._summary_custom(topic, option_lines, opinions)
+            summary = self._summary_custom(topic, option_lines, opinions, confirmations)
         else:
             vote_result = self._vote_result(yes_count, no_count, abstain_count)
-            summary = self._summary(topic, yes_count, no_count, abstain_count, vote_result, opinions)
-        building_name = self._building_name(client_id)
+            summary = self._summary(
+                topic,
+                yes_count,
+                no_count,
+                abstain_count,
+                vote_result,
+                opinions,
+                confirmations,
+            )
+        building_name = self._building_name(resolved_client)
         pdf_bytes = build_agreement_pdf(
             title=topic.title,
             decision=topic.decision,
@@ -111,6 +122,10 @@ class AgreementService:
             building_name=building_name,
             vote_option_counts=vote_option_counts,
             vote_choice_labels=vote_choice_labels,
+            completion_note=topic.completion_note,
+            confirmations=confirmations,
+            completion_rounds=list(topic.completion_rounds or ()),
+            assignee_name=None,
         )
         safe_title = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in topic.title)[:40]
         pdf_name = f"acuerdo-{safe_title or 'tema'}.pdf"
@@ -119,7 +134,7 @@ class AgreementService:
             id=str(uuid4()),
             topic_id=topic.id,
             period_id=topic.period_id,
-            client_id=client_id,
+            client_id=resolved_client,
             title=topic.title,
             decision=topic.decision,
             description=topic.description,
@@ -136,6 +151,26 @@ class AgreementService:
         )
         return self._agreements.add(record)
 
+    def backfill_missing_for_client(self, client_id: str | None) -> list[AgreementRecord]:
+        """Publish agreements for closed topics that still lack an acta."""
+        if not client_id:
+            return []
+        published: list[AgreementRecord] = []
+        for topic in self._topics.list_topics():
+            if topic.status_id != CLOSED_STATUS_ID:
+                continue
+            if topic.client_id != client_id:
+                continue
+            if self._agreements.get_by_topic(topic.id) is not None:
+                continue
+            try:
+                item = self.publish_from_topic(topic.id, client_id=client_id)
+            except Exception:
+                continue
+            if item is not None:
+                published.append(item)
+        return published
+
     def publish_closed_topics_for_period(
         self,
         period_id: str,
@@ -147,10 +182,16 @@ class AgreementService:
         for topic in self._topics.list_topics():
             if topic.period_id != period_id or topic.status_id != CLOSED_STATUS_ID:
                 continue
-            item = self.publish_from_topic(topic.id, client_id=client_id)
+            item = self.publish_from_topic(topic.id, client_id=client_id or topic.client_id)
             if item is not None:
                 published.append(item)
         return published
+
+    def _list_confirmations(self, topic_id: str) -> list[TopicConfirmationRecord]:
+        list_fn = getattr(self._topics, "list_confirmations_for_topics", None)
+        if not callable(list_fn):
+            return []
+        return list(list_fn([topic_id]))
 
     def _building_name(self, client_id: str | None) -> str | None:
         if not client_id or self._clients is None:
@@ -175,14 +216,23 @@ class AgreementService:
         abstain_count: int,
         vote_result: str,
         opinions: list[TopicOpinionRecord],
+        confirmations: list[TopicConfirmationRecord],
     ) -> str:
         category = CATEGORY_LABELS.get(topic.category_key, topic.category_key or "—")
         result = RESULT_LABELS.get(vote_result, vote_result)
+        yes_ready = sum(
+            1
+            for item in confirmations
+            if (item.choice or CONFIRMATION_YES).casefold() == CONFIRMATION_YES
+        )
+        no_ready = sum(1 for item in confirmations if (item.choice or "").casefold() == "no")
         lines = [
             f"Tema: {topic.title}",
             f"Categoría: {category}",
             f"Decisión: {topic.decision or '—'}",
             f"Resultado de la votación: {result} (a favor {yes_count}, en contra {no_count}, abstenciones {abstain_count}).",
+            f"¿Quedó listo?: Sí {yes_ready}, No {no_ready}.",
+            f"Solución: {topic.completion_note or '—'}",
             f"Descripción: {topic.description or '—'}",
             f"Comentarios registrados: {len(opinions)}.",
         ]
@@ -193,15 +243,24 @@ class AgreementService:
         topic: TopicRecord,
         option_lines: list[str],
         opinions: list[TopicOpinionRecord],
+        confirmations: list[TopicConfirmationRecord],
     ) -> str:
         category = CATEGORY_LABELS.get(topic.category_key, topic.category_key or "—")
         result = RESULT_LABELS.get(VOTE_RESULT_CUSTOM, "OPCIONES")
         tallies = ", ".join(option_lines) if option_lines else "sin conteos"
+        yes_ready = sum(
+            1
+            for item in confirmations
+            if (item.choice or CONFIRMATION_YES).casefold() == CONFIRMATION_YES
+        )
+        no_ready = sum(1 for item in confirmations if (item.choice or "").casefold() == "no")
         lines = [
             f"Tema: {topic.title}",
             f"Categoría: {category}",
             f"Pregunta: {topic.decision or '—'}",
             f"Resultado de la votación: {result} ({tallies}).",
+            f"¿Quedó listo?: Sí {yes_ready}, No {no_ready}.",
+            f"Solución: {topic.completion_note or '—'}",
             f"Descripción: {topic.description or '—'}",
             f"Comentarios registrados: {len(opinions)}.",
         ]

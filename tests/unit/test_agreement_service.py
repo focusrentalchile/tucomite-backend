@@ -18,6 +18,8 @@ class _Topics:
             priority_id=2,
             closed_at="2026-03-01T12:00:00",
             period_id="p1",
+            client_id="c1",
+            completion_note="Cámaras instaladas y probadas.",
         )
         self.votes = [
             TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="Ana", choice="yes"),
@@ -47,6 +49,30 @@ class _Topics:
     def list_opinions_for_topics(self, topic_ids: list[str]):
         return [item for item in self.opinions if item.topic_id in topic_ids]
 
+    def list_confirmations_for_topics(self, topic_ids: list[str]):
+        from app.domain.topics import TopicConfirmationRecord
+
+        if "t1" not in topic_ids:
+            return []
+        return [
+            TopicConfirmationRecord(
+                id="c1",
+                topic_id="t1",
+                author_id="u1",
+                author_name="Ana",
+                created_at="2026-03-01T11:00:00",
+                choice="yes",
+            ),
+            TopicConfirmationRecord(
+                id="c2",
+                topic_id="t1",
+                author_id="u2",
+                author_name="Luis",
+                created_at="2026-03-01T11:05:00",
+                choice="yes",
+            ),
+        ]
+
 
 def test_publish_from_closed_topic_creates_pdf_once() -> None:
     agreements = InMemoryAgreementRepository()
@@ -66,6 +92,19 @@ def test_publish_from_closed_topic_creates_pdf_once() -> None:
     assert detail is not None
     assert detail.pdf_bytes.startswith(b"%PDF")
     assert "¿Instalamos cámaras?" in first.summary
+    assert "Cámaras instaladas" in first.summary
+    assert "¿Quedó listo?" in first.summary
+
+
+def test_backfill_missing_publishes_closed_topics_without_acta() -> None:
+    agreements = InMemoryAgreementRepository()
+    topics = _Topics()
+    service = AgreementService(agreements, topics)
+    assert agreements.list_agreements(client_id="c1") == []
+    created = service.backfill_missing_for_client("c1")
+    assert len(created) == 1
+    assert created[0].topic_id == "t1"
+    assert service.backfill_missing_for_client("c1") == []
 
 
 def test_open_topic_is_not_published() -> None:

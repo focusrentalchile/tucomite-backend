@@ -299,16 +299,13 @@ def read_topics(
                 pass
             healed.append(topic)
             continue
-        if (
-            previous_status != CLOSED_STATUS_ID
-            and next_topic.status_id == CLOSED_STATUS_ID
-        ):
-            # Keep CLOSED even when the PDF/agreement step fails.
+        if next_topic.status_id == CLOSED_STATUS_ID:
+            # Publish (or retry) the acta for every closed topic, including already-closed ones.
             try:
                 _publish_agreement_best_effort(
                     db,
                     topic_id=next_topic.id,
-                    client_id=actor.client_id,
+                    client_id=actor.client_id or next_topic.client_id,
                 )
             except Exception:  # noqa: BLE001 — never block the Temas board
                 logger.exception("Agreement heal publish crashed for %s", next_topic.id)

@@ -57,6 +57,13 @@ def list_agreements(
         ).workspace_client_ids(user_id=actor.user_id, home_client_id=actor.client_id)
         if selected not in workspace:
             raise HTTPException(status_code=403, detail="That building is not in your workspace.")
+    # Closed topics that never got an acta (e.g. heal/PDF failure) are published here.
+    backfill_client = selected or actor.client_id
+    if backfill_client:
+        try:
+            service.backfill_missing_for_client(backfill_client)
+        except Exception:
+            pass
     items = service.list_agreements(client_id=selected)
     if selected is None and actor.client_id and "management.view" in actor.permissions:
         workspace = ManagementService(
