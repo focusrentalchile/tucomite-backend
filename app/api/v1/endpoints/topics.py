@@ -290,6 +290,9 @@ def read_topics(
         return TopicListResponse(items=[])
     topics = _topics_for_open_period(service, db, client_id=actor.client_id)
     committee_size = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
+    grace_days = ClientSettingsService(
+        SqlClientSettingsRepository(db),
+    ).consensus_grace_days(actor.client_id)
     healed: list = []
     for topic in topics:
         previous_status = topic.status_id
@@ -393,9 +396,9 @@ def read_topics(
                     committee_size,
                 ),
                 consensus_ends_at=(
-                    consensus_grace_ends_at(topic).isoformat()
-                    if consensus_grace_ends_at(topic) is not None
-                    else None
+                    None
+                    if (ends := consensus_grace_ends_at(topic, grace_days=grace_days)) is None
+                    else ends.isoformat()
                 ),
             )
             for topic in topics
@@ -732,6 +735,9 @@ def cast_vote(
             status_code=409,
             detail="At least three committee members are required to vote.",
         )
+    grace_days = ClientSettingsService(
+        SqlClientSettingsRepository(db),
+    ).consensus_grace_days(actor.client_id) if actor.client_id else None
     previous = SqlTopicRepository(db).get_topic(topic_id)
     previous_status_id = previous.status_id if previous is not None else None
     votes_before = service.list_votes_for_topics([topic_id]) if previous is not None else []
@@ -746,6 +752,7 @@ def cast_vote(
             author_name=user.full_name,
             choice=body.choice,
             committee_size=member_count,
+            grace_days=grace_days,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error

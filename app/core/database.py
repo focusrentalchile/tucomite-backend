@@ -58,6 +58,7 @@ def init_database() -> None:
     from app.models import email_templates as email_template_models  # noqa: F401
     from app.models import invitations as invitation_models  # noqa: F401
     from app.models import topics as topic_models  # noqa: F401
+    from app.models import agreements as agreement_models  # noqa: F401 — required for create_all
     from app.models import client_settings as client_settings_models  # noqa: F401
     from app.models import account as account_models  # noqa: F401
     from app.models import platform_settings as platform_settings_models  # noqa: F401
@@ -483,6 +484,28 @@ def init_database() -> None:
             ).scalar()
             if not has_topic_client_index:
                 connection.execute(text("CREATE INDEX `ix_topics_client_id` ON `topics` (`client_id`)"))
+            settings_exist = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'client_settings'"
+                ),
+            ).scalar()
+            if settings_exist:
+                has_consensus_days = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        "AND TABLE_NAME = 'client_settings' "
+                        "AND COLUMN_NAME = 'consensus_grace_days'"
+                    ),
+                ).scalar()
+                if not has_consensus_days:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE `client_settings` "
+                            "ADD COLUMN `consensus_grace_days` INT NOT NULL DEFAULT 5"
+                        ),
+                    )
             if periods_exist:
                 # Backfill: topics created before the column belong to their period's building.
                 connection.execute(

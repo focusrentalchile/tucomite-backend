@@ -509,7 +509,7 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
                   </td>
                 </tr>
               </table>
-              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Te invitamos a abrir el tema y continuar el diálogo en <strong>Opiniones</strong>, con un tono profesional y respetuoso. Tienen <strong>5 días</strong> adicionales para acercar posiciones y, si hace falta, actualizar su voto.</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Te invitamos a abrir el tema y continuar el diálogo en <strong>Opiniones</strong>, con un tono profesional y respetuoso. Usen el <strong>plazo de consenso</strong> configurado en el edificio para acercar posiciones y, si hace falta, actualizar su voto.</p>
               <p style="margin:22px 0 10px;text-align:center;">
                 <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Abrir Opiniones</a>
               </p>

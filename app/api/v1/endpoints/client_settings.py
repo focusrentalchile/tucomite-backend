@@ -25,6 +25,7 @@ def _response(settings: ClientSettingsRecord) -> VoteWindowSettingsResponse:
         high_hours=settings.vote_window_high_hours,
         medium_hours=settings.vote_window_medium_hours,
         low_hours=settings.vote_window_low_hours,
+        consensus_grace_days=settings.consensus_grace_days,
     )
 
 
@@ -92,6 +93,7 @@ def update_vote_window(
             high_hours=body.high_hours,
             medium_hours=body.medium_hours,
             low_hours=body.low_hours,
+            consensus_grace_days=body.consensus_grace_days,
         )
     except InvalidVoteWindowSettings as error:
         raise HTTPException(status_code=422, detail="Vote window hours are out of range.") from error

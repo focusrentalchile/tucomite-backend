@@ -9,6 +9,11 @@ DEFAULT_VOTE_WINDOW_LOW_HOURS = 168
 MIN_VOTE_WINDOW_HOURS = 1
 MAX_VOTE_WINDOW_HOURS = 24 * 365
 
+# Extra days after voting ends without a majority (debate / change votes).
+DEFAULT_CONSENSUS_GRACE_DAYS = 5
+MIN_CONSENSUS_GRACE_DAYS = 1
+MAX_CONSENSUS_GRACE_DAYS = 90
+
 
 @dataclass(frozen=True)
 class ClientSettingsRecord:
@@ -18,6 +23,7 @@ class ClientSettingsRecord:
     vote_window_high_hours: int = DEFAULT_VOTE_WINDOW_HIGH_HOURS
     vote_window_medium_hours: int = DEFAULT_VOTE_WINDOW_MEDIUM_HOURS
     vote_window_low_hours: int = DEFAULT_VOTE_WINDOW_LOW_HOURS
+    consensus_grace_days: int = DEFAULT_CONSENSUS_GRACE_DAYS
 
     def hours_for_priority(self, priority_id: int) -> int:
         """Return the default vote window length for a priority id (1 high, 2 medium, 3 low)."""
@@ -29,4 +35,4 @@ class ClientSettingsRecord:
 
 
 class InvalidVoteWindowSettings(Exception):
-    """Raised when a default vote window is outside the allowed range."""
+    """Raised when a default vote window or consensus grace is outside the allowed range."""

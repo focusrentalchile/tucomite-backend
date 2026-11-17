@@ -559,6 +559,7 @@ class TopicService:
         now: datetime | None = None,
         *,
         committee_size: int = 0,
+        grace_days: int | None = None,
     ) -> tuple[TopicRecord, TopicVoteRecord]:
         """Store one person's first vote and move the topic to waiting.
 
@@ -575,6 +576,7 @@ class TopicService:
             now,
             votes=existing_votes,
             committee_size=committee_size,
+            grace_days=grace_days,
         )
         normalized = choice.strip()
         allowed = (

@@ -146,15 +146,25 @@ def test_vote_window_settings_default_update_and_apply_to_new_topics() -> None:
     login_as_demo_admin(client)
     original = client.get("/api/v1/building-settings/vote-window")
     assert original.status_code == 200, original.text
-    assert set(original.json()) == {"high_hours", "medium_hours", "low_hours"}
+    assert set(original.json()) == {"high_hours", "medium_hours", "low_hours", "consensus_grace_days"}
 
     try:
         saved = client.put(
             "/api/v1/building-settings/vote-window",
-            json={"high_hours": 5, "medium_hours": 30, "low_hours": 200},
+            json={
+                "high_hours": 5,
+                "medium_hours": 30,
+                "low_hours": 200,
+                "consensus_grace_days": 7,
+            },
         )
         assert saved.status_code == 200, saved.text
-        assert saved.json() == {"high_hours": 5, "medium_hours": 30, "low_hours": 200}
+        assert saved.json() == {
+            "high_hours": 5,
+            "medium_hours": 30,
+            "low_hours": 200,
+            "consensus_grace_days": 7,
+        }
         assert client.get("/api/v1/building-settings/vote-window").json() == saved.json()
 
         created = client.post("/api/v1/topics", json=_topic_body("Urgente", priority_id=1))
@@ -169,6 +179,7 @@ def test_vote_window_settings_default_update_and_apply_to_new_topics() -> None:
                 "high_hours": original.json()["high_hours"],
                 "medium_hours": original.json()["medium_hours"],
                 "low_hours": original.json()["low_hours"],
+                "consensus_grace_days": original.json()["consensus_grace_days"],
             },
         )
 
@@ -178,7 +189,12 @@ def test_vote_window_settings_reject_invalid_hours() -> None:
 
     response = client.put(
         "/api/v1/building-settings/vote-window",
-        json={"high_hours": 0, "medium_hours": 72, "low_hours": 168},
+        json={
+            "high_hours": 0,
+            "medium_hours": 72,
+            "low_hours": 168,
+            "consensus_grace_days": 5,
+        },
     )
 
     assert response.status_code == 422
@@ -190,7 +206,12 @@ def test_residents_cannot_change_vote_window_settings() -> None:
     read = client.get("/api/v1/building-settings/vote-window")
     write = client.put(
         "/api/v1/building-settings/vote-window",
-        json={"high_hours": 1, "medium_hours": 1, "low_hours": 1},
+        json={
+            "high_hours": 1,
+            "medium_hours": 1,
+            "low_hours": 1,
+            "consensus_grace_days": 1,
+        },
     )
 
     assert read.status_code == 200

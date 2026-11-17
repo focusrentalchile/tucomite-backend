@@ -4,7 +4,7 @@ from typing import Protocol
 
 from sqlalchemy.orm import Session
 
-from app.domain.client_settings import ClientSettingsRecord
+from app.domain.client_settings import DEFAULT_CONSENSUS_GRACE_DAYS, ClientSettingsRecord
 from app.models.client_settings import ClientSettingsModel
 
 
@@ -38,6 +38,8 @@ class SqlClientSettingsRepository:
         row.vote_window_high_hours = settings.vote_window_high_hours
         row.vote_window_medium_hours = settings.vote_window_medium_hours
         row.vote_window_low_hours = settings.vote_window_low_hours
+        if hasattr(row, "consensus_grace_days"):
+            row.consensus_grace_days = settings.consensus_grace_days
         self._session.flush()
         return self._record(row)
 
@@ -47,4 +49,7 @@ class SqlClientSettingsRepository:
             vote_window_high_hours=row.vote_window_high_hours,
             vote_window_medium_hours=row.vote_window_medium_hours,
             vote_window_low_hours=row.vote_window_low_hours,
+            consensus_grace_days=int(
+                getattr(row, "consensus_grace_days", None) or DEFAULT_CONSENSUS_GRACE_DAYS
+            ),
         )

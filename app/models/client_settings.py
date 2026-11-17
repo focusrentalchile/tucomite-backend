@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 from app.domain.client_settings import (
+    DEFAULT_CONSENSUS_GRACE_DAYS,
     DEFAULT_VOTE_WINDOW_HIGH_HOURS,
     DEFAULT_VOTE_WINDOW_LOW_HOURS,
     DEFAULT_VOTE_WINDOW_MEDIUM_HOURS,
@@ -31,4 +32,9 @@ class ClientSettingsModel(Base):
         Integer,
         nullable=False,
         default=DEFAULT_VOTE_WINDOW_LOW_HOURS,
+    )
+    consensus_grace_days: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=DEFAULT_CONSENSUS_GRACE_DAYS,
     )

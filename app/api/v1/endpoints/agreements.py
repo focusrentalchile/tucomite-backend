@@ -58,14 +58,18 @@ def list_agreements(
         if selected not in workspace:
             raise HTTPException(status_code=403, detail="That building is not in your workspace.")
     # Closed topics that never got an acta (e.g. heal/PDF failure) are published here.
-    # Isolate failures so list_agreements never dies with PendingRollbackError.
+    # Per-topic SAVEPOINTs live inside backfill; do not wrap the whole loop in one
+    # outer savepoint (that used to discard successful publishes on later errors).
     backfill_client = selected or actor.client_id
     if backfill_client:
         try:
-            with db.begin_nested():
-                service.backfill_missing_for_client(backfill_client)
+            service.backfill_missing_for_client(backfill_client)
+            db.flush()
         except Exception:
-            pass
+            try:
+                db.rollback()
+            except Exception:
+                pass
     try:
         items = service.list_agreements(client_id=selected)
     except Exception:

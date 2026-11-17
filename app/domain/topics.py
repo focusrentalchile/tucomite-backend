@@ -30,7 +30,7 @@ VOTE_TYPE_CUSTOM = "custom"
 VOTE_TYPES = frozenset({VOTE_TYPE_YES_NO, VOTE_TYPE_CUSTOM})
 PRIORITY_IDS = frozenset(priority_id for priority_id, _ in TOPIC_PRIORITIES)
 
-# Extra days after voting_ends_at for Waiting topics without a majority to debate and change votes.
+# Fallback when the building has no consensus_grace_days setting yet.
 CONSENSUS_GRACE_DAYS = 5
 
 
@@ -325,12 +325,17 @@ def resolve_voting_window(
     )
 
 
-def consensus_grace_ends_at(topic: "TopicRecord") -> datetime | None:
-    """Return voting_ends_at + CONSENSUS_GRACE_DAYS, or None when there is no end."""
+def consensus_grace_ends_at(
+    topic: "TopicRecord",
+    *,
+    grace_days: int | None = None,
+) -> datetime | None:
+    """Return voting_ends_at + grace days, or None when there is no end."""
     end = parse_instant(topic.voting_ends_at)
     if end is None:
         return None
-    return end + timedelta(days=CONSENSUS_GRACE_DAYS)
+    days = CONSENSUS_GRACE_DAYS if grace_days is None else max(1, int(grace_days))
+    return end + timedelta(days=days)
 
 
 def is_voting_window_ended(topic: "TopicRecord", now: datetime | None = None) -> bool:
@@ -362,11 +367,12 @@ def ensure_voting_open(
     *,
     votes: list["TopicVoteRecord"] | None = None,
     committee_size: int = 0,
+    grace_days: int | None = None,
 ) -> None:
     """Raise VotingWindowClosed when ``now`` is outside the topic's voting window.
 
-    Waiting topics without a majority stay votable for CONSENSUS_GRACE_DAYS after
-    ``voting_ends_at`` so the committee can still reach consensus.
+    Waiting topics without a majority stay votable for the building's consensus
+    grace days after ``voting_ends_at`` so the committee can still reach consensus.
     """
     moment = now or datetime.now(timezone.utc)
     if moment.tzinfo is None:
@@ -381,7 +387,7 @@ def ensure_voting_open(
             and topic.status_id == WAITING_STATUS_ID
             and not execution_quorum_met(winning_vote_count(topic, votes), committee_size)
         ):
-            grace = consensus_grace_ends_at(topic)
+            grace = consensus_grace_ends_at(topic, grace_days=grace_days)
             if grace is not None and moment <= grace:
                 return
         raise VotingWindowClosed("ended")
