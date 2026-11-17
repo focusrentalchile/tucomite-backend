@@ -75,7 +75,7 @@ def test_topic_opinion_email_template_is_registered_with_defaults() -> None:
     assert TEMPLATE_TOPIC_OPINION == "topic_opinion"
     assert TEMPLATE_TOPIC_OPINION in EMAIL_TEMPLATE_KEYS
     defaults = DEFAULT_TEMPLATES[TEMPLATE_TOPIC_OPINION]
-    assert "nueva opinión" in defaults["subject"].casefold()
+    assert "debate" in defaults["subject"].casefold()
     assert "{{actor_name}}" in defaults["html_body"]
     assert "{{topic_url}}" in defaults["html_body"]
     assert "Abre el tema" in defaults["html_body"]
@@ -115,7 +115,7 @@ def test_mark_opinions_seen_stores_and_lists_the_instant() -> None:
     assert service.list_opinion_reads("user-2", [topic.id]) == {}
 
 
-def test_notify_topic_opinion_skips_the_author() -> None:
+def test_notify_topic_opinion_skips_the_author_and_emails_only_on_first() -> None:
     added: list[dict] = []
 
     def fake_add(db, **kwargs):  # noqa: ANN001, ANN003
@@ -137,20 +137,32 @@ def test_notify_topic_opinion_skips_the_author() -> None:
         patch.object(topic_mail, "SqlAccessRepository", return_value=access),
         patch.object(topic_mail, "_send_to_committee", return_value=2) as send,
     ):
-        count = topic_mail.notify_topic_opinion(
+        later = topic_mail.notify_topic_opinion(
             MagicMock(),
             topic=_topic(),
             author_id="author",
             author_name="Ana",
             client_id="client-1",
+            send_email=False,
+        )
+        first = topic_mail.notify_topic_opinion(
+            MagicMock(),
+            topic=_topic(),
+            author_id="author",
+            author_name="Ana",
+            client_id="client-1",
+            send_email=True,
         )
 
-    assert count == 4
-    assert added[0]["user_ids"] == ["voter-1", "owner-1"]
-    assert added[0]["kind"] == "topic_opinion"
+    assert later == 2
+    assert first == 4
     assert added[0]["title"] == "Nueva opinión"
-    assert "Ana" in added[0]["body"]
-    assert "Ascensor" in added[0]["body"]
+    assert added[1]["title"] == "Se inició el debate"
+    assert added[1]["user_ids"] == ["voter-1", "owner-1"]
+    assert added[1]["kind"] == "topic_opinion"
+    assert "Ana" in added[1]["body"]
+    assert "Ascensor" in added[1]["body"]
+    assert send.call_count == 1
     assert send.call_args.kwargs["template_key"] == TEMPLATE_TOPIC_OPINION
     assert send.call_args.kwargs["exclude_emails"] == {"ana@example.com"}
 

@@ -581,6 +581,21 @@ def init_database() -> None:
             ).scalar()
             if has_opinion_author_unique:
                 connection.execute(text("ALTER TABLE `topic_opinions` DROP INDEX `uq_topic_opinions_author`"))
+            has_reply_to = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'topic_opinions' "
+                    "AND COLUMN_NAME = 'reply_to_opinion_id'"
+                ),
+            ).scalar()
+            if not has_reply_to:
+                connection.execute(
+                    text(
+                        "ALTER TABLE `topic_opinions` "
+                        "ADD COLUMN `reply_to_opinion_id` VARCHAR(36) NULL"
+                    ),
+                )
             users_exist = connection.execute(
                 text(
                     "SELECT COUNT(*) FROM information_schema.TABLES "

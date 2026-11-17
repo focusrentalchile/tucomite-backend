@@ -117,6 +117,7 @@ class TopicOpinionRecord:
     author_name: str
     body: str
     created_at: str
+    reply_to_opinion_id: str | None = None
 
 
 CONFIRMATION_YES = "yes"

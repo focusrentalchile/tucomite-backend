@@ -309,9 +309,11 @@ def notify_topic_opinion(
     author_id: str,
     author_name: str,
     client_id: str | None,
+    send_email: bool = False,
 ) -> int:
-    """Bell + email for every committee voter and the client owner except the author."""
+    """In-app bell for every new opinion; email only when the debate starts (first opinion)."""
     resolved_client = client_id or topic.client_id
+    actor = author_name or "Alguien del comité"
     recipients = [
         user_id
         for user_id in _voter_and_owner_user_ids(db, resolved_client)
@@ -323,9 +325,15 @@ def notify_topic_opinion(
             db,
             user_ids=recipients,
             kind=NOTICE_KIND_TOPIC_OPINION,
-            title="Nueva opinión",
-            body=f"{author_name or 'Alguien del comité'} opinó en «{topic.title}».",
+            title="Se inició el debate" if send_email else "Nueva opinión",
+            body=(
+                f"{actor} inició el debate en «{topic.title}»."
+                if send_email
+                else f"{actor} opinó en «{topic.title}»."
+            ),
         )
+    if not send_email:
+        return notices
     exclude_emails: set[str] = set()
     author = SqlAccessRepository(db).get_user(author_id)
     if author is not None:
@@ -336,7 +344,7 @@ def notify_topic_opinion(
         db,
         template_key=TEMPLATE_TOPIC_OPINION,
         client_id=resolved_client,
-        actor_name=author_name or "Alguien del comité",
+        actor_name=actor,
         topic=topic,
         exclude_emails=exclude_emails,
     )

@@ -417,6 +417,7 @@ class SqlTopicRepository:
                 author_name=opinion.author_name,
                 body=opinion.body,
                 created_at=datetime.fromisoformat(opinion.created_at),
+                reply_to_opinion_id=opinion.reply_to_opinion_id,
             ),
         )
 
@@ -795,6 +796,7 @@ class SqlTopicRepository:
             author_name=row.author_name,
             body=row.body,
             created_at=row.created_at.isoformat(),
+            reply_to_opinion_id=getattr(row, "reply_to_opinion_id", None),
         )
 
     def _confirmation(self, row: TopicConfirmationModel) -> TopicConfirmationRecord:

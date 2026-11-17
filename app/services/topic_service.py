@@ -179,6 +179,7 @@ class TopicService:
         author_id: str,
         author_name: str,
         body: str,
+        reply_to_opinion_id: str | None = None,
     ) -> TopicOpinionRecord:
         """Append a new opinion message on a topic."""
         topic = self._repository.get_topic(topic_id)
@@ -189,6 +190,11 @@ class TopicService:
         text = body.strip()
         if not text:
             raise ValueError("Opinion body is required.")
+        reply_id = (reply_to_opinion_id or "").strip() or None
+        if reply_id:
+            parent = self._repository.get_opinion_by_id(reply_id)
+            if parent is None or parent.topic_id != topic_id:
+                raise ValueError("The opinion you are replying to was not found.")
         opinion = TopicOpinionRecord(
             id=str(uuid.uuid4()),
             topic_id=topic_id,
@@ -196,6 +202,7 @@ class TopicService:
             author_name=author_name.strip(),
             body=text,
             created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            reply_to_opinion_id=reply_id,
         )
         self._repository.add_opinion(opinion)
         return opinion
@@ -206,9 +213,16 @@ class TopicService:
         author_id: str,
         author_name: str,
         body: str,
+        reply_to_opinion_id: str | None = None,
     ) -> TopicOpinionRecord:
         """Append a new opinion (legacy name kept for call sites)."""
-        return self.create_opinion(topic_id, author_id, author_name, body)
+        return self.create_opinion(
+            topic_id,
+            author_id,
+            author_name,
+            body,
+            reply_to_opinion_id=reply_to_opinion_id,
+        )
 
     def delete_opinion(self, topic_id: str, opinion_id: str, author_id: str) -> None:
         """Remove one opinion when the actor wrote it."""

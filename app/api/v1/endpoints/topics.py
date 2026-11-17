@@ -95,14 +95,27 @@ def _vote_response(vote: TopicVoteRecord) -> TopicVoteResponse:
     )
 
 
-def _opinion_response(opinion: TopicOpinionRecord) -> TopicOpinionResponse:
+def _opinion_response(
+    opinion: TopicOpinionRecord,
+    *,
+    by_id: dict[str, TopicOpinionRecord] | None = None,
+) -> TopicOpinionResponse:
+    parent = by_id.get(opinion.reply_to_opinion_id) if by_id and opinion.reply_to_opinion_id else None
     return TopicOpinionResponse(
         id=opinion.id,
         author_id=opinion.author_id,
         author_name=opinion.author_name,
         body=opinion.body,
         created_at=opinion.created_at,
+        reply_to_opinion_id=opinion.reply_to_opinion_id,
+        reply_to_author_name=parent.author_name if parent is not None else None,
+        reply_to_body=parent.body if parent is not None else None,
     )
+
+
+def _opinion_responses(opinions: list[TopicOpinionRecord]) -> list[TopicOpinionResponse]:
+    by_id = {item.id: item for item in opinions}
+    return [_opinion_response(item, by_id=by_id) for item in opinions]
 
 
 def _confirmation_response(confirmation: TopicConfirmationRecord) -> TopicConfirmationResponse:
@@ -165,7 +178,7 @@ def _topic_response(
         voting_ends_at=topic.voting_ends_at,
         status_entered_at=topic.status_entered_at or topic.created_at,
         votes=[_vote_response(vote) for vote in votes],
-        opinions=[_opinion_response(item) for item in (opinions or [])],
+        opinions=_opinion_responses(opinions or []),
         attachments=[_attachment_response(item) for item in (attachments or [])],
         completion_note=topic.completion_note,
         completion_submitted_at=topic.completion_submitted_at,
@@ -810,12 +823,15 @@ def upsert_opinion(
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
+    prior_opinions = service.list_opinions_for_topics([topic_id])
+    is_first_opinion = len(prior_opinions) == 0
     try:
         opinion = service.create_opinion(
             topic_id,
             author_id=actor.user_id,
             author_name=user.full_name,
             body=body.body,
+            reply_to_opinion_id=body.reply_to_opinion_id,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
@@ -832,10 +848,15 @@ def upsert_opinion(
                 author_id=actor.user_id,
                 author_name=user.full_name,
                 client_id=actor.client_id or topic.client_id,
+                send_email=is_first_opinion,
             )
     except Exception:  # noqa: BLE001 — never block writing an opinion on notices
         pass
-    return UpsertOpinionResponse(topic_id=topic_id, opinion=_opinion_response(opinion))
+    by_id = {item.id: item for item in [*prior_opinions, opinion]}
+    return UpsertOpinionResponse(
+        topic_id=topic_id,
+        opinion=_opinion_response(opinion, by_id=by_id),
+    )
 
 
 @router.post("/topics/{topic_id}/opinions/seen", response_model=SeenOpinionsResponse)

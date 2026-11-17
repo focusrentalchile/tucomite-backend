@@ -435,14 +435,14 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
         ),
     },
     TEMPLATE_TOPIC_OPINION: {
-        "name": "Nueva opinión en un tema",
-        "subject": "{{building_name}}: nueva opinión en «{{topic_title}}»",
+        "name": "Se inició el debate en un tema",
+        "subject": "{{building_name}}: se inició el debate de «{{topic_title}}»",
         "html_body": _shell(
-            title="Nueva opinión",
+            title="Se inició el debate",
             inner="""
               <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
-              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Hay una opinión nueva</p>
-              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> publicó una opinión en un tema de <strong>{{building_name}}</strong>.</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Se inició el debate</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> escribió la primera opinión y abrió el debate en un tema de <strong>{{building_name}}</strong>.</p>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
                 <tr>
                   <td style="padding:16px 18px;">
@@ -453,7 +453,7 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
                   </td>
                 </tr>
               </table>
-              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Abre el tema y revisa Opiniones para leer el mensaje nuevo.</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Abre el tema y entra a Opiniones para participar en la conversación.</p>
               <p style="margin:22px 0 10px;text-align:center;">
                 <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Ver opiniones</a>
               </p>

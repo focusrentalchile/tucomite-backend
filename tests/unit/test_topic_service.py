@@ -291,14 +291,27 @@ def test_create_opinion_appends_many_per_author() -> None:
     first = service.create_opinion(topic.id, "user-1", "Ana Pérez", "Hay que cotizar")
     second = service.create_opinion(topic.id, "user-2", "Luis Soto", "Mejor esperar")
     third = service.create_opinion(topic.id, "user-1", "Ana Pérez", "Cotizar ya")
+    reply = service.create_opinion(
+        topic.id,
+        "user-2",
+        "Luis Soto",
+        "De acuerdo",
+        reply_to_opinion_id=first.id,
+    )
 
     listed = service.list_opinions_for_topics([topic.id])
-    assert len(listed) == 3
+    assert len(listed) == 4
     assert first.id != third.id
     assert third.body == "Cotizar ya"
     assert {item.author_id for item in listed} == {"user-1", "user-2"}
     assert second.body == "Mejor esperar"
-    assert [item.body for item in listed] == ["Hay que cotizar", "Mejor esperar", "Cotizar ya"]
+    assert reply.reply_to_opinion_id == first.id
+    assert [item.body for item in listed] == [
+        "Hay que cotizar",
+        "Mejor esperar",
+        "Cotizar ya",
+        "De acuerdo",
+    ]
 
 
 def test_update_move_and_delete_topic_persist() -> None:

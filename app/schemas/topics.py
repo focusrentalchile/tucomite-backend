@@ -69,6 +69,7 @@ class UpsertOpinionRequest(BaseModel):
     """Written opinion body for one topic."""
 
     body: str = Field(min_length=1, max_length=500)
+    reply_to_opinion_id: str | None = Field(default=None, max_length=36)
 
 
 class SubmitCompletionRequest(BaseModel):
@@ -109,6 +110,9 @@ class TopicOpinionResponse(BaseModel):
     author_name: str
     body: str
     created_at: str
+    reply_to_opinion_id: str | None = None
+    reply_to_author_name: str | None = None
+    reply_to_body: str | None = None
 
 
 class TopicConfirmationResponse(BaseModel):

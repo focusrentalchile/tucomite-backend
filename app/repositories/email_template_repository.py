@@ -78,6 +78,10 @@ class SqlEmailTemplateRepository:
                 } and "Regístrate" not in (row.html_body or ""):
                     row.subject = defaults["subject"]
                     row.html_body = defaults["html_body"]
+                if key == "topic_opinion" and "debate" not in (row.subject or "").casefold():
+                    row.name = defaults["name"]
+                    row.subject = defaults["subject"]
+                    row.html_body = defaults["html_body"]
         self._session.flush()
 
     def list_templates(self) -> list[EmailTemplateRecord]:

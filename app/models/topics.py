@@ -85,6 +85,7 @@ class TopicOpinionModel(Base):
     author_name: Mapped[str] = mapped_column(String(160))
     body: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime)
+    reply_to_opinion_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class TopicOpinionReadModel(Base):
