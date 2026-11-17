@@ -10,6 +10,7 @@ from app.domain.email_templates import (
     TEMPLATE_TOPIC_ASSIGN_READY,
     TEMPLATE_TOPIC_CREATED,
     TEMPLATE_TOPIC_DELETED,
+    TEMPLATE_TOPIC_OPINION,
     TEMPLATE_TOPIC_RESULTADO_VOTE,
     TEMPLATE_TOPIC_STATUS_CHANGED,
 )
@@ -137,8 +138,14 @@ def _send_to_committee(
     topic: TopicRecord,
     previous_status_id: int | None = None,
     include_assignee: TopicRecord | None = None,
+    exclude_emails: set[str] | None = None,
 ) -> int:
-    recipients = _recipients(db, client_id, include_assignee=include_assignee)
+    skipped = {item.casefold() for item in (exclude_emails or set()) if item}
+    recipients = [
+        (email, name)
+        for email, name in _recipients(db, client_id, include_assignee=include_assignee)
+        if email.casefold() not in skipped
+    ]
     if not recipients:
         return 0
     try:
@@ -301,21 +308,37 @@ def notify_topic_opinion(
     author_name: str,
     client_id: str | None,
 ) -> int:
-    """Bell notice for every committee voter and the client owner except the author."""
+    """Bell + email for every committee voter and the client owner except the author."""
+    resolved_client = client_id or topic.client_id
     recipients = [
         user_id
-        for user_id in _voter_and_owner_user_ids(db, client_id or topic.client_id)
+        for user_id in _voter_and_owner_user_ids(db, resolved_client)
         if user_id != author_id
     ]
-    if not recipients:
-        return 0
-    return _add_in_app_notices(
+    notices = 0
+    if recipients:
+        notices = _add_in_app_notices(
+            db,
+            user_ids=recipients,
+            kind=NOTICE_KIND_TOPIC_OPINION,
+            title="Nueva opinión",
+            body=f"{author_name or 'Alguien del comité'} opinó en «{topic.title}».",
+        )
+    exclude_emails: set[str] = set()
+    author = SqlAccessRepository(db).get_user(author_id)
+    if author is not None:
+        email = (author.email or "").strip()
+        if email:
+            exclude_emails.add(email)
+    emails = _send_to_committee(
         db,
-        user_ids=recipients,
-        kind=NOTICE_KIND_TOPIC_OPINION,
-        title="Nueva opinión",
-        body=f"{author_name or 'Alguien del comité'} opinó en «{topic.title}».",
+        template_key=TEMPLATE_TOPIC_OPINION,
+        client_id=resolved_client,
+        actor_name=author_name or "Alguien del comité",
+        topic=topic,
+        exclude_emails=exclude_emails,
     )
+    return notices + emails
 
 
 def notify_topic_assign_ready(

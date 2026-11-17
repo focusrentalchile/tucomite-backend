@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import app.services.topic_notification_email as topic_mail
 from app.api.v1.endpoints.topics import unread_opinion_count_for
-from app.domain.email_templates import EMAIL_TEMPLATE_KEYS, TEMPLATE_TOPIC_ASSIGN_READY
+from app.domain.email_templates import (
+    EMAIL_TEMPLATE_KEYS,
+    TEMPLATE_TOPIC_ASSIGN_READY,
+    TEMPLATE_TOPIC_OPINION,
+)
 from app.domain.topics import (
     DOING_STATUS_ID,
     OPEN_STATUS_ID,
@@ -67,6 +71,16 @@ def test_assign_ready_email_template_is_registered_with_defaults() -> None:
     assert "puedes" in defaults["html_body"]
 
 
+def test_topic_opinion_email_template_is_registered_with_defaults() -> None:
+    assert TEMPLATE_TOPIC_OPINION == "topic_opinion"
+    assert TEMPLATE_TOPIC_OPINION in EMAIL_TEMPLATE_KEYS
+    defaults = DEFAULT_TEMPLATES[TEMPLATE_TOPIC_OPINION]
+    assert "nueva opinión" in defaults["subject"].casefold()
+    assert "{{actor_name}}" in defaults["html_body"]
+    assert "{{topic_url}}" in defaults["html_body"]
+    assert "Abre el tema" in defaults["html_body"]
+
+
 def test_is_assign_ready_needs_waiting_majority_and_no_assignee() -> None:
     votes = [_vote(1), _vote(2)]
     assert is_assign_ready(_topic(), votes, committee_size=3) is True
@@ -108,6 +122,11 @@ def test_notify_topic_opinion_skips_the_author() -> None:
         added.append(kwargs)
         return len(kwargs["user_ids"])
 
+    author = MagicMock()
+    author.email = "ana@example.com"
+    access = MagicMock()
+    access.get_user.return_value = author
+
     with (
         patch.object(
             topic_mail,
@@ -115,6 +134,8 @@ def test_notify_topic_opinion_skips_the_author() -> None:
             return_value=["author", "voter-1", "owner-1"],
         ),
         patch.object(topic_mail, "_add_in_app_notices", side_effect=fake_add),
+        patch.object(topic_mail, "SqlAccessRepository", return_value=access),
+        patch.object(topic_mail, "_send_to_committee", return_value=2) as send,
     ):
         count = topic_mail.notify_topic_opinion(
             MagicMock(),
@@ -124,12 +145,14 @@ def test_notify_topic_opinion_skips_the_author() -> None:
             client_id="client-1",
         )
 
-    assert count == 2
+    assert count == 4
     assert added[0]["user_ids"] == ["voter-1", "owner-1"]
     assert added[0]["kind"] == "topic_opinion"
     assert added[0]["title"] == "Nueva opinión"
     assert "Ana" in added[0]["body"]
     assert "Ascensor" in added[0]["body"]
+    assert send.call_args.kwargs["template_key"] == TEMPLATE_TOPIC_OPINION
+    assert send.call_args.kwargs["exclude_emails"] == {"ana@example.com"}
 
 
 def test_notify_topic_assign_ready_sends_notice_and_template_email() -> None:
