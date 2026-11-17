@@ -1,10 +1,14 @@
 """Project endpoints. Only committee members may use them."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 
 from app.api.deps import Actor, get_project_service, require_committee_member
+from app.core.database import get_db
 from app.domain.periods import NoOpenPeriod, PeriodNotFound
 from app.domain.projects import ProjectAttachmentRecord, ProjectNotFound, ProjectRecord
+from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.period_repository import SqlPeriodRepository
 from app.schemas.projects import (
     CreateProjectRequest,
     ProjectAttachmentResponse,
@@ -12,6 +16,7 @@ from app.schemas.projects import (
     ProjectResponse,
     UpdateProjectRequest,
 )
+from app.services.project_notification_email import notify_project_created
 from app.services.project_service import ProjectService
 
 router = APIRouter(tags=["projects"])
@@ -63,7 +68,8 @@ def read_projects(
 def create_project(
     body: CreateProjectRequest,
     service: ProjectService = Depends(get_project_service),
-    _: Actor = Depends(require_committee_member),
+    actor: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
 ) -> ProjectResponse:
     """Create a project in the open period. Only committee members may create."""
     try:
@@ -81,6 +87,19 @@ def create_project(
         raise HTTPException(status_code=409, detail="Period is not open.") from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    period = SqlPeriodRepository(db).get_period(project.period_id)
+    client_id = actor.client_id or (period.client_id if period is not None else None)
+    actor_user = SqlAccessRepository(db).get_user(actor.user_id)
+    try:
+        notify_project_created(
+            db,
+            project=project,
+            client_id=client_id,
+            actor_id=actor.user_id,
+            actor_name=actor_user.full_name if actor_user else "",
+        )
+    except Exception:  # noqa: BLE001 — never block creating an initiative on notices
+        pass
     stored = service.list_attachments_for_projects([project.id])
     return _project_response(project, stored)
 

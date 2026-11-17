@@ -66,6 +66,10 @@ class EmailTemplateService:
         previous_status: str = "",
         topic_url: str = "",
         actor_name: str = "",
+        project_title: str = "",
+        project_description: str = "",
+        project_url: str = "",
+        project_due_date: str = "",
     ) -> tuple[str, str]:
         """Replace placeholders in subject and HTML."""
         cleaned_site = site_url.strip() or "https://tucomite.cl"
@@ -83,6 +87,10 @@ class EmailTemplateService:
             "{{previous_status}}": previous_status.strip() or "Sin estado",
             "{{topic_url}}": topic_url.strip() or "https://admin.tucomite.cl/topics",
             "{{actor_name}}": actor_name.strip() or "Alguien del comité",
+            "{{project_title}}": project_title.strip() or "Iniciativa",
+            "{{project_description}}": project_description.strip() or "Sin descripción.",
+            "{{project_url}}": project_url.strip() or "https://admin.tucomite.cl/projects",
+            "{{project_due_date}}": project_due_date.strip() or "Sin fecha límite",
         }
         subject = template.subject
         body = template.html_body
@@ -109,6 +117,10 @@ class EmailTemplateService:
         previous_status: str = "",
         topic_url: str = "",
         actor_name: str = "",
+        project_title: str = "",
+        project_description: str = "",
+        project_url: str = "",
+        project_due_date: str = "",
         smtp: SmtpDeliveryConfig | None = None,
         raise_on_error: bool = False,
     ) -> bool:
@@ -131,6 +143,10 @@ class EmailTemplateService:
             previous_status=previous_status,
             topic_url=topic_url,
             actor_name=actor_name,
+            project_title=project_title,
+            project_description=project_description,
+            project_url=project_url,
+            project_due_date=project_due_date,
         )
         try:
             send_html_email(

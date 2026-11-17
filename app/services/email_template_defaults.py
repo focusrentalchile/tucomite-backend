@@ -11,6 +11,7 @@ from app.domain.email_templates import (
     TEMPLATE_MANAGEMENT_TASK_ASSIGNED,
     TEMPLATE_MANAGEMENT_TASK_STATUS_CHANGED,
     TEMPLATE_MANAGEMENT_TASK_COMPLETION_REVIEW,
+    TEMPLATE_PROJECT_CREATED,
     TEMPLATE_TOPIC_ASSIGN_READY,
     TEMPLATE_TOPIC_CREATED,
     TEMPLATE_TOPIC_DELETED,
@@ -289,6 +290,36 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             + _register_cta()
             + """
               <p style="margin:0;font-size:15px;line-height:1.6;">Estamos construyendo una mejor experiencia para vivir en comunidad.<br />¡Bienvenido a esta nueva etapa!</p>
+            """,
+        ),
+    },
+    TEMPLATE_PROJECT_CREATED: {
+        "name": "Iniciativa creada",
+        "subject": "Nueva iniciativa en {{building_name}}: {{project_title}}",
+        "html_body": _shell(
+            title="Iniciativa creada",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Se creó una nueva iniciativa</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> registró una iniciativa en <strong>{{building_name}}</strong>.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Iniciativa</p>
+                    <p style="margin:0 0 12px;font-size:17px;line-height:1.4;font-weight:700;color:#001545;">{{project_title}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Fecha límite</p>
+                    <p style="margin:0 0 12px;font-size:15px;line-height:1.5;color:#001545;">{{project_due_date}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Detalle</p>
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#001545;">{{project_description}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Abre Iniciativas para revisar el detalle y hacer seguimiento.</p>
+              <p style="margin:22px 0 10px;text-align:center;">
+                <a href="{{project_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Ver iniciativas</a>
+              </p>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:#5a6a8a;text-align:center;">Si el botón no funciona, abre este enlace:<br />
+              <a href="{{project_url}}" style="color:#1554d1;word-break:break-all;">{{project_url}}</a></p>
             """,
         ),
     },
