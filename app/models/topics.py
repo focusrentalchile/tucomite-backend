@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -86,6 +86,8 @@ class TopicOpinionModel(Base):
     body: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime)
     reply_to_opinion_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    audio_url: Mapped[str | None] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"), nullable=True)
+    audio_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class TopicOpinionReadModel(Base):

@@ -181,16 +181,25 @@ class TopicService:
         author_name: str,
         body: str,
         reply_to_opinion_id: str | None = None,
+        *,
+        audio_url: str | None = None,
+        audio_duration_ms: int | None = None,
     ) -> TopicOpinionRecord:
-        """Append a new opinion message on a topic."""
+        """Append a new opinion message (text and/or voice note) on a topic."""
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
         if topic.status_id == CLOSED_STATUS_ID:
             raise InvalidTopicStatus()
-        text = body.strip()
-        if not text:
-            raise ValueError("Opinion body is required.")
+        text = (body or "").strip()
+        audio = (audio_url or "").strip() or None
+        duration = audio_duration_ms if audio and audio_duration_ms and audio_duration_ms > 0 else None
+        if audio and not audio.startswith("data:audio/"):
+            raise ValueError("Invalid voice note.")
+        if audio and len(audio) > 8_000_000:
+            raise ValueError("Voice note is too large.")
+        if not text and not audio:
+            raise ValueError("Opinion body or voice note is required.")
         reply_id = (reply_to_opinion_id or "").strip() or None
         if reply_id:
             parent = self._repository.get_opinion_by_id(reply_id)
@@ -204,6 +213,8 @@ class TopicService:
             body=text,
             created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
             reply_to_opinion_id=reply_id,
+            audio_url=audio,
+            audio_duration_ms=duration,
         )
         self._repository.add_opinion(opinion)
         return opinion

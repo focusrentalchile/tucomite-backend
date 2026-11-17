@@ -596,6 +596,22 @@ def init_database() -> None:
                         "ADD COLUMN `reply_to_opinion_id` VARCHAR(36) NULL"
                     ),
                 )
+            has_opinion_audio = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'topic_opinions' "
+                    "AND COLUMN_NAME = 'audio_url'"
+                ),
+            ).scalar()
+            if not has_opinion_audio:
+                connection.execute(
+                    text(
+                        "ALTER TABLE `topic_opinions` "
+                        "ADD COLUMN `audio_url` MEDIUMTEXT NULL, "
+                        "ADD COLUMN `audio_duration_ms` INT NULL"
+                    ),
+                )
             users_exist = connection.execute(
                 text(
                     "SELECT COUNT(*) FROM information_schema.TABLES "

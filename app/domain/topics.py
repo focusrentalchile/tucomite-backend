@@ -114,6 +114,9 @@ class TopicOpinionRecord:
     body: str
     created_at: str
     reply_to_opinion_id: str | None = None
+    # Optional WhatsApp-style voice note (data URL) and duration in milliseconds.
+    audio_url: str | None = None
+    audio_duration_ms: int | None = None
 
 
 CONFIRMATION_YES = "yes"

@@ -109,6 +109,8 @@ def _opinion_response(
         reply_to_opinion_id=opinion.reply_to_opinion_id,
         reply_to_author_name=parent.author_name if parent is not None else None,
         reply_to_body=parent.body if parent is not None else None,
+        audio_url=opinion.audio_url,
+        audio_duration_ms=opinion.audio_duration_ms,
     )
 
 
@@ -839,6 +841,8 @@ def upsert_opinion(
             author_name=user.full_name,
             body=body.body,
             reply_to_opinion_id=body.reply_to_opinion_id,
+            audio_url=body.audio_url,
+            audio_duration_ms=body.audio_duration_ms,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error

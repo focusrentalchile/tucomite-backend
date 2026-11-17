@@ -423,6 +423,8 @@ class SqlTopicRepository:
                 body=opinion.body,
                 created_at=datetime.fromisoformat(opinion.created_at),
                 reply_to_opinion_id=opinion.reply_to_opinion_id,
+                audio_url=opinion.audio_url,
+                audio_duration_ms=opinion.audio_duration_ms,
             ),
         )
 
@@ -431,6 +433,10 @@ class SqlTopicRepository:
         if row is not None:
             row.body = opinion.body
             row.author_name = opinion.author_name
+            if hasattr(row, "audio_url"):
+                row.audio_url = opinion.audio_url
+            if hasattr(row, "audio_duration_ms"):
+                row.audio_duration_ms = opinion.audio_duration_ms
 
     def get_opinion_by_id(self, opinion_id: str) -> TopicOpinionRecord | None:
         row = self._session.get(TopicOpinionModel, opinion_id)
@@ -802,6 +808,8 @@ class SqlTopicRepository:
             body=row.body,
             created_at=row.created_at.isoformat(),
             reply_to_opinion_id=getattr(row, "reply_to_opinion_id", None),
+            audio_url=getattr(row, "audio_url", None),
+            audio_duration_ms=getattr(row, "audio_duration_ms", None),
         )
 
     def _confirmation(self, row: TopicConfirmationModel) -> TopicConfirmationRecord:

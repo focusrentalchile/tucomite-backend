@@ -66,10 +66,12 @@ class CastVoteRequest(BaseModel):
 
 
 class UpsertOpinionRequest(BaseModel):
-    """Written opinion body for one topic."""
+    """Written opinion body and optional WhatsApp-style voice note for one topic."""
 
-    body: str = Field(min_length=1, max_length=500)
+    body: str = Field(default="", max_length=500)
     reply_to_opinion_id: str | None = Field(default=None, max_length=36)
+    audio_url: str | None = Field(default=None, max_length=12_000_000)
+    audio_duration_ms: int | None = Field(default=None, ge=1, le=300_000)
 
 
 class SubmitCompletionRequest(BaseModel):
@@ -113,6 +115,8 @@ class TopicOpinionResponse(BaseModel):
     reply_to_opinion_id: str | None = None
     reply_to_author_name: str | None = None
     reply_to_body: str | None = None
+    audio_url: str | None = None
+    audio_duration_ms: int | None = None
 
 
 class TopicConfirmationResponse(BaseModel):
