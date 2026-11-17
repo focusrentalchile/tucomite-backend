@@ -168,3 +168,6 @@ class InMemoryTopicRepository:
 
     def add_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
         self.confirmations.append(confirmation)
+
+    def clear_confirmations_for_topic(self, topic_id: str) -> None:
+        self.confirmations = [item for item in self.confirmations if item.topic_id != topic_id]

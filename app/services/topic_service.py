@@ -29,9 +29,11 @@ from app.domain.topics import (
     InvalidVoteOptions,
     StatusRecord,
     TopicAttachmentRecord,
+    COMPLETION_ROUND_FAILED,
     CONFIRMATION_CHOICES,
     CONFIRMATION_NO,
     CONFIRMATION_YES,
+    TopicCompletionRoundRecord,
     TopicConfirmationRecord,
     TopicNotFound,
     TopicOpinionRecord,
@@ -40,6 +42,7 @@ from app.domain.topics import (
     TopicVoteRecord,
     VoteAlreadyCast,
     completion_quorum_met,
+    no_confirmation_count,
     yes_confirmation_count,
     ensure_voting_open,
     execution_quorum_met,
@@ -385,8 +388,13 @@ class TopicService:
         *,
         choice: str = CONFIRMATION_YES,
         reason: str | None = None,
+        committee_size: int | None = None,
     ) -> tuple[TopicRecord, TopicConfirmationRecord]:
-        """Record one committee Resultado vote (resolved yes/no)."""
+        """Record one committee Resultado vote (resolved yes/no).
+
+        When No votes exceed 50% of the committee, seal Resultado N as failed,
+        keep history, and clear the current culminación so a new attempt can load.
+        """
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
@@ -413,7 +421,41 @@ class TopicService:
             reason=cleaned_reason[:500] if cleaned_choice == CONFIRMATION_NO else None,
         )
         self._repository.add_confirmation(confirmation)
+        confirmations = self._repository.list_confirmations_for_topics([topic_id])
+        size = committee_size if committee_size is not None else 0
+        if size > 0 and no_confirmation_count(confirmations) > (size / 2):
+            topic = self._fail_completion_round(topic, confirmations)
         return topic, confirmation
+
+    def _fail_completion_round(
+        self,
+        topic: TopicRecord,
+        confirmations: list[TopicConfirmationRecord],
+    ) -> TopicRecord:
+        """Archive the current Resultado as failed and reopen Culminación."""
+        attachments = self._repository.list_completion_attachments_for_topics([topic.id])
+        closed_at = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+        round_number = max(1, int(topic.completion_round or 1))
+        sealed = TopicCompletionRoundRecord(
+            round_number=round_number,
+            note=(topic.completion_note or "").strip(),
+            submitted_at=topic.completion_submitted_at or closed_at,
+            closed_at=closed_at,
+            outcome=COMPLETION_ROUND_FAILED,
+            confirmations=tuple(confirmations),
+            attachments=tuple(attachments),
+        )
+        updated = _copy_topic(
+            topic,
+            completion_note=None,
+            completion_submitted_at=None,
+            completion_round=round_number + 1,
+            completion_rounds=tuple([*topic.completion_rounds, sealed]),
+        )
+        self._repository.save_topic_completion(updated)
+        self._repository.replace_completion_attachments(topic.id, [])
+        self._repository.clear_confirmations_for_topic(topic.id)
+        return updated
 
     def delete_topic(self, topic_id: str) -> None:
         """Remove one topic and its votes."""

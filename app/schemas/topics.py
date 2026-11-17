@@ -131,6 +131,18 @@ class TopicAttachmentResponse(BaseModel):
     url: str
 
 
+class TopicCompletionRoundResponse(BaseModel):
+    """One sealed Resultado attempt (failed or passed)."""
+
+    round_number: int
+    note: str
+    submitted_at: str
+    closed_at: str
+    outcome: Literal["failed", "passed"]
+    confirmations: list[TopicConfirmationResponse] = []
+    attachments: list[TopicAttachmentResponse] = []
+
+
 class TopicResponse(BaseModel):
     """A stored topic, including status, priority, votes, and opinions."""
 
@@ -157,6 +169,8 @@ class TopicResponse(BaseModel):
     attachments: list[TopicAttachmentResponse] = []
     completion_note: str | None = None
     completion_submitted_at: str | None = None
+    completion_round: int = 1
+    completion_rounds: list[TopicCompletionRoundResponse] = []
     completion_attachments: list[TopicAttachmentResponse] = []
     confirmations: list[TopicConfirmationResponse] = []
 
@@ -189,7 +203,8 @@ class SubmitCompletionResponse(BaseModel):
 
 
 class ConfirmCompletionResponse(BaseModel):
-    """The saved confirmation and topic id."""
+    """The saved confirmation and refreshed topic (may clear after No majority)."""
 
     topic_id: str
     confirmation: TopicConfirmationResponse
+    topic: TopicResponse | None = None

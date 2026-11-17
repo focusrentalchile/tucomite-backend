@@ -146,6 +146,19 @@ def _topic_response(
         attachments=[_attachment_response(item) for item in (attachments or [])],
         completion_note=topic.completion_note,
         completion_submitted_at=topic.completion_submitted_at,
+        completion_round=max(1, int(topic.completion_round or 1)),
+        completion_rounds=[
+            {
+                "round_number": item.round_number,
+                "note": item.note,
+                "submitted_at": item.submitted_at,
+                "closed_at": item.closed_at,
+                "outcome": item.outcome if item.outcome in {"failed", "passed"} else "failed",
+                "confirmations": [_confirmation_response(vote) for vote in item.confirmations],
+                "attachments": [_attachment_response(file) for file in item.attachments],
+            }
+            for item in topic.completion_rounds
+        ],
         completion_attachments=[
             _attachment_response(item) for item in (completion_attachments or [])
         ],
@@ -684,6 +697,7 @@ def confirm_completion(
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
+    committee_size = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
     try:
         topic, confirmation = service.confirm_completion(
             topic_id,
@@ -691,6 +705,7 @@ def confirm_completion(
             author_name=user.full_name,
             choice=body.choice,
             reason=body.reason,
+            committee_size=committee_size,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
@@ -715,7 +730,10 @@ def confirm_completion(
         client_id=actor.client_id or topic.client_id,
         actor_name=user.full_name,
     )
+    completion = service.list_completion_attachments_for_topics([topic_id])
+    confirmations = service.list_confirmations_for_topics([topic_id])
     return ConfirmCompletionResponse(
         topic_id=topic_id,
         confirmation=_confirmation_response(confirmation),
+        topic=_topic_response(topic, [], [], [], completion, confirmations),
     )

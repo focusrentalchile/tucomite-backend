@@ -75,6 +75,10 @@ class TopicRecord:
     period_id: str | None = None
     completion_note: str | None = None
     completion_submitted_at: str | None = None
+    # 1-based index of the open Resultado attempt.
+    completion_round: int = 1
+    # Sealed Resultado attempts (failed or passed) kept for history.
+    completion_rounds: tuple["TopicCompletionRoundRecord", ...] = ()
     vote_type: str = VOTE_TYPE_YES_NO
     vote_options: tuple[TopicVoteOptionRecord, ...] = ()
     client_id: str | None = None
@@ -128,6 +132,10 @@ class TopicConfirmationRecord:
     reason: str | None = None
 
 
+COMPLETION_ROUND_FAILED = "failed"
+COMPLETION_ROUND_PASSED = "passed"
+
+
 ATTACHMENT_KINDS = frozenset({"image", "video", "file"})
 
 
@@ -140,6 +148,19 @@ class TopicAttachmentRecord:
     kind: str
     name: str
     url: str
+
+
+@dataclass(frozen=True)
+class TopicCompletionRoundRecord:
+    """One sealed Resultado attempt kept after No majority or successful close."""
+
+    round_number: int
+    note: str
+    submitted_at: str
+    closed_at: str
+    outcome: str
+    confirmations: tuple[TopicConfirmationRecord, ...] = ()
+    attachments: tuple[TopicAttachmentRecord, ...] = ()
 
 
 def completion_quorum_met(confirmed_count: int, committee_size: int) -> bool:
@@ -155,6 +176,15 @@ def yes_confirmation_count(confirmations: list[TopicConfirmationRecord]) -> int:
         1
         for item in confirmations
         if (item.choice or CONFIRMATION_YES).casefold() == CONFIRMATION_YES
+    )
+
+
+def no_confirmation_count(confirmations: list[TopicConfirmationRecord]) -> int:
+    """Count Resultado votes that say the work did not culminate."""
+    return sum(
+        1
+        for item in confirmations
+        if (item.choice or "").casefold() == CONFIRMATION_NO
     )
 
 

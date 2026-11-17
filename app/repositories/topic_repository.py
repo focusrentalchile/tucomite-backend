@@ -12,6 +12,7 @@ from app.domain.topics import (
     VOTE_TYPE_YES_NO,
     StatusRecord,
     TopicAttachmentRecord,
+    TopicCompletionRoundRecord,
     TopicConfirmationRecord,
     TopicOpinionRecord,
     TopicRecord,
@@ -135,6 +136,9 @@ class TopicRepository(Protocol):
 
     def add_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
         """Insert one completion confirmation."""
+
+    def clear_confirmations_for_topic(self, topic_id: str) -> None:
+        """Remove every Resultado vote for the current open round."""
 
 
 class SqlTopicRepository:
@@ -264,6 +268,10 @@ class SqlTopicRepository:
             if topic.completion_submitted_at
             else None
         )
+        if hasattr(row, "completion_round"):
+            row.completion_round = max(1, int(topic.completion_round or 1))
+        if hasattr(row, "completion_rounds_json"):
+            row.completion_rounds_json = self._rounds_json(topic.completion_rounds)
 
     def delete_topic(self, topic_id: str) -> None:
         """Passive archive: mark deleted_at so the board hides the topic."""
@@ -505,6 +513,15 @@ class SqlTopicRepository:
             ),
         )
 
+    def clear_confirmations_for_topic(self, topic_id: str) -> None:
+        bind = self._session.get_bind()
+        if bind is None or not inspect(bind).has_table("topic_confirmations"):
+            return
+        self._session.execute(
+            delete(TopicConfirmationModel).where(TopicConfirmationModel.topic_id == topic_id),
+        )
+        self._session.flush()
+
     def _topic(self, row: TopicModel) -> TopicRecord:
         return TopicRecord(
             id=row.id,
@@ -527,6 +544,8 @@ class SqlTopicRepository:
                 if getattr(row, "completion_submitted_at", None)
                 else None
             ),
+            completion_round=int(getattr(row, "completion_round", None) or 1),
+            completion_rounds=self._parse_rounds(getattr(row, "completion_rounds_json", None)),
             vote_type=getattr(row, "vote_type", None) or VOTE_TYPE_YES_NO,
             vote_options=self._parse_options(getattr(row, "vote_options_json", None)),
             client_id=getattr(row, "client_id", None),
@@ -542,6 +561,106 @@ class SqlTopicRepository:
             [{"id": item.id, "label": item.label} for item in options],
             ensure_ascii=False,
         )
+
+    def _rounds_json(self, rounds: tuple[TopicCompletionRoundRecord, ...]) -> str:
+        return json.dumps(
+            [
+                {
+                    "roundNumber": item.round_number,
+                    "note": item.note,
+                    "submittedAt": item.submitted_at,
+                    "closedAt": item.closed_at,
+                    "outcome": item.outcome,
+                    "confirmations": [
+                        {
+                            "id": vote.id,
+                            "authorId": vote.author_id,
+                            "authorName": vote.author_name,
+                            "createdAt": vote.created_at,
+                            "choice": vote.choice,
+                            "reason": vote.reason,
+                        }
+                        for vote in item.confirmations
+                    ],
+                    "attachments": [
+                        {
+                            "id": file.id,
+                            "topicId": file.topic_id,
+                            "kind": file.kind,
+                            "name": file.name,
+                            "url": file.url,
+                        }
+                        for file in item.attachments
+                    ],
+                }
+                for item in rounds
+            ],
+            ensure_ascii=False,
+        )
+
+    def _parse_rounds(self, raw: str | None) -> tuple[TopicCompletionRoundRecord, ...]:
+        if not raw:
+            return ()
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return ()
+        if not isinstance(parsed, list):
+            return ()
+        rounds: list[TopicCompletionRoundRecord] = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            try:
+                round_number = int(item.get("roundNumber") or item.get("round_number") or 0)
+            except (TypeError, ValueError):
+                continue
+            if round_number < 1:
+                continue
+            confirmations_raw = item.get("confirmations") or []
+            attachments_raw = item.get("attachments") or []
+            confirmations: list[TopicConfirmationRecord] = []
+            if isinstance(confirmations_raw, list):
+                for vote in confirmations_raw:
+                    if not isinstance(vote, dict):
+                        continue
+                    confirmations.append(
+                        TopicConfirmationRecord(
+                            id=str(vote.get("id") or ""),
+                            topic_id=str(vote.get("topicId") or vote.get("topic_id") or ""),
+                            author_id=str(vote.get("authorId") or vote.get("author_id") or ""),
+                            author_name=str(vote.get("authorName") or vote.get("author_name") or ""),
+                            created_at=str(vote.get("createdAt") or vote.get("created_at") or ""),
+                            choice=str(vote.get("choice") or "yes"),
+                            reason=(str(vote["reason"]) if vote.get("reason") else None),
+                        ),
+                    )
+            attachments: list[TopicAttachmentRecord] = []
+            if isinstance(attachments_raw, list):
+                for file in attachments_raw:
+                    if not isinstance(file, dict):
+                        continue
+                    attachments.append(
+                        TopicAttachmentRecord(
+                            id=str(file.get("id") or ""),
+                            topic_id=str(file.get("topicId") or file.get("topic_id") or ""),
+                            kind=str(file.get("kind") or "file"),
+                            name=str(file.get("name") or ""),
+                            url=str(file.get("url") or ""),
+                        ),
+                    )
+            rounds.append(
+                TopicCompletionRoundRecord(
+                    round_number=round_number,
+                    note=str(item.get("note") or ""),
+                    submitted_at=str(item.get("submittedAt") or item.get("submitted_at") or ""),
+                    closed_at=str(item.get("closedAt") or item.get("closed_at") or ""),
+                    outcome=str(item.get("outcome") or "failed"),
+                    confirmations=tuple(confirmations),
+                    attachments=tuple(attachments),
+                ),
+            )
+        return tuple(rounds)
 
     def _parse_options(self, raw: str | None) -> tuple[TopicVoteOptionRecord, ...]:
         if not raw:

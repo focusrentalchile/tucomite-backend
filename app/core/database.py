@@ -192,6 +192,14 @@ def init_database() -> None:
                     "ALTER TABLE `topics` ADD COLUMN `completion_submitted_at` DATETIME NULL",
                 ),
                 (
+                    "completion_round",
+                    "ALTER TABLE `topics` ADD COLUMN `completion_round` INT NOT NULL DEFAULT 1",
+                ),
+                (
+                    "completion_rounds_json",
+                    "ALTER TABLE `topics` ADD COLUMN `completion_rounds_json` TEXT NULL",
+                ),
+                (
                     "status_entered_at",
                     "ALTER TABLE `topics` ADD COLUMN `status_entered_at` DATETIME NULL",
                 ),

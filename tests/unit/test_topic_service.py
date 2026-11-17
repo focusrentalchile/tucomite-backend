@@ -400,6 +400,33 @@ def test_completion_and_confirmations_gate_close() -> None:
     assert closed.status_id == 4
 
 
+def test_resultado_no_majority_seals_round_and_allows_new_completion() -> None:
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Ascensor",
+        description="No sube.",
+        category_key="maintenance",
+        attachment_name="",
+        decision="¿Reparamos?",
+    )
+    repository.save_topic_status(topic.id, 3)
+    service.submit_completion(topic.id, note="Se cambió el motor.")
+    service.confirm_completion(topic.id, "user-1", "Ana", choice="no", reason="Falta pintura.", committee_size=3)
+    service.confirm_completion(topic.id, "user-2", "Luis", choice="no", reason="Sigue ruidoso.", committee_size=3)
+    refreshed = repository.get_topic(topic.id)
+    assert refreshed is not None
+    assert refreshed.completion_submitted_at is None
+    assert refreshed.completion_round == 2
+    assert len(refreshed.completion_rounds) == 1
+    assert refreshed.completion_rounds[0].outcome == "failed"
+    assert repository.list_confirmations_for_topics([topic.id]) == []
+    again = service.submit_completion(topic.id, note="Segunda entrega con pintura.")
+    assert again.completion_submitted_at is not None
+    assert again.completion_note == "Segunda entrega con pintura."
+
+
 def test_resultado_no_requires_reason() -> None:
     repository = InMemoryTopicRepository()
     ensure_topic_statuses(repository)
