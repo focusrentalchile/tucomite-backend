@@ -22,6 +22,9 @@ class NotificationRepository(Protocol):
     def mark_read(self, notification_id: str, user_id: str) -> NotificationRecord | None:
         """Mark one notice as read when it belongs to the user."""
 
+    def mark_all_read(self, user_id: str) -> int:
+        """Mark every unread notice for one user as read. Returns how many changed."""
+
 
 class SqlNotificationRepository:
     """SQLAlchemy adapter for notifications."""
@@ -58,6 +61,21 @@ class SqlNotificationRepository:
             row.read_at = datetime.now(timezone.utc)
             self._session.flush()
         return self._record(row)
+
+    def mark_all_read(self, user_id: str) -> int:
+        rows = self._session.execute(
+            select(NotificationModel).where(
+                NotificationModel.user_id == user_id,
+                NotificationModel.read_at.is_(None),
+            ),
+        ).scalars().all()
+        if not rows:
+            return 0
+        now = datetime.now(timezone.utc)
+        for row in rows:
+            row.read_at = now
+        self._session.flush()
+        return len(rows)
 
     def _record(self, row: NotificationModel) -> NotificationRecord:
         return NotificationRecord(

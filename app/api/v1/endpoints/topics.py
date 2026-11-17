@@ -1,9 +1,14 @@
 """Topic endpoints."""
 
+from __future__ import annotations
+
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import Actor, get_current_actor, get_topic_service, require_committee_member, require_permission
 from app.core.database import get_db
@@ -241,6 +246,27 @@ def _topics_for_open_period(
     return list_topics_for_building(service, SqlPeriodRepository(db), client_id=client_id)
 
 
+def _publish_agreement_best_effort(
+    db: Session,
+    *,
+    topic_id: str,
+    client_id: str | None,
+) -> None:
+    """Publish the PDF agreement after a topic closes. Never undoes the close."""
+    try:
+        from app.repositories.agreement_repository import SqlAgreementRepository
+        from app.repositories.client_repository import SqlClientRepository
+        from app.services.agreement_service import AgreementService
+
+        AgreementService(
+            SqlAgreementRepository(db),
+            SqlTopicRepository(db),
+            SqlClientRepository(db),
+        ).publish_from_topic(topic_id, client_id=client_id)
+    except Exception:  # noqa: BLE001 — closing must stick even if the PDF fails
+        logger.exception("Agreement publish failed for topic %s", topic_id)
+
+
 @router.get("/topics", response_model=TopicListResponse)
 def read_topics(
     service: TopicService = Depends(get_topic_service),
@@ -254,32 +280,31 @@ def read_topics(
     committee_size = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
     healed: list = []
     for topic in topics:
+        previous_status = topic.status_id
         try:
-            previous_status = topic.status_id
             next_topic = service.seal_failed_completion_if_needed(
                 topic,
                 committee_size=committee_size,
             )
-            if (
-                previous_status != CLOSED_STATUS_ID
-                and next_topic.status_id == CLOSED_STATUS_ID
-            ):
-                from app.repositories.agreement_repository import SqlAgreementRepository
-                from app.repositories.client_repository import SqlClientRepository
-                from app.services.agreement_service import AgreementService
-
-                AgreementService(
-                    SqlAgreementRepository(db),
-                    SqlTopicRepository(db),
-                    SqlClientRepository(db),
-                ).publish_from_topic(next_topic.id, client_id=actor.client_id)
-            healed.append(next_topic)
         except Exception:
+            logger.exception("Topic heal failed for %s", topic.id)
             try:
                 db.rollback()
             except Exception:
                 pass
             healed.append(topic)
+            continue
+        if (
+            previous_status != CLOSED_STATUS_ID
+            and next_topic.status_id == CLOSED_STATUS_ID
+        ):
+            # Keep CLOSED even when the PDF/agreement step fails.
+            _publish_agreement_best_effort(
+                db,
+                topic_id=next_topic.id,
+                client_id=actor.client_id,
+            )
+        healed.append(next_topic)
     topics = healed
     topic_ids = [topic.id for topic in topics]
     votes = service.list_votes_for_topics(topic_ids)
@@ -899,36 +924,39 @@ def confirm_completion(
         actor_name=user.full_name,
     )
     if topic.status_id == CLOSED_STATUS_ID:
-        from app.repositories.agreement_repository import SqlAgreementRepository
-        from app.repositories.client_repository import SqlClientRepository
-        from app.repositories.management_repository import SqlManagementRepository
-        from app.repositories.notification_repository import SqlNotificationRepository
-        from app.services.agreement_service import AgreementService
-        from app.services.management_service import ManagementService
-
-        AgreementService(
-            SqlAgreementRepository(db),
-            SqlTopicRepository(db),
-            SqlClientRepository(db),
-        ).publish_from_topic(topic_id, client_id=actor.client_id or topic.client_id)
         building_id = actor.client_id or topic.client_id
-        if building_id:
-            access_repo = SqlAccessRepository(db)
-            management = ManagementService(
-                SqlManagementRepository(db),
-                access=access_repo,
-                notifications=SqlNotificationRepository(db),
-            )
-            for item in management.list_tasks(client_id=building_id):
-                if item.topic_id == topic_id and item.status != "done":
-                    management.set_status(item.id, "done")
-        notify_topic_status_changed(
+        _publish_agreement_best_effort(
             db,
-            topic=topic,
-            previous_status_id=DOING_STATUS_ID,
+            topic_id=topic_id,
             client_id=building_id,
-            actor_name=user.full_name,
         )
+        try:
+            from app.repositories.management_repository import SqlManagementRepository
+            from app.repositories.notification_repository import SqlNotificationRepository
+            from app.services.management_service import ManagementService
+
+            if building_id:
+                access_repo = SqlAccessRepository(db)
+                management = ManagementService(
+                    SqlManagementRepository(db),
+                    access=access_repo,
+                    notifications=SqlNotificationRepository(db),
+                )
+                for item in management.list_tasks(client_id=building_id):
+                    if item.topic_id == topic_id and item.status != "done":
+                        management.set_status(item.id, "done")
+        except Exception:  # noqa: BLE001 — topic already closed
+            logger.exception("Gestión done-sync failed for topic %s", topic_id)
+        try:
+            notify_topic_status_changed(
+                db,
+                topic=topic,
+                previous_status_id=DOING_STATUS_ID,
+                client_id=building_id,
+                actor_name=user.full_name,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Close status email failed for topic %s", topic_id)
     completion = service.list_completion_attachments_for_topics([topic_id])
     confirmations = service.list_confirmations_for_topics([topic_id])
     return ConfirmCompletionResponse(

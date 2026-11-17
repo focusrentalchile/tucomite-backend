@@ -18,7 +18,12 @@ from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.management_repository import SqlManagementRepository
 from app.repositories.notification_repository import SqlNotificationRepository
 from app.repositories.period_repository import SqlPeriodRepository
-from app.domain.topics import CompletionAlreadySubmitted, InvalidTopicStatus, TopicNotFound
+from app.domain.topics import (
+    CLOSED_STATUS_ID,
+    CompletionAlreadySubmitted,
+    InvalidTopicStatus,
+    TopicNotFound,
+)
 from app.repositories.topic_repository import SqlTopicRepository
 from app.schemas.management import (
     BuildingAdministratorListResponse,
@@ -181,6 +186,7 @@ def _topic_completion_snapshot(
                     )
                 except Exception:
                     seat_cache[client_id] = 0
+            previous_status = topic.status_id
             try:
                 topic = topics.seal_failed_completion_if_needed(
                     topic,
@@ -193,6 +199,22 @@ def _topic_completion_snapshot(
                 except Exception:
                     pass
                 topic = repo.get_topic(topic_id) or topic
+            else:
+                if (
+                    previous_status != CLOSED_STATUS_ID
+                    and topic.status_id == CLOSED_STATUS_ID
+                ):
+                    # Keep CLOSED even if the PDF agreement fails.
+                    try:
+                        from app.api.v1.endpoints.topics import _publish_agreement_best_effort
+
+                        _publish_agreement_best_effort(
+                            db,
+                            topic_id=topic.id,
+                            client_id=client_id or None,
+                        )
+                    except Exception:
+                        pass
             confirmations = []
             try:
                 confirmations = [

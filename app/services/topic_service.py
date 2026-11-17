@@ -460,6 +460,9 @@ class TopicService:
             topic = self._fail_completion_round(topic, confirmations)
         elif size > 0 and completion_quorum_met(yes_confirmation_count(confirmations), size):
             self._repository.save_topic_status(topic_id, CLOSED_STATUS_ID)
+            session = getattr(self._repository, "_session", None)
+            if session is not None:
+                session.flush()
             topic = self._repository.get_topic(topic_id) or _copy_topic(
                 topic,
                 status_id=CLOSED_STATUS_ID,
@@ -486,6 +489,10 @@ class TopicService:
             return self._fail_completion_round(topic, confirmations)
         if completion_quorum_met(yes_confirmation_count(confirmations), committee_size):
             self._repository.save_topic_status(topic.id, CLOSED_STATUS_ID)
+            # Flush so agreement publish / later reads see CLOSED in this session.
+            session = getattr(self._repository, "_session", None)
+            if session is not None:
+                session.flush()
             return self._repository.get_topic(topic.id) or _copy_topic(
                 topic,
                 status_id=CLOSED_STATUS_ID,

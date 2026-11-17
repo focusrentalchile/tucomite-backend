@@ -32,6 +32,16 @@ def list_notifications(
     return NotificationListResponse(items=[_response(item) for item in items])
 
 
+@router.post("/read-all")
+def mark_all_notifications_read(
+    actor: Actor = Depends(get_current_actor),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    """Mark every unread notice for the signed-in person as read."""
+    updated = SqlNotificationRepository(db).mark_all_read(actor.user_id)
+    return {"updated": updated}
+
+
 @router.post("/{notification_id}/read", response_model=NotificationResponse)
 def mark_notification_read(
     notification_id: str,
