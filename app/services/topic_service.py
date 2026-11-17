@@ -463,9 +463,11 @@ class TopicService:
             session = getattr(self._repository, "_session", None)
             if session is not None:
                 session.flush()
+            closed_at = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
             topic = self._repository.get_topic(topic_id) or _copy_topic(
                 topic,
                 status_id=CLOSED_STATUS_ID,
+                closed_at=closed_at,
             )
         return topic, confirmation
 
@@ -493,9 +495,11 @@ class TopicService:
             session = getattr(self._repository, "_session", None)
             if session is not None:
                 session.flush()
+            closed_at = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
             return self._repository.get_topic(topic.id) or _copy_topic(
                 topic,
                 status_id=CLOSED_STATUS_ID,
+                closed_at=closed_at,
             )
         return topic
 

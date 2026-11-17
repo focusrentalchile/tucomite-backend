@@ -55,9 +55,13 @@ class SqlAgreementRepository:
 
     def add(self, agreement: AgreementDetailRecord) -> AgreementRecord:
         created = datetime.fromisoformat(agreement.created_at.replace("Z", "+00:00"))
+        if created.tzinfo is not None:
+            created = created.astimezone(timezone.utc).replace(tzinfo=None)
         closed = None
         if agreement.closed_at:
-            closed = datetime.fromisoformat(agreement.closed_at.replace("Z", "+00:00")).replace(tzinfo=None)
+            closed = datetime.fromisoformat(agreement.closed_at.replace("Z", "+00:00"))
+            if closed.tzinfo is not None:
+                closed = closed.astimezone(timezone.utc).replace(tzinfo=None)
         self._session.add(
             AgreementModel(
                 id=agreement.id,

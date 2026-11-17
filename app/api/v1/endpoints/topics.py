@@ -252,17 +252,22 @@ def _publish_agreement_best_effort(
     topic_id: str,
     client_id: str | None,
 ) -> None:
-    """Publish the PDF agreement after a topic closes. Never undoes the close."""
+    """Publish the PDF agreement after a topic closes. Never undoes the close.
+
+    Uses a SAVEPOINT so a PDF/DB failure cannot poison the request session
+    (which would break GET /topics with PendingRollbackError).
+    """
     try:
         from app.repositories.agreement_repository import SqlAgreementRepository
         from app.repositories.client_repository import SqlClientRepository
         from app.services.agreement_service import AgreementService
 
-        AgreementService(
-            SqlAgreementRepository(db),
-            SqlTopicRepository(db),
-            SqlClientRepository(db),
-        ).publish_from_topic(topic_id, client_id=client_id)
+        with db.begin_nested():
+            AgreementService(
+                SqlAgreementRepository(db),
+                SqlTopicRepository(db),
+                SqlClientRepository(db),
+            ).publish_from_topic(topic_id, client_id=client_id)
     except Exception:  # noqa: BLE001 — closing must stick even if the PDF fails
         logger.exception("Agreement publish failed for topic %s", topic_id)
 
@@ -299,11 +304,14 @@ def read_topics(
             and next_topic.status_id == CLOSED_STATUS_ID
         ):
             # Keep CLOSED even when the PDF/agreement step fails.
-            _publish_agreement_best_effort(
-                db,
-                topic_id=next_topic.id,
-                client_id=actor.client_id,
-            )
+            try:
+                _publish_agreement_best_effort(
+                    db,
+                    topic_id=next_topic.id,
+                    client_id=actor.client_id,
+                )
+            except Exception:  # noqa: BLE001 — never block the Temas board
+                logger.exception("Agreement heal publish crashed for %s", next_topic.id)
         healed.append(next_topic)
     topics = healed
     topic_ids = [topic.id for topic in topics]

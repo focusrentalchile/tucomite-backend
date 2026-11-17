@@ -431,6 +431,9 @@ class SqlTopicRepository:
     def list_opinion_reads(self, user_id: str, topic_ids: list[str]) -> dict[str, str]:
         if not topic_ids:
             return {}
+        bind = self._session.get_bind()
+        if bind is None or not inspect(bind).has_table("topic_opinion_reads"):
+            return {}
         rows = self._session.scalars(
             select(TopicOpinionReadModel).where(
                 TopicOpinionReadModel.user_id == user_id,
@@ -444,6 +447,9 @@ class SqlTopicRepository:
         # MySQL DATETIME keeps whole seconds (and rounds opinion times), so round up.
         if now.microsecond:
             now = now.replace(microsecond=0) + timedelta(seconds=1)
+        bind = self._session.get_bind()
+        if bind is None or not inspect(bind).has_table("topic_opinion_reads"):
+            return now.isoformat()
         row = self._session.get(TopicOpinionReadModel, (user_id, topic_id))
         if row is None:
             self._session.add(
