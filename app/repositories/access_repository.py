@@ -62,7 +62,10 @@ class AccessRepository(Protocol):
         """Mark one user as closed (soft delete). The row and its history stay."""
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
-        """Return the user with this email, or None."""
+        """Return one user with this email, or None."""
+
+    def list_users_by_email(self, email: str) -> list[UserRecord]:
+        """Return every user row that shares this email (one per building)."""
 
     def get_user_by_email_in_client(self, email: str, client_id: str) -> UserRecord | None:
         """Return the user with this email inside one building, or None."""
@@ -434,10 +437,12 @@ class SqlAccessRepository:
         self._session.flush()
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
-        row = self._session.scalar(select(UserModel).where(UserModel.email == email))
-        if row is None:
-            return None
-        return self._user(row)
+        rows = self.list_users_by_email(email)
+        return rows[0] if rows else None
+
+    def list_users_by_email(self, email: str) -> list[UserRecord]:
+        rows = self._session.scalars(select(UserModel).where(UserModel.email == email)).all()
+        return [self._user(row) for row in rows]
 
     def get_user_by_email_in_client(self, email: str, client_id: str) -> UserRecord | None:
         row = self._session.scalar(

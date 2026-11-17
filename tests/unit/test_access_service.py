@@ -239,6 +239,41 @@ def test_create_user_assigns_a_role_and_rejects_a_duplicate_email() -> None:
         users.create_user("Luis", "luis@example.com", "secreto-2", "missing")
 
 
+def test_create_user_allows_same_email_in_another_building() -> None:
+    repository = InMemoryAccessRepository()
+    registered = catalog()
+    bootstrap_access(repository, registered)
+    role = next(item for item in repository.list_roles() if item.name == "committee")
+    users = UserService(repository)
+
+    first = users.create_user(
+        "Ana Pérez",
+        "ana@example.com",
+        "secreto-1",
+        role.id,
+        client_id="building-a",
+    )
+    second = users.create_user(
+        "Ana Pérez",
+        "ana@example.com",
+        "secreto-2",
+        role.id,
+        client_id="building-b",
+    )
+
+    assert first.client_id == "building-a"
+    assert second.client_id == "building-b"
+    assert first.email == second.email == "ana@example.com"
+    with pytest.raises(DuplicateEmail):
+        users.create_user(
+            "Ana",
+            "ana@example.com",
+            "secreto-3",
+            role.id,
+            client_id="building-a",
+        )
+
+
 def test_create_and_update_resident_requires_floor_and_apartment() -> None:
     repository = InMemoryAccessRepository()
     registered = catalog()

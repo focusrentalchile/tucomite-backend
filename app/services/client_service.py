@@ -230,16 +230,18 @@ class ClientService:
         self._clients.delete_client(client_id)
 
     def _release_email_if_orphaned(self, email: str) -> None:
-        """Free an email left behind after a client delete, or reject if still in use."""
-        existing = self._access.get_user_by_email(email)
-        if existing is None:
-            return
-        if existing.client_id:
-            client = self._clients.get_client(existing.client_id)
-            if client is not None:
-                raise DuplicateEmail(email)
-        # User row survived a partial purge, or the building was already removed.
-        self._access.delete_user(existing.id)
+        """Remove leftover rows for this email when their building no longer exists.
+
+        The same email may belong to different buildings; uniqueness is per client.
+        """
+        for existing in self._access.list_users():
+            if existing.email.casefold() != email.casefold():
+                continue
+            if not existing.client_id:
+                continue
+            if self._clients.get_client(existing.client_id) is not None:
+                continue
+            self._access.delete_user(existing.id)
 
     def _validated_license(self, starts_at: str, ends_at: str) -> tuple[str, str]:
         try:

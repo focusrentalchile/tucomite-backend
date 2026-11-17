@@ -338,15 +338,16 @@ class InvitationService:
         return updated
 
     def _release_platform_email(self, email: str) -> None:
-        """Allow re-inviting an email after its previous client was deleted."""
-        existing = self._access.get_user_by_email(email)
-        if existing is None:
-            return
-        if existing.client_id:
-            client = SqlClientRepository(self._db).get_client(existing.client_id)
-            if client is not None:
-                raise DuplicateEmail()
-        self._access.delete_user(existing.id)
+        """Clear orphan users for this email. Same email may exist in other buildings."""
+        clients = SqlClientRepository(self._db)
+        for existing in self._access.list_users():
+            if existing.email.casefold() != email.casefold():
+                continue
+            if not existing.client_id:
+                continue
+            if clients.get_client(existing.client_id) is not None:
+                continue
+            self._access.delete_user(existing.id)
 
     def _require_open_token(self, token: str, kind: str) -> InvitationRecord:
         record = self._repository.get_by_token(token)

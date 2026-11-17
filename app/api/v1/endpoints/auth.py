@@ -56,8 +56,14 @@ def _login_response(
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     """Validate credentials and store the user id in the signed session cookie."""
     access = SqlAccessRepository(db)
-    user = access.get_user_by_email(body.email.strip().lower())
-    if user is None or not verify_password(body.password, user.password_hash):
+    email = body.email.strip().lower()
+    # Same email may exist in more than one building; pick the row whose password matches.
+    candidates = access.list_users_by_email(email)
+    user = next(
+        (item for item in candidates if verify_password(body.password, item.password_hash)),
+        None,
+    )
+    if user is None:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     if user.account_closed_at:
         raise HTTPException(status_code=403, detail="account_closed")

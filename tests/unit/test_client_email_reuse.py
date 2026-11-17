@@ -2,9 +2,7 @@
 
 from dataclasses import dataclass
 
-import pytest
-
-from app.domain.access import ClientRecord, DuplicateEmail, UserRecord
+from app.domain.access import ClientRecord, UserRecord
 from app.services.client_service import ClientService
 
 
@@ -19,6 +17,9 @@ class FakeClients:
 @dataclass
 class FakeAccess:
     users: dict[str, UserRecord]
+
+    def list_users(self) -> list[UserRecord]:
+        return list(self.users.values())
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
         for user in self.users.values():
@@ -48,7 +49,7 @@ def test_release_email_removes_orphan_user_from_deleted_building() -> None:
     assert access.users == {}
 
 
-def test_release_email_keeps_active_building_owner() -> None:
+def test_release_email_keeps_active_building_owner_for_other_buildings() -> None:
     active_client = ClientRecord(
         id="c1",
         name="Activo",
@@ -68,7 +69,6 @@ def test_release_email_keeps_active_building_owner() -> None:
     clients = FakeClients(clients={"c1": active_client})
     service = ClientService(clients, access)
 
-    with pytest.raises(DuplicateEmail):
-        service._release_email_if_orphaned("taken@demo.local")
+    service._release_email_if_orphaned("taken@demo.local")
 
     assert "u1" in access.users
