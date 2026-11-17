@@ -87,44 +87,77 @@ def _message_response(message) -> ManagementMessageResponse:
 
 
 def _confirmation_response(item) -> TopicConfirmationResponse:
-    choice = (item.choice or "yes").casefold()
+    choice = (getattr(item, "choice", None) or "yes").casefold()
     return TopicConfirmationResponse(
-        id=item.id,
-        author_id=item.author_id,
-        author_name=item.author_name,
-        created_at=item.created_at,
+        id=str(getattr(item, "id", "") or ""),
+        author_id=str(getattr(item, "author_id", "") or ""),
+        author_name=str(getattr(item, "author_name", "") or ""),
+        created_at=str(getattr(item, "created_at", "") or ""),
         choice="no" if choice == "no" else "yes",
-        reason=item.reason,
+        reason=(str(item.reason) if getattr(item, "reason", None) else None),
     )
 
 
-def _topic_attachment_response(item) -> TopicAttachmentResponse:
+def _topic_attachment_response(item) -> TopicAttachmentResponse | None:
+    kind = str(getattr(item, "kind", "") or "").casefold()
+    if kind not in {"image", "video", "file"}:
+        kind = "file"
+    url = str(getattr(item, "url", "") or "")
+    name = str(getattr(item, "name", "") or "")
+    if not url or not name:
+        return None
     return TopicAttachmentResponse(
-        id=item.id,
-        kind=item.kind,
-        name=item.name,
-        url=item.url,
+        id=str(getattr(item, "id", "") or ""),
+        kind=kind,  # type: ignore[arg-type]
+        name=name,
+        url=url,
     )
 
 
 def _completion_round_response(item) -> TopicCompletionRoundResponse:
-    outcome = item.outcome if item.outcome in {"failed", "passed"} else "failed"
+    outcome = getattr(item, "outcome", None)
+    if outcome not in {"failed", "passed"}:
+        outcome = "failed"
+    attachments = []
+    for file in getattr(item, "attachments", ()) or ():
+        mapped = _topic_attachment_response(file)
+        if mapped is not None:
+            attachments.append(mapped)
+    confirmations = []
+    for vote in getattr(item, "confirmations", ()) or ():
+        try:
+            confirmations.append(_confirmation_response(vote))
+        except Exception:
+            continue
     return TopicCompletionRoundResponse(
-        round_number=item.round_number,
-        note=item.note,
-        submitted_at=item.submitted_at,
-        closed_at=item.closed_at,
+        round_number=max(1, int(getattr(item, "round_number", 1) or 1)),
+        note=str(getattr(item, "note", "") or ""),
+        submitted_at=str(getattr(item, "submitted_at", "") or ""),
+        closed_at=str(getattr(item, "closed_at", "") or ""),
         outcome=outcome,
-        confirmations=[_confirmation_response(vote) for vote in item.confirmations],
-        attachments=[_topic_attachment_response(file) for file in item.attachments],
+        confirmations=confirmations,
+        attachments=attachments,
     )
+
+
+def _empty_completion_snapshot(topic) -> dict:
+    return {
+        "submitted_at": getattr(topic, "completion_submitted_at", None),
+        "note": getattr(topic, "completion_note", None),
+        "round": max(1, int(getattr(topic, "completion_round", 1) or 1)),
+        "rounds": [],
+        "confirmations": [],
+    }
 
 
 def _topic_completion_snapshot(
     db: Session,
     topic_ids: list[str],
 ) -> dict[str, dict]:
-    """Return topic_id → Resultado snapshot for Gestión fichas."""
+    """Return topic_id → Resultado snapshot for Gestión fichas.
+
+    Never raises: a bad linked topic must not break the whole Gestión board.
+    """
     unique = [item for item in dict.fromkeys(topic_ids) if item]
     if not unique:
         return {}
@@ -134,24 +167,67 @@ def _topic_completion_snapshot(
     seat_cache: dict[str, int] = {}
     out: dict[str, dict] = {}
     for topic_id in unique:
-        topic = repo.get_topic(topic_id)
-        if topic is None:
-            continue
-        client_id = topic.client_id or ""
-        if client_id not in seat_cache:
-            seat_cache[client_id] = committee.count_voter_seats(client_id) if client_id else 0
-        topic = topics.seal_failed_completion_if_needed(
-            topic,
-            committee_size=seat_cache[client_id],
-        )
-        confirmations = repo.list_confirmations_for_topics([topic.id])
-        out[topic_id] = {
-            "submitted_at": topic.completion_submitted_at,
-            "note": topic.completion_note,
-            "round": max(1, int(topic.completion_round or 1)),
-            "rounds": [_completion_round_response(item) for item in topic.completion_rounds],
-            "confirmations": [_confirmation_response(item) for item in confirmations],
-        }
+        try:
+            topic = repo.get_topic(topic_id)
+            if topic is None:
+                continue
+            client_id = topic.client_id or ""
+            if client_id not in seat_cache:
+                try:
+                    seat_cache[client_id] = (
+                        committee.count_voter_seats(client_id) if client_id else 0
+                    )
+                except Exception:
+                    seat_cache[client_id] = 0
+            try:
+                topic = topics.seal_failed_completion_if_needed(
+                    topic,
+                    committee_size=seat_cache[client_id],
+                )
+            except Exception:
+                # A failed heal must not poison the request transaction.
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                topic = repo.get_topic(topic_id) or topic
+            confirmations = []
+            try:
+                confirmations = [
+                    _confirmation_response(item)
+                    for item in repo.list_confirmations_for_topics([topic.id])
+                ]
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                confirmations = []
+            rounds = []
+            for item in getattr(topic, "completion_rounds", ()) or ():
+                try:
+                    rounds.append(_completion_round_response(item))
+                except Exception:
+                    continue
+            out[topic_id] = {
+                "submitted_at": topic.completion_submitted_at,
+                "note": topic.completion_note,
+                "round": max(1, int(topic.completion_round or 1)),
+                "rounds": rounds,
+                "confirmations": confirmations,
+            }
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            topic = None
+            try:
+                topic = repo.get_topic(topic_id)
+            except Exception:
+                topic = None
+            if topic is not None:
+                out[topic_id] = _empty_completion_snapshot(topic)
     return out
 
 
@@ -202,17 +278,25 @@ def _task_response_from_snapshot(ticket, snapshot: dict | None) -> ManagementTas
 
 
 def _tasks_response(db: Session, tasks: list) -> list[ManagementTaskResponse]:
-    completion = _topic_completion_snapshot(
-        db,
-        [item.topic_id for item in tasks if getattr(item, "topic_id", None)],
-    )
-    return [
-        _task_response_from_snapshot(
-            item,
-            completion.get(item.topic_id) if item.topic_id else None,
+    try:
+        completion = _topic_completion_snapshot(
+            db,
+            [item.topic_id for item in tasks if getattr(item, "topic_id", None)],
         )
-        for item in tasks
-    ]
+    except Exception:
+        completion = {}
+    items: list[ManagementTaskResponse] = []
+    for item in tasks:
+        try:
+            items.append(
+                _task_response_from_snapshot(
+                    item,
+                    completion.get(item.topic_id) if item.topic_id else None,
+                ),
+            )
+        except Exception:
+            items.append(_task_response(item))
+    return items
 
 
 def _import_response(record) -> ManagementWorkspaceImportResponse:
