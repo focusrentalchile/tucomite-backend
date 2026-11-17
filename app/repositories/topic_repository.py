@@ -252,6 +252,7 @@ class SqlTopicRepository:
             row.vote_type = topic.vote_type or VOTE_TYPE_YES_NO
         if hasattr(row, "vote_options_json"):
             row.vote_options_json = self._options_json(topic.vote_options)
+        previous_status_id = row.status_id
         row.status_id = topic.status_id
         row.priority_id = topic.priority_id
         row.assignee_user_id = topic.assignee_user_id
@@ -261,6 +262,10 @@ class SqlTopicRepository:
         row.client_id = topic.client_id
         row.voting_starts_at = _to_naive_utc(topic.voting_starts_at)
         row.voting_ends_at = _to_naive_utc(topic.voting_ends_at)
+        if hasattr(row, "no_consensus_notified_at"):
+            row.no_consensus_notified_at = _to_naive_utc(topic.no_consensus_notified_at)
+        if hasattr(row, "status_entered_at") and topic.status_id != previous_status_id:
+            row.status_entered_at = datetime.now(timezone.utc).replace(tzinfo=None)
         row.completion_note = topic.completion_note
         row.completion_submitted_at = (
             datetime.fromisoformat(topic.completion_submitted_at)

@@ -132,17 +132,30 @@ def test_open_topic_accepts_the_first_vote_after_the_window_ends() -> None:
     """Abiertos + zero votes must stay votable so a new topic cannot get stuck."""
     service = _service()
     topic = _create(service, voting_starts_at=START.isoformat(), voting_ends_at=END.isoformat())
+    late = END + timedelta(hours=2)
 
     moved, vote = service.cast_vote(
         topic.id,
         "user-1",
         "Ana",
         "yes",
-        now=END + timedelta(hours=2),
+        now=late,
+        reopen_window_hours=24,
     )
 
     assert vote.choice == "yes"
     assert moved.status_id == 2
+    assert moved.voting_ends_at == (late + timedelta(hours=24)).isoformat()
+    # Other voters still have the reopened window.
+    _, second = service.cast_vote(
+        topic.id,
+        "user-2",
+        "Luis",
+        "no",
+        now=late + timedelta(hours=1),
+        committee_size=3,
+    )
+    assert second.choice == "no"
 
 
 def test_topic_without_window_never_locks() -> None:

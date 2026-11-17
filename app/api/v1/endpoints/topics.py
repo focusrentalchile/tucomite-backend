@@ -357,11 +357,18 @@ def read_topics(
         completion_by_topic.setdefault(attachment.topic_id, []).append(attachment)
     for confirmation in confirmations:
         confirmations_by_topic.setdefault(confirmation.topic_id, []).append(confirmation)
-    # Notify once when voting ended without a majority (standby / Opiniones).
+    # Notify once when vote hours ended without a majority (start of consensus days).
+    from app.domain.topics import is_awaiting_consensus
+
     topics_repo = SqlTopicRepository(db)
     for topic in topics:
         topic_votes = by_topic.get(topic.id, [])
-        if not is_no_consensus(topic, topic_votes, committee_size):
+        if not is_awaiting_consensus(
+            topic,
+            topic_votes,
+            committee_size,
+            grace_days=grace_days,
+        ):
             continue
         if topic.no_consensus_notified_at:
             continue
@@ -407,6 +414,7 @@ def read_topics(
                     topic,
                     by_topic.get(topic.id, []),
                     committee_size,
+                    grace_days=grace_days,
                 ),
                 consensus_ends_at=(
                     None
@@ -748,11 +756,13 @@ def cast_vote(
             status_code=409,
             detail="At least three committee members are required to vote.",
         )
-    grace_days = ClientSettingsService(
-        SqlClientSettingsRepository(db),
-    ).consensus_grace_days(actor.client_id) if actor.client_id else None
+    settings_service = ClientSettingsService(SqlClientSettingsRepository(db))
+    grace_days = settings_service.consensus_grace_days(actor.client_id) if actor.client_id else None
     previous = SqlTopicRepository(db).get_topic(topic_id)
     previous_status_id = previous.status_id if previous is not None else None
+    reopen_hours = None
+    if previous is not None and actor.client_id:
+        reopen_hours = settings_service.hours_for_priority(actor.client_id, previous.priority_id)
     votes_before = service.list_votes_for_topics([topic_id]) if previous is not None else []
     quorum_before = previous is not None and execution_quorum_met(
         winning_vote_count(previous, votes_before),
@@ -766,6 +776,7 @@ def cast_vote(
             choice=body.choice,
             committee_size=member_count,
             grace_days=grace_days,
+            reopen_window_hours=reopen_hours,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error

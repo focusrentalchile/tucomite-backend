@@ -28,13 +28,15 @@ def _topic(**overrides) -> TopicRecord:
     return TopicRecord(**{**base.__dict__, **overrides})
 
 
-def test_is_no_consensus_when_voting_ended_without_majority() -> None:
+def test_is_no_consensus_only_after_consensus_grace_days() -> None:
     topic = _topic()
     votes = [
         TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="A", choice="yes"),
     ]
-    now = datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc)
-    assert is_no_consensus(topic, votes, committee_size=3, now=now) is True
+    day_after_vote_hours = datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc)
+    assert is_no_consensus(topic, votes, committee_size=3, now=day_after_vote_hours) is False
+    after_grace = datetime(2026, 11, 16, 12, 0, tzinfo=timezone.utc) + timedelta(seconds=1)
+    assert is_no_consensus(topic, votes, committee_size=3, now=after_grace) is True
 
 
 def test_consensus_grace_keeps_voting_open_for_five_days() -> None:

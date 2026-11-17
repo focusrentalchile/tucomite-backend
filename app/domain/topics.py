@@ -348,18 +348,52 @@ def is_voting_window_ended(topic: "TopicRecord", now: datetime | None = None) ->
     return end is not None and moment > end
 
 
+def is_awaiting_consensus(
+    topic: "TopicRecord",
+    votes: list["TopicVoteRecord"],
+    committee_size: int,
+    now: datetime | None = None,
+    *,
+    grace_days: int | None = None,
+) -> bool:
+    """Waiting topic past the vote hours, still inside the consensus grace days."""
+    if topic.status_id != WAITING_STATUS_ID or topic.assignee_user_id:
+        return False
+    if execution_quorum_met(winning_vote_count(topic, votes), committee_size):
+        return False
+    if not is_voting_window_ended(topic, now):
+        return False
+    moment = now or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    grace = consensus_grace_ends_at(topic, grace_days=grace_days)
+    return grace is not None and moment <= grace
+
+
 def is_no_consensus(
     topic: "TopicRecord",
     votes: list["TopicVoteRecord"],
     committee_size: int,
     now: datetime | None = None,
+    *,
+    grace_days: int | None = None,
 ) -> bool:
-    """Waiting topic whose voting window ended without a vote majority (standby)."""
+    """Waiting topic whose consensus grace ended without a vote majority.
+
+    The Configuración “días de consenso” must fully elapse after ``voting_ends_at``
+    before the topic is treated as sin consenso.
+    """
     if topic.status_id != WAITING_STATUS_ID or topic.assignee_user_id:
         return False
-    if not is_voting_window_ended(topic, now):
+    if execution_quorum_met(winning_vote_count(topic, votes), committee_size):
         return False
-    return not execution_quorum_met(winning_vote_count(topic, votes), committee_size)
+    moment = now or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    grace = consensus_grace_ends_at(topic, grace_days=grace_days)
+    if grace is None:
+        return is_voting_window_ended(topic, moment)
+    return moment > grace
 
 
 def ensure_voting_open(

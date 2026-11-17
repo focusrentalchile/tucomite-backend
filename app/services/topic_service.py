@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.domain.topics import (
     ATTACHMENT_KINDS,
@@ -46,6 +46,7 @@ from app.domain.topics import (
     yes_confirmation_count,
     ensure_voting_open,
     execution_quorum_met,
+    is_voting_window_ended,
     resolve_voting_window,
     winning_vote_count,
 )
@@ -574,12 +575,17 @@ class TopicService:
         *,
         committee_size: int = 0,
         grace_days: int | None = None,
+        reopen_window_hours: int | None = None,
     ) -> tuple[TopicRecord, TopicVoteRecord]:
         """Store one person's first vote and move the topic to waiting.
 
         Raises VotingWindowClosed when the topic has a voting window and ``now``
         (default: the current UTC time) is outside it. Waiting topics without a
         majority stay votable during the consensus grace window.
+
+        When the first vote lands on an Abiertos topic whose hours already ended,
+        ``reopen_window_hours`` extends ``voting_ends_at`` from now so the rest of
+        the committee still gets a full voting window.
         """
         topic = self._repository.get_topic(topic_id)
         if topic is None:
@@ -616,8 +622,7 @@ class TopicService:
             )
             self._repository.save_vote(vote)
             if topic.status_id == OPEN_STATUS_ID:
-                self._repository.save_topic_status(topic_id, WAITING_STATUS_ID)
-                topic = _copy_topic(topic, status_id=WAITING_STATUS_ID)
+                topic = self._open_to_waiting(topic, now=now, reopen_window_hours=reopen_window_hours)
             return topic, vote
         vote = TopicVoteRecord(
             id=str(uuid.uuid4()),
@@ -628,6 +633,31 @@ class TopicService:
         )
         self._repository.add_vote(vote)
         if topic.status_id == OPEN_STATUS_ID:
-            self._repository.save_topic_status(topic_id, WAITING_STATUS_ID)
-            topic = _copy_topic(topic, status_id=WAITING_STATUS_ID)
+            topic = self._open_to_waiting(topic, now=now, reopen_window_hours=reopen_window_hours)
         return topic, vote
+
+    def _open_to_waiting(
+        self,
+        topic: TopicRecord,
+        *,
+        now: datetime | None = None,
+        reopen_window_hours: int | None = None,
+    ) -> TopicRecord:
+        """Move Abiertos → Esperando; reopen the vote window when hours already ended."""
+        moment = now or datetime.now(timezone.utc)
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        changes: dict = {"status_id": WAITING_STATUS_ID}
+        if (
+            reopen_window_hours is not None
+            and reopen_window_hours > 0
+            and is_voting_window_ended(topic, moment)
+        ):
+            changes["voting_ends_at"] = (moment + timedelta(hours=reopen_window_hours)).isoformat()
+            changes["no_consensus_notified_at"] = None
+        topic = _copy_topic(topic, **changes)
+        if "voting_ends_at" in changes:
+            self._repository.save_topic(topic)
+        else:
+            self._repository.save_topic_status(topic.id, WAITING_STATUS_ID)
+        return topic
