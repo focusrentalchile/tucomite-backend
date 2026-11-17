@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+from io import BytesIO
 from uuid import uuid4
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate
 
 from app.domain.agreements import (
     VOTE_RESULT_APPROVED,
@@ -28,6 +34,18 @@ from app.repositories.agreement_repository import AgreementRepository
 from app.repositories.client_repository import ClientRepository
 from app.repositories.topic_repository import TopicRepository
 from app.services.agreement_pdf_service import CATEGORY_LABELS, RESULT_LABELS, build_agreement_pdf
+
+logger = logging.getLogger(__name__)
+
+
+def _fallback_pdf(title: str) -> bytes:
+    """Tiny branded-less PDF so a failed acta still creates a listable agreement."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    safe = (title or "Acuerdo").replace("<", "").replace(">", "")[:120]
+    doc.build([Paragraph(f"Acuerdo: {safe}", styles["Title"])])
+    return buffer.getvalue()
 
 
 class AgreementService:
@@ -107,26 +125,30 @@ class AgreementService:
                 confirmations,
             )
         building_name = self._building_name(resolved_client)
-        pdf_bytes = build_agreement_pdf(
-            title=topic.title,
-            decision=topic.decision,
-            description=topic.description,
-            category_key=topic.category_key,
-            vote_yes=yes_count,
-            vote_no=no_count,
-            vote_abstain=abstain_count,
-            vote_result=vote_result,
-            closed_at=topic.closed_at,
-            votes=votes,
-            opinions=opinions,
-            building_name=building_name,
-            vote_option_counts=vote_option_counts,
-            vote_choice_labels=vote_choice_labels,
-            completion_note=topic.completion_note,
-            confirmations=confirmations,
-            completion_rounds=list(topic.completion_rounds or ()),
-            assignee_name=None,
-        )
+        try:
+            pdf_bytes = build_agreement_pdf(
+                title=topic.title,
+                decision=topic.decision,
+                description=topic.description,
+                category_key=topic.category_key,
+                vote_yes=yes_count,
+                vote_no=no_count,
+                vote_abstain=abstain_count,
+                vote_result=vote_result,
+                closed_at=topic.closed_at,
+                votes=votes,
+                opinions=opinions,
+                building_name=building_name,
+                vote_option_counts=vote_option_counts,
+                vote_choice_labels=vote_choice_labels,
+                completion_note=topic.completion_note,
+                confirmations=confirmations,
+                completion_rounds=list(topic.completion_rounds or ()),
+                assignee_name=None,
+            )
+        except Exception:
+            logger.exception("Agreement PDF failed for topic %s; storing fallback PDF", topic_id)
+            pdf_bytes = _fallback_pdf(topic.title)
         safe_title = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in topic.title)[:40]
         pdf_name = f"acuerdo-{safe_title or 'tema'}.pdf"
         now = datetime.now(timezone.utc).isoformat()
@@ -168,7 +190,8 @@ class AgreementService:
         for topic in topics:
             if topic.status_id != CLOSED_STATUS_ID:
                 continue
-            if topic.client_id != client_id:
+            # Closed topics with a missing client_id still belong to this building's backfill.
+            if topic.client_id not in (None, client_id):
                 continue
             try:
                 if self._agreements.get_by_topic(topic.id) is not None:
@@ -182,6 +205,7 @@ class AgreementService:
                 else:
                     item = self.publish_from_topic(topic.id, client_id=client_id)
             except Exception:
+                logger.exception("Agreement backfill failed for topic %s", topic.id)
                 continue
             if item is not None:
                 published.append(item)

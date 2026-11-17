@@ -107,6 +107,31 @@ def test_backfill_missing_publishes_closed_topics_without_acta() -> None:
     assert service.backfill_missing_for_client("c1") == []
 
 
+def test_backfill_includes_closed_topics_with_missing_client_id() -> None:
+    agreements = InMemoryAgreementRepository()
+    topics = _Topics()
+    topics.topic = TopicRecord(
+        id="t2",
+        title="Jardín",
+        description="Entrada",
+        category_key="maintenance",
+        attachment_name="",
+        decision="¿Qué cotización?",
+        status_id=CLOSED_STATUS_ID,
+        priority_id=2,
+        closed_at="2026-11-17T12:00:00",
+        period_id="p1",
+        client_id=None,
+    )
+    topics.votes = []
+    topics.opinions = []
+    service = AgreementService(agreements, topics)
+    created = service.backfill_missing_for_client("c1")
+    assert len(created) == 1
+    assert created[0].topic_id == "t2"
+    assert created[0].client_id == "c1"
+
+
 def test_open_topic_is_not_published() -> None:
     agreements = InMemoryAgreementRepository()
     topics = _Topics()
