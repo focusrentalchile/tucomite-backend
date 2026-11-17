@@ -15,6 +15,7 @@ class UpdateAccountProfileRequest(BaseModel):
 
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
+    avatar_url: str = Field(default="", max_length=6_000_000)
 
 
 class AccountProfileResponse(BaseModel):
@@ -24,3 +25,4 @@ class AccountProfileResponse(BaseModel):
     last_name: str
     full_name: str
     email: str
+    avatar_url: str = ""

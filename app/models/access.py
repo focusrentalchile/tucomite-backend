@@ -93,3 +93,4 @@ class UserModel(Base):
     account_closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     activation_token: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True, index=True)
+    avatar_url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"), default="")

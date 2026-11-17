@@ -49,6 +49,7 @@ def _login_response(
         license_ends_at=None if license is None else license.ends_at,
         license_days_remaining=None if license is None else license.days_remaining,
         must_change_password=bool(user.must_change_password),
+        avatar_url=user.avatar_url or "",
     )
 
 

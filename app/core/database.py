@@ -345,6 +345,17 @@ def init_database() -> None:
                         "ON `users` (`activation_token`)"
                     ),
                 )
+            has_avatar = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'avatar_url'"
+                ),
+            ).scalar()
+            if not has_avatar:
+                connection.execute(
+                    text("ALTER TABLE `users` ADD COLUMN `avatar_url` MEDIUMTEXT NULL"),
+                )
         from app.repositories.management_repository import ensure_management_schema
 
         ensure_management_schema(connection)

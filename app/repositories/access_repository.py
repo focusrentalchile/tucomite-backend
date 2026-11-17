@@ -211,6 +211,7 @@ class SqlAccessRepository:
                 apartment_number=user.apartment_number,
                 must_change_password=bool(user.must_change_password),
                 activation_token=user.activation_token,
+                avatar_url=user.avatar_url or "",
             ),
         )
         self._session.flush()
@@ -229,6 +230,7 @@ class SqlAccessRepository:
         row.apartment_number = user.apartment_number
         row.must_change_password = bool(user.must_change_password)
         row.activation_token = user.activation_token
+        row.avatar_url = user.avatar_url or ""
         self._session.flush()
 
     def delete_user(self, user_id: str) -> None:
@@ -505,4 +507,5 @@ class SqlAccessRepository:
             ),
             must_change_password=bool(getattr(row, "must_change_password", False)),
             activation_token=getattr(row, "activation_token", None),
+            avatar_url=getattr(row, "avatar_url", "") or "",
         )

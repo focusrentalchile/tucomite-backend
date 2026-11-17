@@ -54,15 +54,25 @@ class AccountService:
         self._messages = messages
         self._projects = projects
 
-    def update_profile(self, user_id: str, *, first_name: str, last_name: str) -> UserRecord:
-        """Update the building owner's display name (nombre + apellido)."""
+    def update_profile(
+        self,
+        user_id: str,
+        *,
+        first_name: str,
+        last_name: str,
+        avatar_url: str = "",
+    ) -> UserRecord:
+        """Update the building owner's display name and optional avatar."""
         user = self._require_active_client(user_id)
         cleaned_first = first_name.strip()
         cleaned_last = last_name.strip()
         if not cleaned_first or not cleaned_last:
             raise ValueError("First and last name are required.")
         full_name = f"{cleaned_first} {cleaned_last}".strip()
-        updated = replace(user, full_name=full_name)
+        cleaned_avatar = (avatar_url or "").strip()
+        if cleaned_avatar and not cleaned_avatar.startswith("data:image/"):
+            raise ValueError("Avatar must be an image data URL.")
+        updated = replace(user, full_name=full_name, avatar_url=cleaned_avatar)
         self._access.save_user(updated)
         return updated
 

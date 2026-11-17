@@ -28,13 +28,14 @@ def _split_name(full_name: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-def _profile_response(full_name: str, email: str) -> AccountProfileResponse:
+def _profile_response(full_name: str, email: str, avatar_url: str = "") -> AccountProfileResponse:
     first_name, last_name = _split_name(full_name)
     return AccountProfileResponse(
         first_name=first_name,
         last_name=last_name,
         full_name=full_name.strip(),
         email=email,
+        avatar_url=avatar_url or "",
     )
 
 
@@ -44,12 +45,13 @@ def update_account_profile(
     service: AccountService = Depends(get_account_service),
     actor: Actor = Depends(get_current_actor),
 ) -> AccountProfileResponse:
-    """Update the building owner's first and last name."""
+    """Update the building owner's name and optional avatar."""
     try:
         user = service.update_profile(
             actor.user_id,
             first_name=body.first_name,
             last_name=body.last_name,
+            avatar_url=body.avatar_url,
         )
     except AccountNotClient as error:
         raise HTTPException(
@@ -60,7 +62,7 @@ def update_account_profile(
         raise HTTPException(status_code=409, detail="Account already closed.") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    return _profile_response(user.full_name, user.email)
+    return _profile_response(user.full_name, user.email, user.avatar_url)
 
 
 @router.post("/close", response_class=StreamingResponse)

@@ -42,3 +42,4 @@ class LoginResponse(BaseModel):
     license_ends_at: str | None = None
     license_days_remaining: int | None = None
     must_change_password: bool = False
+    avatar_url: str = ""

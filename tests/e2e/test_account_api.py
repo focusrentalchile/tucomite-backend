@@ -45,9 +45,10 @@ def test_owner_can_update_first_and_last_name() -> None:
     owner_email, _client_id = _create_building()
     assert _login(owner_email, OWNER_PASSWORD).status_code == 200
 
+    avatar = f"data:image/jpeg;base64,{PHOTO}"
     updated = client.patch(
         "/api/v1/account/profile",
-        json={"first_name": "Ana", "last_name": "Pérez"},
+        json={"first_name": "Ana", "last_name": "Pérez", "avatar_url": avatar},
     )
     assert updated.status_code == 200, updated.text
     body = updated.json()
@@ -55,10 +56,12 @@ def test_owner_can_update_first_and_last_name() -> None:
     assert body["last_name"] == "Pérez"
     assert body["full_name"] == "Ana Pérez"
     assert body["email"] == owner_email
+    assert body["avatar_url"] == avatar
 
     session = client.get("/api/v1/auth/session")
     assert session.status_code == 200
     assert session.json()["full_name"] == "Ana Pérez"
+    assert session.json()["avatar_url"] == avatar
 
 
 def test_close_requires_a_session() -> None:

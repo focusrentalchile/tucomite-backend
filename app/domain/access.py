@@ -48,6 +48,8 @@ class UserRecord:
     must_change_password: bool = False
     # One-time token for self-registration email activation. Set means login is blocked.
     activation_token: str | None = None
+    # Optional profile photo as a data URL (or empty).
+    avatar_url: str = ""
 
 
 @dataclass(frozen=True)
