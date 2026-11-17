@@ -745,6 +745,8 @@ def upsert_opinion(
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
+    except InvalidTopicStatus as error:
+        raise HTTPException(status_code=409, detail="Closed topics are read-only for opinions.") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     try:
@@ -790,6 +792,8 @@ def delete_opinion(
         service.delete_opinion(topic_id, opinion_id, actor.user_id)
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Opinion not found.") from error
+    except InvalidTopicStatus as error:
+        raise HTTPException(status_code=409, detail="Closed topics are read-only for opinions.") from error
     except PermissionError as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
 

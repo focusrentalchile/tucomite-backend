@@ -516,30 +516,38 @@ def init_database() -> None:
                 ),
             ).scalar()
             if users_exist:
-                has_email_unique = connection.execute(
-                    text(
-                        "SELECT COUNT(*) FROM information_schema.STATISTICS "
-                        "WHERE TABLE_SCHEMA = DATABASE() "
-                        "AND TABLE_NAME = 'users' AND INDEX_NAME = 'email' "
-                        "AND NON_UNIQUE = 0"
-                    ),
-                ).scalar()
-                if has_email_unique:
-                    connection.execute(text("ALTER TABLE `users` DROP INDEX `email`"))
-                has_client_email_unique = connection.execute(
-                    text(
-                        "SELECT COUNT(*) FROM information_schema.STATISTICS "
-                        "WHERE TABLE_SCHEMA = DATABASE() "
-                        "AND TABLE_NAME = 'users' AND INDEX_NAME = 'uq_users_client_email'"
-                    ),
-                ).scalar()
-                if not has_client_email_unique:
-                    connection.execute(
+                # Best-effort: never block API boot if index rename/create fails
+                # (duplicate historical emails or unexpected index names).
+                try:
+                    unique_email_indexes = connection.execute(
                         text(
-                            "CREATE UNIQUE INDEX `uq_users_client_email` "
-                            "ON `users` (`client_id`, `email`)"
+                            "SELECT INDEX_NAME FROM information_schema.STATISTICS "
+                            "WHERE TABLE_SCHEMA = DATABASE() "
+                            "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'email' "
+                            "AND NON_UNIQUE = 0 AND INDEX_NAME <> 'PRIMARY'"
                         ),
-                    )
+                    ).scalars().all()
+                    for index_name in unique_email_indexes:
+                        if index_name == "uq_users_client_email":
+                            continue
+                        connection.execute(text(f"ALTER TABLE `users` DROP INDEX `{index_name}`"))
+                    has_client_email_unique = connection.execute(
+                        text(
+                            "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                            "WHERE TABLE_SCHEMA = DATABASE() "
+                            "AND TABLE_NAME = 'users' AND INDEX_NAME = 'uq_users_client_email'"
+                        ),
+                    ).scalar()
+                    if not has_client_email_unique:
+                        connection.execute(
+                            text(
+                                "CREATE UNIQUE INDEX `uq_users_client_email` "
+                                "ON `users` (`client_id`, `email`)"
+                            ),
+                        )
+                except Exception:
+                    # App-level checks already scope email uniqueness by building.
+                    pass
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

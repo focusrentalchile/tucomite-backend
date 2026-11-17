@@ -80,7 +80,6 @@ class UserModel(Base):
     """A person assigned to one role."""
 
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("client_id", "email", name="uq_users_client_email"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     full_name: Mapped[str] = mapped_column(String(120))

@@ -184,6 +184,8 @@ class TopicService:
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
+        if topic.status_id == CLOSED_STATUS_ID:
+            raise InvalidTopicStatus()
         text = body.strip()
         if not text:
             raise ValueError("Opinion body is required.")
@@ -213,6 +215,8 @@ class TopicService:
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
+        if topic.status_id == CLOSED_STATUS_ID:
+            raise InvalidTopicStatus()
         opinion = self._repository.get_opinion_by_id(opinion_id)
         if opinion is None or opinion.topic_id != topic_id:
             raise TopicNotFound()
