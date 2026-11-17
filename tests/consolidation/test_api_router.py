@@ -55,6 +55,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/messages/{message_id}/replies" in paths
     assert "/messages/{message_id}/appeal" in paths
     assert "/notifications" in paths
+    assert "/notifications/read-all" in paths
     assert "/notifications/{notification_id}/read" in paths
     assert "/agreements" in paths
     assert "/agreements/{agreement_id}" in paths
