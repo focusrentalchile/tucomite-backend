@@ -33,11 +33,13 @@ from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.topic_notification_email import (
     notify_topic_created,
+    notify_topic_resultado_vote,
     notify_topic_status_changed,
 )
 from app.schemas.topics import (
     CastVoteRequest,
     CastVoteResponse,
+    ConfirmCompletionRequest,
     ConfirmCompletionResponse,
     CreateTopicRequest,
     MoveTopicRequest,
@@ -84,11 +86,16 @@ def _opinion_response(opinion: TopicOpinionRecord) -> TopicOpinionResponse:
 
 
 def _confirmation_response(confirmation: TopicConfirmationRecord) -> TopicConfirmationResponse:
+    choice = (confirmation.choice or "yes").casefold()
+    if choice not in {"yes", "no"}:
+        choice = "yes"
     return TopicConfirmationResponse(
         id=confirmation.id,
         author_id=confirmation.author_id,
         author_name=confirmation.author_name,
         created_at=confirmation.created_at,
+        choice=choice,  # type: ignore[arg-type]
+        reason=confirmation.reason,
     )
 
 
@@ -606,12 +613,13 @@ def submit_completion(
 @router.post("/topics/{topic_id}/confirmations", response_model=ConfirmCompletionResponse)
 def confirm_completion(
     topic_id: str,
+    body: ConfirmCompletionRequest,
     service: TopicService = Depends(get_topic_service),
     actor: Actor = Depends(require_permission("matters", "comment")),
     _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> ConfirmCompletionResponse:
-    """Record that the actor reviewed and confirmed the execution work."""
+    """Record a committee Resultado vote (resolved yes/no)."""
     if not is_listed_committee_member(db, actor.user_id):
         raise HTTPException(status_code=403, detail="Only committee voters may confirm.")
     access = SqlAccessRepository(db)
@@ -619,10 +627,12 @@ def confirm_completion(
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
     try:
-        _topic, confirmation = service.confirm_completion(
+        topic, confirmation = service.confirm_completion(
             topic_id,
             author_id=actor.user_id,
             author_name=user.full_name,
+            choice=body.choice,
+            reason=body.reason,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
@@ -638,6 +648,15 @@ def confirm_completion(
         ) from error
     except ConfirmationAlreadyCast as error:
         raise HTTPException(status_code=409, detail="Completion already confirmed.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    notify_topic_resultado_vote(
+        db,
+        topic=topic,
+        confirmation=confirmation,
+        client_id=actor.client_id or topic.client_id,
+        actor_name=user.full_name,
+    )
     return ConfirmCompletionResponse(
         topic_id=topic_id,
         confirmation=_confirmation_response(confirmation),

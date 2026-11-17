@@ -201,6 +201,33 @@ def init_database() -> None:
                 ).scalar()
                 if not has_column:
                     connection.execute(text(ddl))
+        confirmations_exist = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'topic_confirmations'"
+            ),
+        ).scalar()
+        if confirmations_exist:
+            for column, ddl in (
+                (
+                    "choice",
+                    "ALTER TABLE `topic_confirmations` ADD COLUMN `choice` "
+                    "VARCHAR(8) NOT NULL DEFAULT 'yes'",
+                ),
+                (
+                    "reason",
+                    "ALTER TABLE `topic_confirmations` ADD COLUMN `reason` VARCHAR(500) NULL",
+                ),
+            ):
+                has_column = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        f"AND TABLE_NAME = 'topic_confirmations' AND COLUMN_NAME = '{column}'"
+                    ),
+                ).scalar()
+                if not has_column:
+                    connection.execute(text(ddl))
         users_exist_for_period = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.TABLES "

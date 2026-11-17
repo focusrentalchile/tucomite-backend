@@ -29,6 +29,9 @@ from app.domain.topics import (
     InvalidVoteOptions,
     StatusRecord,
     TopicAttachmentRecord,
+    CONFIRMATION_CHOICES,
+    CONFIRMATION_NO,
+    CONFIRMATION_YES,
     TopicConfirmationRecord,
     TopicNotFound,
     TopicOpinionRecord,
@@ -37,6 +40,7 @@ from app.domain.topics import (
     TopicVoteRecord,
     VoteAlreadyCast,
     completion_quorum_met,
+    yes_confirmation_count,
     ensure_voting_open,
     execution_quorum_met,
     resolve_voting_window,
@@ -332,7 +336,7 @@ class TopicService:
                 raise CompletionNotSubmitted()
             confirmations = self._repository.list_confirmations_for_topics([topic_id])
             size = committee_size if committee_size is not None else 0
-            if not completion_quorum_met(len(confirmations), size):
+            if not completion_quorum_met(yes_confirmation_count(confirmations), size):
                 raise CompletionQuorumNotMet()
         if status_id == DOING_STATUS_ID:
             size = committee_size if committee_size is not None else 0
@@ -378,8 +382,11 @@ class TopicService:
         topic_id: str,
         author_id: str,
         author_name: str,
+        *,
+        choice: str = CONFIRMATION_YES,
+        reason: str | None = None,
     ) -> tuple[TopicRecord, TopicConfirmationRecord]:
-        """Record one committee confirmation that execution work is finished."""
+        """Record one committee Resultado vote (resolved yes/no)."""
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
@@ -390,12 +397,20 @@ class TopicService:
         existing = self._repository.get_confirmation(topic_id, author_id)
         if existing is not None:
             raise ConfirmationAlreadyCast()
+        cleaned_choice = (choice or CONFIRMATION_YES).strip().casefold()
+        if cleaned_choice not in CONFIRMATION_CHOICES:
+            raise ValueError("Resultado choice must be yes or no.")
+        cleaned_reason = (reason or "").strip()
+        if cleaned_choice == CONFIRMATION_NO and not cleaned_reason:
+            raise ValueError("A reason is required when voting no.")
         confirmation = TopicConfirmationRecord(
             id=str(uuid.uuid4()),
             topic_id=topic_id,
             author_id=author_id,
             author_name=author_name.strip(),
             created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            choice=cleaned_choice,
+            reason=cleaned_reason[:500] if cleaned_choice == CONFIRMATION_NO else None,
         )
         self._repository.add_confirmation(confirmation)
         return topic, confirmation

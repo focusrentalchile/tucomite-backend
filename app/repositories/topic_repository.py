@@ -484,6 +484,8 @@ class SqlTopicRepository:
                 author_id=confirmation.author_id,
                 author_name=confirmation.author_name,
                 created_at=datetime.fromisoformat(confirmation.created_at),
+                choice=confirmation.choice or "yes",
+                reason=confirmation.reason,
             ),
         )
 
@@ -568,6 +570,8 @@ class SqlTopicRepository:
             author_id=row.author_id,
             author_name=row.author_name,
             created_at=row.created_at.isoformat(),
+            choice=getattr(row, "choice", None) or "yes",
+            reason=getattr(row, "reason", None),
         )
 
     def _attachment(self, row: TopicAttachmentModel) -> TopicAttachmentRecord:

@@ -106,15 +106,22 @@ class TopicOpinionRecord:
     created_at: str
 
 
+CONFIRMATION_YES = "yes"
+CONFIRMATION_NO = "no"
+CONFIRMATION_CHOICES = frozenset({CONFIRMATION_YES, CONFIRMATION_NO})
+
+
 @dataclass(frozen=True)
 class TopicConfirmationRecord:
-    """One committee member confirming that execution work is finished."""
+    """One committee Resultado vote: resolved yes/no (reason required for no)."""
 
     id: str
     topic_id: str
     author_id: str
     author_name: str
     created_at: str
+    choice: str = CONFIRMATION_YES
+    reason: str | None = None
 
 
 ATTACHMENT_KINDS = frozenset({"image", "video", "file"})
@@ -132,10 +139,19 @@ class TopicAttachmentRecord:
 
 
 def completion_quorum_met(confirmed_count: int, committee_size: int) -> bool:
-    """True when strictly more than half the committee has confirmed completion."""
+    """True when strictly more than half the committee voted that it was resolved."""
     if committee_size <= 0:
         return False
     return confirmed_count > (committee_size / 2)
+
+
+def yes_confirmation_count(confirmations: list[TopicConfirmationRecord]) -> int:
+    """Count Resultado votes that say the topic was resolved."""
+    return sum(
+        1
+        for item in confirmations
+        if (item.choice or CONFIRMATION_YES).casefold() == CONFIRMATION_YES
+    )
 
 
 def execution_quorum_met(winning_vote_count: int, committee_size: int) -> bool:

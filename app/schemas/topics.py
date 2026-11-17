@@ -78,6 +78,13 @@ class SubmitCompletionRequest(BaseModel):
     attachments: list[TopicAttachmentPayload] = []
 
 
+class ConfirmCompletionRequest(BaseModel):
+    """Committee Resultado vote: was the topic resolved?"""
+
+    choice: Literal["yes", "no"]
+    reason: str | None = Field(default=None, max_length=500)
+
+
 class TopicVoteOptionResponse(BaseModel):
     """One stored custom poll option."""
 
@@ -105,12 +112,14 @@ class TopicOpinionResponse(BaseModel):
 
 
 class TopicConfirmationResponse(BaseModel):
-    """One stored completion confirmation."""
+    """One stored Resultado vote."""
 
     id: str
     author_id: str
     author_name: str
     created_at: str
+    choice: Literal["yes", "no"] = "yes"
+    reason: str | None = None
 
 
 class TopicAttachmentResponse(BaseModel):

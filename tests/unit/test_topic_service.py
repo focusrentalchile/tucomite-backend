@@ -321,15 +321,14 @@ def test_update_move_and_delete_topic_persist() -> None:
 
     )
 
-    moved = service.move_topic(topic.id, 3)
-
-
+    repository.save_topic_status(topic.id, 3)
+    moved = repository.get_topic(topic.id)
 
     assert updated.title == "Luminarias nuevas"
 
     assert updated.category_key == "maintenance"
 
-    assert moved.status_id == 3
+    assert moved is not None and moved.status_id == 3
 
     assert repository.get_topic(topic.id).status_id == 3
 
@@ -359,7 +358,7 @@ def test_completion_and_confirmations_gate_close() -> None:
         attachment_name="",
         decision="¿Pedimos cotizaciones?",
     )
-    service.move_topic(topic.id, 3)
+    repository.save_topic_status(topic.id, 3)
 
     try:
         service.move_topic(topic.id, 4, committee_size=3)
@@ -382,16 +381,52 @@ def test_completion_and_confirmations_gate_close() -> None:
     except CompletionQuorumNotMet:
         pass
 
-    service.confirm_completion(topic.id, "user-1", "Ana")
-    service.confirm_completion(topic.id, "user-2", "Luis")
+    service.confirm_completion(topic.id, "user-1", "Ana", choice="yes")
+    service.confirm_completion(
+        topic.id,
+        "user-3",
+        "Marta",
+        choice="no",
+        reason="Falta pintar el marco.",
+    )
+    service.confirm_completion(topic.id, "user-2", "Luis", choice="yes")
     try:
-        service.confirm_completion(topic.id, "user-1", "Ana")
+        service.confirm_completion(topic.id, "user-1", "Ana", choice="yes")
         raise AssertionError("expected ConfirmationAlreadyCast")
     except ConfirmationAlreadyCast:
         pass
 
     closed = service.move_topic(topic.id, 4, committee_size=3)
     assert closed.status_id == 4
+
+
+def test_resultado_no_requires_reason() -> None:
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Ascensor",
+        description="No sube.",
+        category_key="maintenance",
+        attachment_name="",
+        decision="¿Reparamos?",
+    )
+    repository.save_topic_status(topic.id, 3)
+    service.submit_completion(topic.id, note="Se cambió el motor.")
+    try:
+        service.confirm_completion(topic.id, "user-1", "Ana", choice="no", reason="")
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+    _, vote = service.confirm_completion(
+        topic.id,
+        "user-1",
+        "Ana",
+        choice="no",
+        reason="Sigue fallando el sensor.",
+    )
+    assert vote.choice == "no"
+    assert vote.reason == "Sigue fallando el sensor."
 
 
 def test_custom_poll_stores_options_and_accepts_option_votes() -> None:

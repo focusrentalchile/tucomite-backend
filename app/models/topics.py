@@ -84,7 +84,7 @@ class TopicOpinionModel(Base):
 
 
 class TopicConfirmationModel(Base):
-    """One committee confirmation that execution work is finished."""
+    """One committee Resultado vote (resolved yes/no)."""
 
     __tablename__ = "topic_confirmations"
     __table_args__ = (UniqueConstraint("topic_id", "author_id", name="uq_topic_confirmations_author"),)
@@ -94,6 +94,8 @@ class TopicConfirmationModel(Base):
     author_id: Mapped[str] = mapped_column(String(36), index=True)
     author_name: Mapped[str] = mapped_column(String(160))
     created_at: Mapped[datetime] = mapped_column(DateTime)
+    choice: Mapped[str] = mapped_column(String(8), nullable=False, default="yes")
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
 
 class TopicAttachmentModel(Base):
