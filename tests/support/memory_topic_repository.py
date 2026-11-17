@@ -24,6 +24,7 @@ class InMemoryTopicRepository:
         self.attachments: list[TopicAttachmentRecord] = []
         self.completion_attachments: list[TopicAttachmentRecord] = []
         self.confirmations: list[TopicConfirmationRecord] = []
+        self.opinion_reads: dict[tuple[str, str], str] = {}
 
     def list_statuses(self) -> list[StatusRecord]:
         return sorted(self.statuses, key=lambda status: status.id)
@@ -124,6 +125,18 @@ class InMemoryTopicRepository:
     def delete_opinion(self, opinion_id: str) -> None:
         self.opinions = [item for item in self.opinions if item.id != opinion_id]
 
+    def list_opinion_reads(self, user_id: str, topic_ids: list[str]) -> dict[str, str]:
+        return {
+            topic_id: seen
+            for (reader_id, topic_id), seen in self.opinion_reads.items()
+            if reader_id == user_id and topic_id in set(topic_ids)
+        }
+
+    def mark_opinions_seen(self, user_id: str, topic_id: str) -> str:
+        seen = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+        self.opinion_reads[(user_id, topic_id)] = seen
+        return seen
+
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         wanted = set(topic_ids)
         return sorted(
@@ -174,6 +187,11 @@ class InMemoryTopicRepository:
 
     def add_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
         self.confirmations.append(confirmation)
+
+    def save_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
+        self.confirmations = [
+            confirmation if item.id == confirmation.id else item for item in self.confirmations
+        ]
 
     def clear_confirmations_for_topic(self, topic_id: str) -> None:
         self.confirmations = [item for item in self.confirmations if item.topic_id != topic_id]

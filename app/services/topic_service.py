@@ -402,10 +402,11 @@ class TopicService:
         reason: str | None = None,
         committee_size: int | None = None,
     ) -> tuple[TopicRecord, TopicConfirmationRecord]:
-        """Record one committee Resultado vote (resolved yes/no).
+        """Record or update one committee Resultado vote while the topic is still open.
 
         When No votes exceed 50% of the committee, seal Resultado N as failed,
         keep history, and clear the current culminación so a new attempt can load.
+        When Sí votes exceed 50%, close the topic.
         """
         topic = self._repository.get_topic(topic_id)
         if topic is None:
@@ -414,28 +415,42 @@ class TopicService:
             raise InvalidTopicStatus()
         if not topic.completion_submitted_at:
             raise CompletionNotSubmitted()
-        existing = self._repository.get_confirmation(topic_id, author_id)
-        if existing is not None:
-            raise ConfirmationAlreadyCast()
         cleaned_choice = (choice or CONFIRMATION_YES).strip().casefold()
         if cleaned_choice not in CONFIRMATION_CHOICES:
             raise ValueError("Resultado choice must be yes or no.")
         cleaned_reason = (reason or "").strip()
         if cleaned_choice == CONFIRMATION_NO and not cleaned_reason:
             raise ValueError("A reason is required when voting no.")
-        confirmation = TopicConfirmationRecord(
-            id=str(uuid.uuid4()),
-            topic_id=topic_id,
-            author_id=author_id,
-            author_name=author_name.strip(),
-            created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-            choice=cleaned_choice,
-            reason=cleaned_reason[:500] if cleaned_choice == CONFIRMATION_NO else None,
-        )
-        self._repository.add_confirmation(confirmation)
+        existing = self._repository.get_confirmation(topic_id, author_id)
+        if existing is not None:
+            confirmation = TopicConfirmationRecord(
+                id=existing.id,
+                topic_id=existing.topic_id,
+                author_id=existing.author_id,
+                author_name=author_name.strip() or existing.author_name,
+                created_at=existing.created_at,
+                choice=cleaned_choice,
+                reason=cleaned_reason[:500] if cleaned_choice == CONFIRMATION_NO else None,
+            )
+            self._repository.save_confirmation(confirmation)
+        else:
+            confirmation = TopicConfirmationRecord(
+                id=str(uuid.uuid4()),
+                topic_id=topic_id,
+                author_id=author_id,
+                author_name=author_name.strip(),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+                choice=cleaned_choice,
+                reason=cleaned_reason[:500] if cleaned_choice == CONFIRMATION_NO else None,
+            )
+            self._repository.add_confirmation(confirmation)
         confirmations = self._repository.list_confirmations_for_topics([topic_id])
         if not any(item.id == confirmation.id for item in confirmations):
             confirmations = [*confirmations, confirmation]
+        else:
+            confirmations = [
+                confirmation if item.id == confirmation.id else item for item in confirmations
+            ]
         size = committee_size if committee_size is not None else 0
         if size > 0 and no_confirmation_count(confirmations) > (size / 2):
             topic = self._fail_completion_round(topic, confirmations)

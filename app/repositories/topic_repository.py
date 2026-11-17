@@ -26,6 +26,7 @@ from app.models.topics import (
     TopicConfirmationModel,
     TopicModel,
     TopicOpinionModel,
+    TopicOpinionReadModel,
     TopicVoteModel,
 )
 
@@ -112,6 +113,12 @@ class TopicRepository(Protocol):
     def delete_opinion(self, opinion_id: str) -> None:
         """Remove one opinion row."""
 
+    def list_opinion_reads(self, user_id: str, topic_ids: list[str]) -> dict[str, str]:
+        """Return topic id -> last_seen_at (naive UTC ISO) for one person's opinion reads."""
+
+    def mark_opinions_seen(self, user_id: str, topic_id: str) -> str:
+        """Store now as the last time the person opened the topic opinions; return that ISO time."""
+
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         """Return every attachment belonging to the given topics."""
 
@@ -142,6 +149,9 @@ class TopicRepository(Protocol):
 
     def add_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
         """Insert one completion confirmation."""
+
+    def save_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
+        """Update one Resultado vote (choice/reason)."""
 
     def clear_confirmations_for_topic(self, topic_id: str) -> None:
         """Remove every Resultado vote for the current open round."""
@@ -290,6 +300,10 @@ class SqlTopicRepository:
             return
         self._session.execute(delete(TopicVoteModel).where(TopicVoteModel.topic_id == topic_id))
         bind = self._session.get_bind()
+        if bind is not None and inspect(bind).has_table("topic_opinion_reads"):
+            self._session.execute(
+                delete(TopicOpinionReadModel).where(TopicOpinionReadModel.topic_id == topic_id),
+            )
         if bind is not None and inspect(bind).has_table("topic_opinions"):
             self._session.execute(
                 delete(TopicOpinionModel).where(TopicOpinionModel.topic_id == topic_id),
@@ -414,6 +428,29 @@ class SqlTopicRepository:
         if row is not None:
             self._session.delete(row)
 
+    def list_opinion_reads(self, user_id: str, topic_ids: list[str]) -> dict[str, str]:
+        if not topic_ids:
+            return {}
+        rows = self._session.scalars(
+            select(TopicOpinionReadModel).where(
+                TopicOpinionReadModel.user_id == user_id,
+                TopicOpinionReadModel.topic_id.in_(topic_ids),
+            ),
+        ).all()
+        return {row.topic_id: row.last_seen_at.isoformat() for row in rows}
+
+    def mark_opinions_seen(self, user_id: str, topic_id: str) -> str:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        row = self._session.get(TopicOpinionReadModel, (user_id, topic_id))
+        if row is None:
+            self._session.add(
+                TopicOpinionReadModel(user_id=user_id, topic_id=topic_id, last_seen_at=now),
+            )
+        else:
+            row.last_seen_at = now
+        self._session.flush()
+        return now.isoformat()
+
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         if not topic_ids:
             return []
@@ -530,6 +567,18 @@ class SqlTopicRepository:
             ),
         )
         # Session uses autoflush=False; flush so majority checks see this vote.
+        self._session.flush()
+
+    def save_confirmation(self, confirmation: TopicConfirmationRecord) -> None:
+        bind = self._session.get_bind()
+        if bind is None or not inspect(bind).has_table("topic_confirmations"):
+            return
+        row = self._session.get(TopicConfirmationModel, confirmation.id)
+        if row is None:
+            return
+        row.author_name = confirmation.author_name
+        row.choice = confirmation.choice or "yes"
+        row.reason = confirmation.reason
         self._session.flush()
 
     def clear_confirmations_for_topic(self, topic_id: str) -> None:

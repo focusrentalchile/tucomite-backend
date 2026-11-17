@@ -365,7 +365,6 @@ def test_completion_and_confirmations_gate_close() -> None:
     from app.domain.topics import (
         CompletionNotSubmitted,
         CompletionQuorumNotMet,
-        ConfirmationAlreadyCast,
     )
 
     repository = InMemoryTopicRepository()
@@ -412,11 +411,41 @@ def test_completion_and_confirmations_gate_close() -> None:
     )
     closed, _ = service.confirm_completion(topic.id, "user-2", "Luis", choice="yes", committee_size=3)
     assert closed.status_id == 4
-    try:
-        service.confirm_completion(topic.id, "user-1", "Ana", choice="yes", committee_size=3)
-        raise AssertionError("expected ConfirmationAlreadyCast")
-    except ConfirmationAlreadyCast:
-        pass
+
+
+def test_resultado_vote_can_be_changed_while_open() -> None:
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Ascensor",
+        description="No sube.",
+        category_key="maintenance",
+        attachment_name="",
+        decision="¿Reparamos?",
+    )
+    repository.save_topic_status(topic.id, 3)
+    service.submit_completion(topic.id, note="Primera entrega")
+    first, vote = service.confirm_completion(
+        topic.id, "user-1", "Ana", choice="yes", committee_size=3,
+    )
+    assert first.status_id == 3
+    assert vote.choice == "yes"
+    updated, changed = service.confirm_completion(
+        topic.id,
+        "user-1",
+        "Ana",
+        choice="no",
+        reason="Falta detalle.",
+        committee_size=3,
+    )
+    assert changed.id == vote.id
+    assert changed.choice == "no"
+    assert changed.reason == "Falta detalle."
+    assert updated.status_id == 3
+    listed = service.list_confirmations_for_topics([topic.id])
+    assert len(listed) == 1
+    assert listed[0].choice == "no"
 
 
 def test_resultado_second_no_seals_even_with_autoflush_disabled_pattern() -> None:
