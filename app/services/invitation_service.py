@@ -256,6 +256,8 @@ class InvitationService:
         building_name: str,
         address: str,
         password: str,
+        rut: str,
+        building_rut: str,
     ) -> InvitationRecord:
         record = self._require_open_token(token, KIND_PLATFORM)
         license_starts = date.today().isoformat()
@@ -270,6 +272,8 @@ class InvitationService:
                 license_ends,
                 address=address.strip(),
                 responsible_name=record.name,
+                responsible_rut=rut,
+                building_rut=building_rut,
                 must_change_password=False,
                 require_activation=False,
             )
@@ -293,6 +297,7 @@ class InvitationService:
         token: str,
         *,
         password: str,
+        rut: str,
         floor_number: str = "",
         apartment_number: str = "",
     ) -> InvitationRecord:
@@ -327,6 +332,7 @@ class InvitationService:
                 client_id=record.client_id,
                 floor_number=floor_number,
                 apartment_number=apartment_number,
+                rut=rut,
                 must_change_password=False,
             )
         except DuplicateEmail:

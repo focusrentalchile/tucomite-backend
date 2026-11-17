@@ -74,6 +74,7 @@ class ClientModel(Base):
     license_starts_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     license_ends_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     logo_url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"), default="")
+    building_rut: Mapped[str] = mapped_column(String(20), default="")
 
 
 class UserModel(Base):
@@ -94,3 +95,4 @@ class UserModel(Base):
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     activation_token: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True, index=True)
     avatar_url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"), default="")
+    rut: Mapped[str] = mapped_column(String(20), default="")

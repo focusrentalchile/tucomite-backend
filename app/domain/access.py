@@ -50,6 +50,8 @@ class UserRecord:
     activation_token: str | None = None
     # Optional profile photo as a data URL (or empty).
     avatar_url: str = ""
+    # Chilean RUT for the person (normalized BODY-DV).
+    rut: str = ""
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,8 @@ class ClientRecord:
     license_starts_at: str | None = None
     license_ends_at: str | None = None
     logo_url: str = ""
+    # Chilean RUT of the building / community (normalized BODY-DV).
+    building_rut: str = ""
 
 
 

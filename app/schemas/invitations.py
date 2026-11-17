@@ -24,12 +24,15 @@ class AcceptPlatformInvitationRequest(BaseModel):
     building_name: str = Field(min_length=1, max_length=160)
     address: str = Field(default="", max_length=255)
     password: str = Field(min_length=6, max_length=128)
+    rut: str = Field(min_length=3, max_length=20)
+    building_rut: str = Field(min_length=3, max_length=20)
 
 
 class AcceptBuildingInvitationRequest(BaseModel):
     """Public registration payload for a building invitation token."""
 
     password: str = Field(min_length=6, max_length=128)
+    rut: str = Field(min_length=3, max_length=20)
     floor_number: str = Field(default="", max_length=32)
     apartment_number: str = Field(default="", max_length=32)
 

@@ -14,6 +14,7 @@ from app.domain.access import (
 from app.repositories.access_repository import AccessRepository
 from app.repositories.client_repository import ClientRepository
 from app.utils.passwords import hash_password
+from app.utils.rut import InvalidRut, normalize_rut
 
 LICENSE_RENEWAL_DAYS = 30
 
@@ -62,6 +63,8 @@ class ClientService:
         address: str = "",
         responsible_name: str = "",
         *,
+        responsible_rut: str = "",
+        building_rut: str = "",
         must_change_password: bool = False,
         require_activation: bool = False,
     ) -> tuple[ClientRecord, UserRecord]:
@@ -69,6 +72,11 @@ class ClientService:
         cleaned_name = name.strip()
         if not cleaned_name:
             raise ValueError("Client name is required.")
+        try:
+            cleaned_person_rut = normalize_rut(responsible_rut)
+            cleaned_building_rut = normalize_rut(building_rut)
+        except InvalidRut as error:
+            raise ValueError(str(error)) from error
         starts, ends = self._validated_license(license_starts_at, license_ends_at)
         if self._clients.get_client_by_name(cleaned_name) is not None:
             raise DuplicateClientName(cleaned_name)
@@ -102,6 +110,7 @@ class ClientService:
             client_id=client_id,
             must_change_password=must_change_password,
             activation_token=activation_token,
+            rut=cleaned_person_rut,
         )
         self._access.add_user(user)
         client = ClientRecord(
@@ -112,6 +121,7 @@ class ClientService:
             responsible_name=cleaned_responsible,
             license_starts_at=starts,
             license_ends_at=ends,
+            building_rut=cleaned_building_rut,
         )
         self._clients.add_client(client)
         return client, user
@@ -126,12 +136,20 @@ class ClientService:
         license_ends_at: str,
         address: str = "",
         responsible_name: str = "",
+        *,
+        responsible_rut: str = "",
+        building_rut: str = "",
     ) -> tuple[ClientRecord, UserRecord]:
         """Update a client name, license, and building-owner credentials."""
         client = self.get_client(client_id)
         cleaned_name = name.strip()
         if not cleaned_name:
             raise ValueError("Client name is required.")
+        try:
+            cleaned_person_rut = normalize_rut(responsible_rut)
+            cleaned_building_rut = normalize_rut(building_rut)
+        except InvalidRut as error:
+            raise ValueError(str(error)) from error
         starts, ends = self._validated_license(license_starts_at, license_ends_at)
         existing = self._clients.get_client_by_name(cleaned_name)
         if existing is not None and existing.id != client_id:
@@ -160,6 +178,8 @@ class ClientService:
             account_closed_at=admin.account_closed_at,
             must_change_password=True if password else admin.must_change_password,
             activation_token=admin.activation_token,
+            avatar_url=admin.avatar_url,
+            rut=cleaned_person_rut,
         )
         self._access.save_user(updated_admin)
         updated = ClientRecord(
@@ -171,6 +191,7 @@ class ClientService:
             license_starts_at=starts,
             license_ends_at=ends,
             logo_url=client.logo_url,
+            building_rut=cleaned_building_rut,
         )
         self._clients.save_client(updated)
         return updated, updated_admin

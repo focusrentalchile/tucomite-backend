@@ -29,6 +29,7 @@ def _client_response(
     client,
     admin_email: str,
     *,
+    responsible_rut: str = "",
     email_sent: bool | None = None,
     email_error: str | None = None,
 ) -> ClientResponse:
@@ -40,6 +41,8 @@ def _client_response(
         admin_email=admin_email,
         address=getattr(client, "address", "") or "",
         responsible_name=getattr(client, "responsible_name", "") or "",
+        responsible_rut=responsible_rut or "",
+        building_rut=getattr(client, "building_rut", "") or "",
         license_starts_at=client.license_starts_at,
         license_ends_at=client.license_ends_at,
         license_status=license.status,
@@ -66,6 +69,8 @@ def _create_client_account(
             body.license_ends_at,
             address=body.address,
             responsible_name=body.responsible_name,
+            responsible_rut=body.responsible_rut,
+            building_rut=body.building_rut,
             must_change_password=send_temporary_password_email,
             require_activation=require_activation,
         )
@@ -87,11 +92,18 @@ def _create_client_account(
         return _client_response(
             client,
             admin.email,
+            responsible_rut=admin.rut,
             email_sent=invite.sent,
             email_error=invite.error or None,
         )
     if not send_temporary_password_email:
-        return _client_response(client, admin.email, email_sent=None, email_error=None)
+        return _client_response(
+            client,
+            admin.email,
+            responsible_rut=admin.rut,
+            email_sent=None,
+            email_error=None,
+        )
     invite = send_role_invite_email(
         db,
         role_key="client",
@@ -104,6 +116,7 @@ def _create_client_account(
     return _client_response(
         client,
         admin.email,
+        responsible_rut=admin.rut,
         email_sent=invite.sent,
         email_error=invite.error or None,
     )
@@ -120,7 +133,13 @@ def list_clients(
     items: list[ClientResponse] = []
     for client in service.list_clients():
         admin = access.get_user(client.admin_user_id)
-        items.append(_client_response(client, admin.email if admin else ""))
+        items.append(
+            _client_response(
+                client,
+                admin.email if admin else "",
+                responsible_rut=admin.rut if admin else "",
+            ),
+        )
     return ClientListResponse(items=items)
 
 
@@ -164,6 +183,8 @@ def update_client(
             body.license_ends_at,
             address=body.address,
             responsible_name=body.responsible_name,
+            responsible_rut=body.responsible_rut,
+            building_rut=body.building_rut,
         )
     except ClientNotFound:
         raise HTTPException(status_code=404, detail="Client not found.") from None
@@ -173,7 +194,7 @@ def update_client(
         raise HTTPException(status_code=409, detail="Email already registered.") from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
-    return _client_response(client, admin.email)
+    return _client_response(client, admin.email, responsible_rut=admin.rut)
 
 
 @router.post("/{client_id}/renew-license", response_model=ClientResponse)
@@ -197,7 +218,7 @@ def renew_client_license(
         ) from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
-    return _client_response(client, admin.email)
+    return _client_response(client, admin.email, responsible_rut=admin.rut)
 
 
 @router.delete("/{client_id}", status_code=204)

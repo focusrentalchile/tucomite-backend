@@ -12,6 +12,8 @@ class ClientResponse(BaseModel):
     admin_email: str
     address: str = ""
     responsible_name: str = ""
+    responsible_rut: str = ""
+    building_rut: str = ""
     license_starts_at: str | None = None
     license_ends_at: str | None = None
     license_status: str | None = None
@@ -33,6 +35,8 @@ class CreateClientRequest(BaseModel):
     password: str = Field(min_length=6, max_length=128)
     address: str = Field(default="", max_length=255)
     responsible_name: str = Field(default="", max_length=160)
+    responsible_rut: str = Field(min_length=3, max_length=20)
+    building_rut: str = Field(min_length=3, max_length=20)
     license_starts_at: str = Field(min_length=10, max_length=10)
     license_ends_at: str = Field(min_length=10, max_length=10)
 
@@ -45,5 +49,7 @@ class UpdateClientRequest(BaseModel):
     password: str | None = Field(default=None, min_length=6, max_length=128)
     address: str = Field(default="", max_length=255)
     responsible_name: str = Field(default="", max_length=160)
+    responsible_rut: str = Field(min_length=3, max_length=20)
+    building_rut: str = Field(min_length=3, max_length=20)
     license_starts_at: str = Field(min_length=10, max_length=10)
     license_ends_at: str = Field(min_length=10, max_length=10)

@@ -194,6 +194,8 @@ def accept_platform_invitation(
             building_name=body.building_name,
             address=body.address,
             password=body.password,
+            rut=body.rut,
+            building_rut=body.building_rut,
         )
     except InvitationNotFound as error:
         raise HTTPException(status_code=404, detail="Invitation not found.") from error
@@ -224,6 +226,7 @@ def accept_building_invitation(
         record = service.accept_building(
             token,
             password=body.password,
+            rut=body.rut,
             floor_number=body.floor_number,
             apartment_number=body.apartment_number,
         )

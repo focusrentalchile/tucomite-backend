@@ -21,6 +21,7 @@ from app.domain.access import (
 from app.repositories.access_repository import AccessRepository
 from app.services.access_bootstrap import HIDDEN_ROLES, NON_ASSIGNABLE_ROLES
 from app.utils.passwords import hash_password
+from app.utils.rut import InvalidRut, normalize_rut
 
 
 class PermissionPolicy:
@@ -117,10 +118,15 @@ class UserService:
         floor_number: str | None = None,
         apartment_number: str | None = None,
         *,
+        rut: str = "",
         must_change_password: bool = True,
     ) -> UserRecord:
         """Create a user when the email is free in the building (or platform-wide)."""
         normalized = email.strip().lower()
+        try:
+            cleaned_rut = normalize_rut(rut)
+        except InvalidRut as error:
+            raise ValueError(str(error)) from error
         if client_id:
             if self._repository.get_user_by_email_in_client(normalized, client_id) is not None:
                 raise DuplicateEmail(normalized)
@@ -156,6 +162,7 @@ class UserService:
             floor_number=cleaned_floor,
             apartment_number=cleaned_apartment,
             must_change_password=must_change_password,
+            rut=cleaned_rut,
         )
         self._repository.add_user(user)
         return user
@@ -170,6 +177,7 @@ class UserService:
         floor_number: str | None = None,
         apartment_number: str | None = None,
         *,
+        rut: str = "",
         protected_user_ids: frozenset[str] | None = None,
     ) -> UserRecord:
         """Update name, email, optional password, optional role, and unit location."""
@@ -214,6 +222,12 @@ class UserService:
             not cleaned_floor or not cleaned_apartment
         ):
             raise ValueError("Resident floor and apartment are required.")
+        try:
+            cleaned_rut = normalize_rut(rut) if rut.strip() else current.rut
+        except InvalidRut as error:
+            raise ValueError(str(error)) from error
+        if not cleaned_rut:
+            raise ValueError("RUT is required.")
         updated = UserRecord(
             id=current.id,
             full_name=full_name.strip(),
@@ -227,6 +241,8 @@ class UserService:
             account_closed_at=current.account_closed_at,
             must_change_password=True if password else current.must_change_password,
             activation_token=current.activation_token,
+            avatar_url=current.avatar_url,
+            rut=cleaned_rut,
         )
         self._repository.save_user(updated)
         return updated

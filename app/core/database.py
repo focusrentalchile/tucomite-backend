@@ -125,6 +125,10 @@ def init_database() -> None:
                     "logo_url",
                     "ALTER TABLE `clients` ADD COLUMN `logo_url` MEDIUMTEXT NULL",
                 ),
+                (
+                    "building_rut",
+                    "ALTER TABLE `clients` ADD COLUMN `building_rut` VARCHAR(20) NOT NULL DEFAULT ''",
+                ),
             ):
                 has_column = connection.execute(
                     text(
@@ -355,6 +359,17 @@ def init_database() -> None:
             if not has_avatar:
                 connection.execute(
                     text("ALTER TABLE `users` ADD COLUMN `avatar_url` MEDIUMTEXT NULL"),
+                )
+            has_rut = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'users' AND COLUMN_NAME = 'rut'"
+                ),
+            ).scalar()
+            if not has_rut:
+                connection.execute(
+                    text("ALTER TABLE `users` ADD COLUMN `rut` VARCHAR(20) NOT NULL DEFAULT ''"),
                 )
         from app.repositories.management_repository import ensure_management_schema
 

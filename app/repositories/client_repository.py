@@ -75,6 +75,7 @@ class SqlClientRepository:
                 license_starts_at=_parse_day(client.license_starts_at),
                 license_ends_at=_parse_day(client.license_ends_at),
                 logo_url=client.logo_url or "",
+                building_rut=client.building_rut or "",
             ),
         )
         self._session.flush()
@@ -90,6 +91,7 @@ class SqlClientRepository:
         row.license_starts_at = _parse_day(client.license_starts_at)
         row.license_ends_at = _parse_day(client.license_ends_at)
         row.logo_url = client.logo_url or ""
+        row.building_rut = client.building_rut or ""
         self._session.flush()
 
     def delete_client(self, client_id: str) -> None:
@@ -109,4 +111,5 @@ class SqlClientRepository:
             license_starts_at=_day(getattr(row, "license_starts_at", None)),
             license_ends_at=_day(getattr(row, "license_ends_at", None)),
             logo_url=getattr(row, "logo_url", "") or "",
+            building_rut=getattr(row, "building_rut", "") or "",
         )

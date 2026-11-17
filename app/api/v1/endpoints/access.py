@@ -65,6 +65,7 @@ def _user_response(
         client_id=user.client_id,
         floor_number=user.floor_number,
         apartment_number=user.apartment_number,
+        rut=user.rut or "",
     )
 
 
@@ -252,6 +253,7 @@ def create_user(
             period_id=None,
             floor_number=body.floor_number,
             apartment_number=body.apartment_number,
+            rut=body.rut,
         )
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already exists.") from None
@@ -311,6 +313,7 @@ def update_user(
             body.role_id,
             floor_number=body.floor_number,
             apartment_number=body.apartment_number,
+            rut=body.rut,
             protected_user_ids=protected_ids,
         )
     except UserNotFound:
