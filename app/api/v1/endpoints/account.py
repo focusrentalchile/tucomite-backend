@@ -9,10 +9,58 @@ from sqlalchemy.orm import Session
 from app.api.deps import Actor, get_account_service, get_current_actor
 from app.core.database import get_db
 from app.domain.account import AccountAlreadyClosed, AccountNotClient, InvalidAccountPassword
-from app.schemas.account import CloseAccountRequest
+from app.schemas.account import (
+    AccountProfileResponse,
+    CloseAccountRequest,
+    UpdateAccountProfileRequest,
+)
 from app.services.account_service import AccountService
 
 router = APIRouter(prefix="/account", tags=["account"])
+
+
+def _split_name(full_name: str) -> tuple[str, str]:
+    parts = full_name.strip().split(None, 1)
+    if not parts:
+        return "", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], parts[1]
+
+
+def _profile_response(full_name: str, email: str) -> AccountProfileResponse:
+    first_name, last_name = _split_name(full_name)
+    return AccountProfileResponse(
+        first_name=first_name,
+        last_name=last_name,
+        full_name=full_name.strip(),
+        email=email,
+    )
+
+
+@router.patch("/profile", response_model=AccountProfileResponse)
+def update_account_profile(
+    body: UpdateAccountProfileRequest,
+    service: AccountService = Depends(get_account_service),
+    actor: Actor = Depends(get_current_actor),
+) -> AccountProfileResponse:
+    """Update the building owner's first and last name."""
+    try:
+        user = service.update_profile(
+            actor.user_id,
+            first_name=body.first_name,
+            last_name=body.last_name,
+        )
+    except AccountNotClient as error:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the building owner can update this account.",
+        ) from error
+    except AccountAlreadyClosed as error:
+        raise HTTPException(status_code=409, detail="Account already closed.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _profile_response(user.full_name, user.email)
 
 
 @router.post("/close", response_class=StreamingResponse)

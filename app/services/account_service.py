@@ -54,12 +54,19 @@ class AccountService:
         self._messages = messages
         self._projects = projects
 
-    def close_account(self, user_id: str, reason: str, password: str) -> AccountExport:
-        """Close the owner's account and return the ZIP of the building's data.
+    def update_profile(self, user_id: str, *, first_name: str, last_name: str) -> UserRecord:
+        """Update the building owner's display name (nombre + apellido)."""
+        user = self._require_active_client(user_id)
+        cleaned_first = first_name.strip()
+        cleaned_last = last_name.strip()
+        if not cleaned_first or not cleaned_last:
+            raise ValueError("First and last name are required.")
+        full_name = f"{cleaned_first} {cleaned_last}".strip()
+        updated = replace(user, full_name=full_name)
+        self._access.save_user(updated)
+        return updated
 
-        The ZIP is fully built before anything is changed. Only then the closure request is
-        stored and the user is flagged closed (the row stays, so history keeps its author).
-        """
+    def _require_active_client(self, user_id: str) -> UserRecord:
         user = self._access.get_user(user_id)
         role = self._access.get_role(user.role_id) if user is not None else None
         if (
@@ -71,6 +78,15 @@ class AccountService:
             raise AccountNotClient()
         if user.account_closed_at:
             raise AccountAlreadyClosed()
+        return user
+
+    def close_account(self, user_id: str, reason: str, password: str) -> AccountExport:
+        """Close the owner's account and return the ZIP of the building's data.
+
+        The ZIP is fully built before anything is changed. Only then the closure request is
+        stored and the user is flagged closed (the row stays, so history keeps its author).
+        """
+        user = self._require_active_client(user_id)
         if not verify_password(password, user.password_hash):
             raise InvalidAccountPassword()
         cleaned_reason = reason.strip()
