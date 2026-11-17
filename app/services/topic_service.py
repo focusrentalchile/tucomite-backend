@@ -422,6 +422,8 @@ class TopicService:
         )
         self._repository.add_confirmation(confirmation)
         confirmations = self._repository.list_confirmations_for_topics([topic_id])
+        if not any(item.id == confirmation.id for item in confirmations):
+            confirmations = [*confirmations, confirmation]
         size = committee_size if committee_size is not None else 0
         if size > 0 and no_confirmation_count(confirmations) > (size / 2):
             topic = self._fail_completion_round(topic, confirmations)

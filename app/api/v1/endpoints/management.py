@@ -153,6 +153,7 @@ def _empty_completion_snapshot(topic) -> dict:
 def _topic_completion_snapshot(
     db: Session,
     topic_ids: list[str],
+    client_by_topic: dict[str, str] | None = None,
 ) -> dict[str, dict]:
     """Return topic_id → Resultado snapshot for Gestión fichas.
 
@@ -165,13 +166,14 @@ def _topic_completion_snapshot(
     topics = TopicService(repo)
     committee = SqlCommitteeRepository(db)
     seat_cache: dict[str, int] = {}
+    clients = client_by_topic or {}
     out: dict[str, dict] = {}
     for topic_id in unique:
         try:
             topic = repo.get_topic(topic_id)
             if topic is None:
                 continue
-            client_id = topic.client_id or ""
+            client_id = topic.client_id or clients.get(topic_id) or ""
             if client_id not in seat_cache:
                 try:
                     seat_cache[client_id] = (
@@ -278,10 +280,17 @@ def _task_response_from_snapshot(ticket, snapshot: dict | None) -> ManagementTas
 
 
 def _tasks_response(db: Session, tasks: list) -> list[ManagementTaskResponse]:
+    topic_client: dict[str, str] = {}
+    for item in tasks:
+        topic_id = getattr(item, "topic_id", None)
+        client_id = getattr(item, "client_id", None)
+        if topic_id and client_id and topic_id not in topic_client:
+            topic_client[topic_id] = client_id
     try:
         completion = _topic_completion_snapshot(
             db,
             [item.topic_id for item in tasks if getattr(item, "topic_id", None)],
+            client_by_topic=topic_client,
         )
     except Exception:
         completion = {}

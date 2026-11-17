@@ -400,6 +400,32 @@ def test_completion_and_confirmations_gate_close() -> None:
     assert closed.status_id == 4
 
 
+def test_resultado_second_no_seals_even_with_autoflush_disabled_pattern() -> None:
+    """The second No must seal using the vote just stored (session may not autoflush)."""
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Ascensor",
+        description="No sube.",
+        category_key="maintenance",
+        attachment_name="",
+        decision="¿Reparamos?",
+    )
+    repository.save_topic_status(topic.id, 3)
+    service.submit_completion(topic.id, note="Primera entrega")
+    service.confirm_completion(
+        topic.id, "user-1", "Ana", choice="no", reason="Falta 1", committee_size=3,
+    )
+    sealed = service.confirm_completion(
+        topic.id, "user-2", "Luis", choice="no", reason="Falta 2", committee_size=3,
+    )[0]
+    assert sealed.completion_submitted_at is None
+    assert sealed.completion_round == 2
+    assert len(sealed.completion_rounds) == 1
+    assert sealed.completion_rounds[0].confirmations[-1].reason == "Falta 2"
+
+
 def test_seal_failed_completion_if_needed_heals_open_no_majority() -> None:
     repository = InMemoryTopicRepository()
     ensure_topic_statuses(repository)

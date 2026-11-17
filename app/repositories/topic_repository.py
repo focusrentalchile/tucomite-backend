@@ -512,6 +512,8 @@ class SqlTopicRepository:
                 reason=confirmation.reason,
             ),
         )
+        # Session uses autoflush=False; flush so majority checks see this vote.
+        self._session.flush()
 
     def clear_confirmations_for_topic(self, topic_id: str) -> None:
         bind = self._session.get_bind()
