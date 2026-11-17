@@ -152,19 +152,35 @@ class AgreementService:
         return self._agreements.add(record)
 
     def backfill_missing_for_client(self, client_id: str | None) -> list[AgreementRecord]:
-        """Publish agreements for closed topics that still lack an acta."""
+        """Publish agreements for closed topics that still lack an acta.
+
+        Each publish runs in a SAVEPOINT when a SQL session is available so one
+        PDF/DB failure cannot poison later publishes or list_agreements.
+        """
         if not client_id:
             return []
+        session = getattr(self._agreements, "_session", None)
         published: list[AgreementRecord] = []
-        for topic in self._topics.list_topics():
+        try:
+            topics = self._topics.list_topics()
+        except Exception:
+            return []
+        for topic in topics:
             if topic.status_id != CLOSED_STATUS_ID:
                 continue
             if topic.client_id != client_id:
                 continue
-            if self._agreements.get_by_topic(topic.id) is not None:
+            try:
+                if self._agreements.get_by_topic(topic.id) is not None:
+                    continue
+            except Exception:
                 continue
             try:
-                item = self.publish_from_topic(topic.id, client_id=client_id)
+                if session is not None:
+                    with session.begin_nested():
+                        item = self.publish_from_topic(topic.id, client_id=client_id)
+                else:
+                    item = self.publish_from_topic(topic.id, client_id=client_id)
             except Exception:
                 continue
             if item is not None:

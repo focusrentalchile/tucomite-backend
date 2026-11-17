@@ -58,13 +58,22 @@ def list_agreements(
         if selected not in workspace:
             raise HTTPException(status_code=403, detail="That building is not in your workspace.")
     # Closed topics that never got an acta (e.g. heal/PDF failure) are published here.
+    # Isolate failures so list_agreements never dies with PendingRollbackError.
     backfill_client = selected or actor.client_id
     if backfill_client:
         try:
-            service.backfill_missing_for_client(backfill_client)
+            with db.begin_nested():
+                service.backfill_missing_for_client(backfill_client)
         except Exception:
             pass
-    items = service.list_agreements(client_id=selected)
+    try:
+        items = service.list_agreements(client_id=selected)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        items = []
     if selected is None and actor.client_id and "management.view" in actor.permissions:
         workspace = ManagementService(
             SqlManagementRepository(db),
