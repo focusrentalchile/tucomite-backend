@@ -86,6 +86,16 @@ class TopicOpinionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class TopicOpinionReadModel(Base):
+    """When one person last opened the opinions of one topic (drives the new-opinion bell)."""
+
+    __tablename__ = "topic_opinion_reads"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), primary_key=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class TopicConfirmationModel(Base):
     """One committee Resultado vote (resolved yes/no)."""
 

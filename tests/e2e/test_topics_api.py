@@ -224,6 +224,41 @@ def test_opinion_is_stored_and_visible_to_everyone() -> None:
     ]
 
 
+def test_opinions_seen_endpoint_stores_last_seen_and_own_opinions_are_never_unread() -> None:
+    _ensure_actor_on_committee()
+    created = client.post(
+        "/api/v1/topics",
+        json={
+            "title": "Portón",
+            "description": "No cierra bien.",
+            "category_key": "maintenance",
+            "attachment_name": "",
+            "decision": "¿Lo reparamos?",
+            "priority_id": 2,
+        },
+    )
+    assert created.status_code == 201
+    topic_id = created.json()["id"]
+    written = client.post(f"/api/v1/topics/{topic_id}/opinions", json={"body": "Sí, hay que repararlo."})
+    assert written.status_code == 200
+
+    listed = client.get("/api/v1/topics")
+    stored = next(item for item in listed.json()["items"] if item["id"] == topic_id)
+    assert stored["unread_opinion_count"] == 0
+    assert stored["opinions_last_seen_at"] is None
+    assert stored["assign_ready"] is False
+
+    seen = client.post(f"/api/v1/topics/{topic_id}/opinions/seen")
+    assert seen.status_code == 200
+    assert seen.json()["topic_id"] == topic_id
+    assert seen.json()["last_seen_at"]
+
+    listed_again = client.get("/api/v1/topics")
+    stored_again = next(item for item in listed_again.json()["items"] if item["id"] == topic_id)
+    assert stored_again["opinions_last_seen_at"] == seen.json()["last_seen_at"]
+    assert client.post("/api/v1/topics/missing-topic/opinions/seen").status_code == 404
+
+
 def test_assigning_building_admin_opens_support_task_with_same_priority() -> None:
     login_as_demo_admin(client)
     me = client.get("/api/v1/access/me")

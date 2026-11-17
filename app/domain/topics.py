@@ -193,6 +193,29 @@ def execution_quorum_met(winning_vote_count: int, committee_size: int) -> bool:
     return completion_quorum_met(winning_vote_count, committee_size)
 
 
+def winning_vote_count(topic: "TopicRecord", votes: list["TopicVoteRecord"]) -> int:
+    """Yes tally for yes/no polls, or the leading custom option count."""
+    if topic.vote_type == VOTE_TYPE_CUSTOM:
+        if not topic.vote_options:
+            return 0
+        return max(
+            (sum(1 for vote in votes if vote.choice == option.id) for option in topic.vote_options),
+            default=0,
+        )
+    return sum(1 for vote in votes if vote.choice == "yes")
+
+
+def is_assign_ready(
+    topic: "TopicRecord",
+    votes: list["TopicVoteRecord"],
+    committee_size: int,
+) -> bool:
+    """True when the topic waits for a responsible person and the vote majority is met."""
+    if topic.status_id != WAITING_STATUS_ID or topic.assignee_user_id:
+        return False
+    return execution_quorum_met(winning_vote_count(topic, votes), committee_size)
+
+
 class ExecutionQuorumNotMet(Exception):
     """Raised when assigning execution without a vote majority."""
 

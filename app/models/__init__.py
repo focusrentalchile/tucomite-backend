@@ -31,6 +31,7 @@ from app.models.topics import (
     TopicAttachmentModel,
     TopicModel,
     TopicOpinionModel,
+    TopicOpinionReadModel,
     TopicVoteModel,
 )
 
@@ -66,6 +67,7 @@ __all__ = [
     "TopicAttachmentModel",
     "TopicModel",
     "TopicOpinionModel",
+    "TopicOpinionReadModel",
     "TopicVoteModel",
     "UserModel",
 ]

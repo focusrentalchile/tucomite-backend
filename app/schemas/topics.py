@@ -173,6 +173,12 @@ class TopicResponse(BaseModel):
     completion_rounds: list[TopicCompletionRoundResponse] = []
     completion_attachments: list[TopicAttachmentResponse] = []
     confirmations: list[TopicConfirmationResponse] = []
+    # Per-actor fields filled by GET /topics.
+    unread_opinion_count: int = 0
+    opinions_last_seen_at: str | None = None
+    # Waiting column, vote majority met, and nobody assigned yet.
+    assign_ready: bool = False
+    has_assign_ready_alert: bool = False
 
 
 class TopicListResponse(BaseModel):
@@ -194,6 +200,13 @@ class UpsertOpinionResponse(BaseModel):
 
     topic_id: str
     opinion: TopicOpinionResponse
+
+
+class SeenOpinionsResponse(BaseModel):
+    """Instant stored when the actor opened the opinions of a topic."""
+
+    topic_id: str
+    last_seen_at: str
 
 
 class SubmitCompletionResponse(BaseModel):

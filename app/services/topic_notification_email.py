@@ -7,6 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.domain.email_templates import (
+    TEMPLATE_TOPIC_ASSIGN_READY,
     TEMPLATE_TOPIC_CREATED,
     TEMPLATE_TOPIC_DELETED,
     TEMPLATE_TOPIC_RESULTADO_VOTE,
@@ -44,6 +45,8 @@ TOPIC_STATUS_LABELS: dict[int, str] = {
 }
 
 ADMIN_TOPICS_URL = "https://admin.tucomite.cl/topics"
+NOTICE_KIND_TOPIC_OPINION = "topic_opinion"
+NOTICE_KIND_TOPIC_ASSIGN_READY = "topic_assign_ready"
 
 
 def topic_status_label(status_id: int) -> str:
@@ -235,6 +238,109 @@ def notify_topic_status_changed(
         topic=topic,
         previous_status_id=previous_status_id,
         include_assignee=topic if topic.status_id == CLOSED_STATUS_ID else None,
+    )
+
+
+def _voter_and_owner_user_ids(db: Session, client_id: str | None) -> list[str]:
+    """Unique user ids for committee voters plus the client owner of one building."""
+    if not client_id:
+        return []
+    ids: list[str] = []
+    for user_id in SqlCommitteeRepository(db).list_voter_user_ids(client_id):
+        if user_id and user_id not in ids:
+            ids.append(user_id)
+    client = SqlClientRepository(db).get_client(client_id)
+    if client is not None and client.admin_user_id and client.admin_user_id not in ids:
+        owner = SqlAccessRepository(db).get_user(client.admin_user_id)
+        if owner is not None and not owner.account_closed_at:
+            ids.append(client.admin_user_id)
+    return ids
+
+
+def _add_in_app_notices(
+    db: Session,
+    *,
+    user_ids: list[str],
+    kind: str,
+    title: str,
+    body: str,
+) -> int:
+    """Best-effort bell notices for each user id. Returns how many were stored."""
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    from app.domain.notifications import NotificationRecord
+    from app.repositories.notification_repository import SqlNotificationRepository
+
+    repository = SqlNotificationRepository(db)
+    stored = 0
+    for user_id in user_ids:
+        try:
+            repository.add(
+                NotificationRecord(
+                    id=str(uuid4()),
+                    user_id=user_id,
+                    kind=kind,
+                    title=title,
+                    body=body,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    read_at=None,
+                ),
+            )
+            stored += 1
+        except Exception:  # noqa: BLE001 — never block topic actions on notices
+            logger.exception("In-app notice %s failed for user %s", kind, user_id)
+    return stored
+
+
+def notify_topic_opinion(
+    db: Session,
+    *,
+    topic: TopicRecord,
+    author_id: str,
+    author_name: str,
+    client_id: str | None,
+) -> int:
+    """Bell notice for every committee voter and the client owner except the author."""
+    recipients = [
+        user_id
+        for user_id in _voter_and_owner_user_ids(db, client_id or topic.client_id)
+        if user_id != author_id
+    ]
+    if not recipients:
+        return 0
+    return _add_in_app_notices(
+        db,
+        user_ids=recipients,
+        kind=NOTICE_KIND_TOPIC_OPINION,
+        title="Nueva opinión",
+        body=f"{author_name or 'Alguien del comité'} opinó en «{topic.title}».",
+    )
+
+
+def notify_topic_assign_ready(
+    db: Session,
+    *,
+    topic: TopicRecord,
+    client_id: str | None,
+    actor_name: str,
+) -> int:
+    """Bell + email committee and client when a vote majority makes assigning possible."""
+    resolved_client = client_id or topic.client_id
+    building = _building_name(db, resolved_client)
+    _add_in_app_notices(
+        db,
+        user_ids=_voter_and_owner_user_ids(db, resolved_client),
+        kind=NOTICE_KIND_TOPIC_ASSIGN_READY,
+        title="Listo para asignar",
+        body=f"«{topic.title}» ({building}) ya tiene los votos para asignar a un responsable.",
+    )
+    return _send_to_committee(
+        db,
+        template_key=TEMPLATE_TOPIC_ASSIGN_READY,
+        client_id=resolved_client,
+        actor_name=actor_name,
+        topic=topic,
     )
 
 

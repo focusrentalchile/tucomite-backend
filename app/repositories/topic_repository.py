@@ -1,7 +1,7 @@
 """Persistence for topic statuses, topics, and votes."""
 
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Protocol
 
 from sqlalchemy import delete, inspect, select
@@ -441,6 +441,9 @@ class SqlTopicRepository:
 
     def mark_opinions_seen(self, user_id: str, topic_id: str) -> str:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
+        # MySQL DATETIME keeps whole seconds (and rounds opinion times), so round up.
+        if now.microsecond:
+            now = now.replace(microsecond=0) + timedelta(seconds=1)
         row = self._session.get(TopicOpinionReadModel, (user_id, topic_id))
         if row is None:
             self._session.add(

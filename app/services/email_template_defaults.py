@@ -11,6 +11,7 @@ from app.domain.email_templates import (
     TEMPLATE_MANAGEMENT_TASK_ASSIGNED,
     TEMPLATE_MANAGEMENT_TASK_STATUS_CHANGED,
     TEMPLATE_MANAGEMENT_TASK_COMPLETION_REVIEW,
+    TEMPLATE_TOPIC_ASSIGN_READY,
     TEMPLATE_TOPIC_CREATED,
     TEMPLATE_TOPIC_DELETED,
     TEMPLATE_TOPIC_RESULTADO_VOTE,
@@ -397,6 +398,34 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
               <p style="margin:22px 0 10px;text-align:center;">
                 <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Ver temas</a>
               </p>
+            """,
+        ),
+    },
+    TEMPLATE_TOPIC_ASSIGN_READY: {
+        "name": "Tema listo para asignar",
+        "subject": "{{building_name}}: «{{topic_title}}» ya tiene los votos para asignar",
+        "html_body": _shell(
+            title="Tema listo para asignar",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">La votación terminó con la mayoría necesaria</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">El tema de <strong>{{building_name}}</strong> reunió los votos requeridos y ya puedes asignar a la persona responsable de ejecutarlo.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Tema</p>
+                    <p style="margin:0 0 12px;font-size:17px;line-height:1.4;font-weight:700;color:#001545;">{{topic_title}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Detalle</p>
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#001545;">{{topic_description}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Ingresa a Temas, abre la tarjeta en <strong>{{topic_status}}</strong> y elige <strong>Asignar ejecución</strong> para definir al responsable y las fechas.</p>
+              <p style="margin:22px 0 10px;text-align:center;">
+                <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Asignar ahora</a>
+              </p>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:#5a6a8a;text-align:center;">Si el botón no funciona, abre este enlace:<br />
+              <a href="{{topic_url}}" style="color:#1554d1;word-break:break-all;">{{topic_url}}</a></p>
             """,
         ),
     },

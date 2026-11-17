@@ -25,6 +25,9 @@ class CommitteeRepository(Protocol):
     def list_voter_recipients(self, client_id: str) -> list[CommitteeMemberRecord]:
         """Return active client and committee users for one building (email recipients)."""
 
+    def list_voter_user_ids(self, client_id: str) -> list[str]:
+        """Return ids of active client and committee users for one building."""
+
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:
         """Return one committee member when present."""
 
@@ -75,6 +78,17 @@ class SqlCommitteeRepository:
             .order_by(UserModel.full_name),
         ).scalars().all()
         return [self._member(row) for row in rows if (row.email or "").strip()]
+
+    def list_voter_user_ids(self, client_id: str) -> list[str]:
+        """Return ids of active client and committee users in one building (in-app notices)."""
+        rows = self._session.execute(
+            select(UserModel.id)
+            .join(RoleModel, RoleModel.id == UserModel.role_id)
+            .where(RoleModel.name.in_(tuple(VOTER_ROLE_NAMES)))
+            .where(UserModel.client_id == client_id)
+            .where(UserModel.account_closed_at.is_(None)),
+        ).all()
+        return [row[0] for row in rows]
 
     def get_member(self, user_id: str) -> CommitteeMemberRecord | None:
         row = self._session.get(CommitteeMemberModel, user_id)
