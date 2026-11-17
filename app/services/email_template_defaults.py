@@ -349,14 +349,14 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
         ),
     },
     TEMPLATE_TOPIC_RESULTADO_VOTE: {
-        "name": "Voto de resultado del tema",
-        "subject": "{{building_name}}: voto de resultado en «{{topic_title}}»",
+        "name": "Resultado No del tema",
+        "subject": "{{building_name}}: Resultado No en «{{topic_title}}»",
         "html_body": _shell(
-            title="Voto de resultado",
+            title="Resultado: no cumple",
             inner="""
               <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
-              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Hay un nuevo voto de resultado</p>
-              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> respondió si se resolvió el tema en <strong>{{building_name}}</strong>.</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">El Resultado indica que no cumple</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> votó que el trabajo no cumple en <strong>{{building_name}}</strong>.</p>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
                 <tr>
                   <td style="padding:16px 18px;">

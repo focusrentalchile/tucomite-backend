@@ -48,6 +48,7 @@ class ManagementTaskResponse(BaseModel):
     due_date: str | None = None
     assignee_user_id: str | None = None
     topic_id: str | None = None
+    topic_completion_submitted_at: str | None = None
     created_at: str
     updated_at: str
     status_entered_at: str | None = None

@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import Actor, get_current_actor, require_permission
 from app.core.database import get_db
-from app.domain.management import TaskNotFound
+from app.domain.management import (
+    MANAGEMENT_STATUS_DONE,
+    MANAGEMENT_STATUS_IN_PROGRESS,
+    MANAGEMENT_STATUS_TODO,
+    TaskNotFound,
+)
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.agreement_repository import SqlAgreementRepository
 from app.repositories.client_repository import SqlClientRepository
@@ -75,7 +80,24 @@ def _message_response(message) -> ManagementMessageResponse:
     )
 
 
-def _task_response(ticket) -> ManagementTaskResponse:
+def _topic_completion_map(db: Session, topic_ids: list[str]) -> dict[str, str | None]:
+    """Return topic_id → completion_submitted_at for the given ids."""
+    unique = [item for item in dict.fromkeys(topic_ids) if item]
+    if not unique:
+        return {}
+    repo = SqlTopicRepository(db)
+    out: dict[str, str | None] = {}
+    for topic_id in unique:
+        topic = repo.get_topic(topic_id)
+        out[topic_id] = topic.completion_submitted_at if topic is not None else None
+    return out
+
+
+def _task_response(
+    ticket,
+    *,
+    topic_completion_submitted_at: str | None = None,
+) -> ManagementTaskResponse:
     return ManagementTaskResponse(
         id=ticket.id,
         client_id=ticket.client_id,
@@ -88,12 +110,29 @@ def _task_response(ticket) -> ManagementTaskResponse:
         due_date=ticket.due_date,
         assignee_user_id=ticket.assignee_user_id,
         topic_id=ticket.topic_id,
+        topic_completion_submitted_at=topic_completion_submitted_at,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         status_entered_at=getattr(ticket, "status_entered_at", None) or ticket.created_at,
         messages=[_message_response(item) for item in ticket.messages],
         attachments=[_attachment_response(item) for item in ticket.attachments],
     )
+
+
+def _tasks_response(db: Session, tasks: list) -> list[ManagementTaskResponse]:
+    completion = _topic_completion_map(
+        db,
+        [item.topic_id for item in tasks if getattr(item, "topic_id", None)],
+    )
+    return [
+        _task_response(
+            item,
+            topic_completion_submitted_at=(
+                completion.get(item.topic_id) if item.topic_id else None
+            ),
+        )
+        for item in tasks
+    ]
 
 
 def _import_response(record) -> ManagementWorkspaceImportResponse:
@@ -325,11 +364,12 @@ def list_tasks(
     client_id: str | None = Query(default=None),
     service: ManagementService = Depends(get_management_service),
     actor: Actor = Depends(require_permission("management", "view")),
+    db: Session = Depends(get_db),
 ) -> ManagementTaskListResponse:
     """List tasks for the actor's Gestión workspace, optionally filtered by client."""
     if actor.is_super_admin:
         tasks = service.list_tasks(client_id=client_id)
-        return ManagementTaskListResponse(items=[_task_response(item) for item in tasks])
+        return ManagementTaskListResponse(items=_tasks_response(db, tasks))
     allowed = _workspace_ids(service, actor) or []
     if not allowed:
         return ManagementTaskListResponse(items=[])
@@ -339,7 +379,7 @@ def list_tasks(
         tasks = service.list_tasks(client_id=client_id)
     else:
         tasks = service.list_tasks(client_ids=allowed)
-    return ManagementTaskListResponse(items=[_task_response(item) for item in tasks])
+    return ManagementTaskListResponse(items=_tasks_response(db, tasks))
 
 
 @router.get("/tasks/{task_id}", response_model=ManagementTaskResponse)
@@ -347,6 +387,7 @@ def read_task(
     task_id: str,
     service: ManagementService = Depends(get_management_service),
     actor: Actor = Depends(require_permission("management", "view")),
+    db: Session = Depends(get_db),
 ) -> ManagementTaskResponse:
     """Return one ticket thread."""
     try:
@@ -354,7 +395,7 @@ def read_task(
     except TaskNotFound:
         raise HTTPException(status_code=404, detail="Ticket not found.") from None
     _ensure_task_access(service, actor, ticket.client_id)
-    return _task_response(ticket)
+    return _tasks_response(db, [ticket])[0]
 
 
 @router.post("/tasks", response_model=ManagementTaskResponse, status_code=201)
@@ -478,7 +519,7 @@ def submit_management_completion(
         )
     topics = TopicService(SqlTopicRepository(db))
     try:
-        topics.submit_completion(
+        completed = topics.submit_completion(
             existing.topic_id,
             note=body.note,
             attachments=[item.model_dump() for item in body.attachments],
@@ -495,7 +536,16 @@ def submit_management_completion(
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
-    ticket = service.set_status(task_id, "done")
+    # Stay in En proceso until the committee Resultado audit decides.
+    previous_status = existing.status
+    ticket = existing
+    if existing.status == MANAGEMENT_STATUS_TODO:
+        ticket = service.set_status(task_id, MANAGEMENT_STATUS_IN_PROGRESS)
+    elif existing.status == MANAGEMENT_STATUS_DONE:
+        ticket = service.set_status(task_id, MANAGEMENT_STATUS_IN_PROGRESS)
+    else:
+        ticket = service.get_task(task_id)
+
     actor_name = _actor_name(db, actor.user_id)
     notify_management_completion_for_review(
         db,
@@ -505,16 +555,20 @@ def submit_management_completion(
         note=body.note.strip(),
         actor_name=actor_name,
     )
-    notify_management_status_changed(
-        db,
-        client_id=existing.client_id,
-        building_name=existing.client_name,
-        subject=existing.subject,
-        previous_status=existing.status,
-        next_status=ticket.status,
-        actor_name=actor_name,
+    if previous_status != ticket.status:
+        notify_management_status_changed(
+            db,
+            client_id=existing.client_id,
+            building_name=existing.client_name,
+            subject=existing.subject,
+            previous_status=previous_status,
+            next_status=ticket.status,
+            actor_name=actor_name,
+        )
+    return _task_response(
+        ticket,
+        topic_completion_submitted_at=completed.completion_submitted_at,
     )
-    return _task_response(ticket)
 
 
 @router.delete("/tasks/{task_id}", status_code=204)

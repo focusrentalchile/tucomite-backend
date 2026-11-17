@@ -15,7 +15,6 @@ from app.domain.email_templates import (
 from app.domain.topics import (
     CLOSED_STATUS_ID,
     CONFIRMATION_NO,
-    CONFIRMATION_YES,
     DOING_STATUS_ID,
     OPEN_STATUS_ID,
     WAITING_STATUS_ID,
@@ -247,22 +246,45 @@ def notify_topic_resultado_vote(
     client_id: str | None,
     actor_name: str,
 ) -> int:
-    """Email the assigned administrator/mayordomo/responsible when Resultado is cast."""
+    """Bell + email the assignee when Resultado is No (one notice per No reason)."""
+    if (confirmation.choice or "").casefold() != CONFIRMATION_NO:
+        return 0
+    if not topic.assignee_user_id:
+        return 0
+    reason = (confirmation.reason or "").strip() or "Sin comentario adicional."
+    building = _building_name(db, client_id)
+    notice_body = (
+        f"{actor_name} votó No en «{topic.title}» ({building}): {reason}"
+    )
+    try:
+        from datetime import datetime, timezone
+        from uuid import uuid4
+
+        from app.domain.notifications import NotificationRecord
+        from app.repositories.notification_repository import SqlNotificationRepository
+
+        SqlNotificationRepository(db).add(
+            NotificationRecord(
+                id=str(uuid4()),
+                user_id=topic.assignee_user_id,
+                kind="topic_resultado_no",
+                title="Resultado: no cumple",
+                body=notice_body,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                read_at=None,
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("Resultado No in-app notice failed for topic %s", topic.id)
+
     recipients = _assignee_recipients(db, topic)
     if not recipients:
         return 0
     try:
         smtp, site_url, logo_url, mailer = _smtp_and_mailer(db)
     except Exception:  # noqa: BLE001
-        logger.exception("Resultado vote notification skipped: could not load mail settings")
+        logger.exception("Resultado No email skipped: could not load mail settings")
         return 0
-    building = _building_name(db, client_id)
-    choice_label = "Sí" if confirmation.choice == CONFIRMATION_YES else "No"
-    detail = (
-        confirmation.reason.strip()
-        if confirmation.choice == CONFIRMATION_NO and confirmation.reason
-        else "Sin comentario adicional."
-    )
     sent = 0
     for email, full_name in recipients:
         try:
@@ -274,21 +296,21 @@ def notify_topic_resultado_vote(
                 site_url=site_url,
                 logo_url=logo_url,
                 topic_title=topic.title,
-                topic_description=detail,
-                topic_status=choice_label,
+                topic_description=reason,
+                topic_status="No",
                 topic_url=ADMIN_TOPICS_URL,
                 actor_name=actor_name,
                 smtp=smtp,
                 raise_on_error=True,
             )
         except EmailNotConfigured as error:
-            logger.warning("Resultado vote notification skipped: SMTP is not configured (%s)", error)
+            logger.warning("Resultado No email skipped: SMTP is not configured (%s)", error)
             return sent
         except EmailSendError as error:
-            logger.warning("Resultado vote notification failed for %s: %s", email, error)
+            logger.warning("Resultado No email failed for %s: %s", email, error)
             continue
         except Exception:  # noqa: BLE001
-            logger.exception("Unexpected Resultado vote notification failure for %s", email)
+            logger.exception("Unexpected Resultado No email failure for %s", email)
             continue
         if ok:
             sent += 1

@@ -395,6 +395,17 @@ def move_topic(
             SqlTopicRepository(db),
             SqlClientRepository(db),
         ).publish_from_topic(topic_id, client_id=actor.client_id)
+        # Linked Gestión work can move to Finalizadas once the topic closes.
+        if actor.client_id:
+            access = SqlAccessRepository(db)
+            management = ManagementService(
+                SqlManagementRepository(db),
+                access=access,
+                notifications=SqlNotificationRepository(db),
+            )
+            for item in management.list_tasks(client_id=actor.client_id):
+                if item.topic_id == topic_id and item.status != "done":
+                    management.set_status(item.id, "done")
 
     if body.status_id == DOING_STATUS_ID and body.assignee_user_id and body.start_date and body.due_date:
         SqlTopicRepository(db).save_topic_assignment(
