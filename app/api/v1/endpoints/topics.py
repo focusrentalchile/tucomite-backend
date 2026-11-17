@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.domain.topics import (
     CLOSED_STATUS_ID,
     DOING_STATUS_ID,
+    ExecutionQuorumNotMet,
     CompletionAlreadySubmitted,
     CompletionNotSubmitted,
     CompletionQuorumNotMet,
@@ -336,6 +337,11 @@ def move_topic(
             status_code=409,
             detail="More than 50% of the committee must confirm completion before closing.",
         ) from error
+    except ExecutionQuorumNotMet as error:
+        raise HTTPException(
+            status_code=409,
+            detail="More than 50% of the committee must approve before assigning execution.",
+        ) from error
 
     if previous_status_id is not None and previous_status_id != topic.status_id:
         actor_user = SqlAccessRepository(db).get_user(actor.user_id)
@@ -367,9 +373,10 @@ def move_topic(
         assignee = access.get_user(body.assignee_user_id)
         assignee_role = access.get_role(assignee.role_id) if assignee else None
         assignee_role_name = (assignee_role.name if assignee_role else "").casefold()
-        # Gestión card for the building owner or an administrator assignee.
+        # Gestión card for the building owner, administrator, or caretaker assignee.
         should_open_management = client is not None and (
-            body.assignee_user_id == client.admin_user_id or assignee_role_name == "administrator"
+            body.assignee_user_id == client.admin_user_id
+            or assignee_role_name in {"administrator", "caretaker"}
         )
         if should_open_management:
             actor_user = access.get_user(actor.user_id)
@@ -387,6 +394,7 @@ def move_topic(
                 None,
             )
             if existing is None:
+                topic_attachments = service.list_attachments_for_topics([topic.id])
                 created_task = management.create_task(
                     subject=topic.title,
                     body=topic.description or topic.decision,
@@ -399,8 +407,28 @@ def move_topic(
                     due_date=body.due_date,
                     assignee_user_id=body.assignee_user_id,
                     topic_id=topic.id,
+                    attachments=[
+                        {"kind": item.kind, "name": item.name, "url": item.url}
+                        for item in topic_attachments
+                    ]
+                    or None,
                 )
-                if assignee is not None:
+                # Email every approved workspace administrator (and the assignee if distinct).
+                emailed: set[str] = set()
+                for admin in management.list_building_administrators(actor.client_id):
+                    if admin.status != "approved" or not admin.email or admin.email in emailed:
+                        continue
+                    emailed.add(admin.email)
+                    notify_management_task_assigned_email(
+                        db,
+                        to_email=admin.email,
+                        to_name=admin.full_name,
+                        building_name=client.name,
+                        subject=created_task.subject,
+                        body=topic.description or topic.decision,
+                        actor_name=actor_user.full_name if actor_user else "",
+                    )
+                if assignee is not None and assignee.email and assignee.email not in emailed:
                     notify_management_task_assigned_email(
                         db,
                         to_email=assignee.email,
@@ -531,8 +559,20 @@ def submit_completion(
     service: TopicService = Depends(get_topic_service),
     actor: Actor = Depends(require_permission("matters", "create")),
     _: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
 ) -> SubmitCompletionResponse:
     """Store the solution note and evidence for a topic in execution."""
+    current = SqlTopicRepository(db).get_topic(topic_id)
+    if current is not None and current.assignee_user_id:
+        access = SqlAccessRepository(db)
+        assignee = access.get_user(current.assignee_user_id)
+        role = access.get_role(assignee.role_id) if assignee else None
+        role_name = (role.name if role else "").casefold()
+        if role_name not in {"committee", "client"}:
+            raise HTTPException(
+                status_code=409,
+                detail="When the assignee is not the client or committee, completion must be submitted from Gestión.",
+            )
     try:
         topic = service.submit_completion(
             topic_id,

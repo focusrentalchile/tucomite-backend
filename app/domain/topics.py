@@ -138,6 +138,15 @@ def completion_quorum_met(confirmed_count: int, committee_size: int) -> bool:
     return confirmed_count > (committee_size / 2)
 
 
+def execution_quorum_met(winning_vote_count: int, committee_size: int) -> bool:
+    """True when a vote option has a strict majority to assign execution."""
+    return completion_quorum_met(winning_vote_count, committee_size)
+
+
+class ExecutionQuorumNotMet(Exception):
+    """Raised when assigning execution without a vote majority."""
+
+
 class TopicNotFound(Exception):
     """Raised when a topic id does not exist."""
 

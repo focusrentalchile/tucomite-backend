@@ -100,6 +100,14 @@ class ProtectedUser(Exception):
     """Raised when the seeded super admin would be removed."""
 
 
+class BuildingRoleOccupied(Exception):
+    """Raised when the building already has its single administrator or caretaker."""
+
+
+# One active account of each of these roles per building.
+SINGLETON_BUILDING_ROLES = frozenset({"administrator", "caretaker"})
+
+
 def permission_key(module_key: str, functionality_key: str) -> str:
     """Build the stable key stored for one checkbox."""
     return f"{module_key}.{functionality_key}"

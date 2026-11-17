@@ -474,21 +474,38 @@ class ManagementService:
             attachments=stored_attachments,
         )
         self._repository.add_task(ticket)
-        if assignee_user_id and self._notifications is not None:
-            self._notifications.add(
-                NotificationRecord(
-                    id=str(uuid.uuid4()),
-                    user_id=assignee_user_id,
-                    kind="management_task_assigned",
-                    title="Nueva tarea asignada",
-                    body=(
-                        f"«{cleaned_subject}» quedó en Tareas de Gestión "
-                        f"({client_name}) para que la ejecutes."
+        if self._notifications is not None:
+            recipient_ids: set[str] = set()
+            if assignee_user_id:
+                recipient_ids.add(assignee_user_id)
+            # Workspace administrators and mayordomos for this building also get the campanita.
+            if client_id and self._access is not None:
+                roles = {role.id: role for role in self._access.list_roles()}
+                for user in self._access.list_users():
+                    if user.client_id != client_id:
+                        continue
+                    role = roles.get(user.role_id)
+                    if role is not None and role.name in {"administrator", "caretaker"}:
+                        recipient_ids.add(user.id)
+            if client_id and hasattr(self._repository, "list_imports_for_client"):
+                for admin in self.list_building_administrators(client_id):
+                    if admin.status == IMPORT_STATUS_APPROVED:
+                        recipient_ids.add(admin.user_id)
+            for user_id in recipient_ids:
+                self._notifications.add(
+                    NotificationRecord(
+                        id=str(uuid.uuid4()),
+                        user_id=user_id,
+                        kind="management_task_assigned",
+                        title="Nueva tarea asignada",
+                        body=(
+                            f"«{cleaned_subject}» quedó en Tareas de Gestión "
+                            f"({client_name}) para que la ejecutes."
+                        ),
+                        created_at=now,
+                        read_at=None,
                     ),
-                    created_at=now,
-                    read_at=None,
-                ),
-            )
+                )
         return self.get_task(task_id)
 
     def add_message(

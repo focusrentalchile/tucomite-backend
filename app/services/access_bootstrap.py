@@ -47,9 +47,15 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
         }
     ),
-    # On-site building caretaker (Spanish UI: Mayordomo).
+    # On-site building caretaker (Spanish UI: Mayordomo) — same tools as administrator.
     "caretaker": frozenset(
         {
+            "agreements.view",
+            "management.view",
+            "management.create",
+            "management.reply",
+            "management.update",
+            "messages.manage",
             "notifications.receive",
         }
     ),

@@ -22,6 +22,7 @@ from app.domain.topics import (
     CompletionNotSubmitted,
     CompletionQuorumNotMet,
     ConfirmationAlreadyCast,
+    ExecutionQuorumNotMet,
     InvalidTopicPriority,
     InvalidTopicStatus,
     InvalidVoteChoice,
@@ -37,6 +38,7 @@ from app.domain.topics import (
     VoteAlreadyCast,
     completion_quorum_met,
     ensure_voting_open,
+    execution_quorum_met,
     resolve_voting_window,
 )
 from app.repositories.topic_repository import TopicRepository
@@ -65,6 +67,18 @@ def ensure_topic_priorities(session) -> None:
             session.add(PriorityModel(id=priority_id, key=key))
         elif current.key != key:
             current.key = key
+
+
+def _winning_vote_count(topic: TopicRecord, votes: list[TopicVoteRecord]) -> int:
+    """Yes tally for yes/no polls, or the leading custom option count."""
+    if topic.vote_type == VOTE_TYPE_CUSTOM:
+        if not topic.vote_options:
+            return 0
+        return max(
+            (sum(1 for vote in votes if vote.choice == option.id) for option in topic.vote_options),
+            default=0,
+        )
+    return sum(1 for vote in votes if vote.choice == "yes")
 
 
 def _copy_topic(topic: TopicRecord, **changes) -> TopicRecord:
@@ -320,6 +334,12 @@ class TopicService:
             size = committee_size if committee_size is not None else 0
             if not completion_quorum_met(len(confirmations), size):
                 raise CompletionQuorumNotMet()
+        if status_id == DOING_STATUS_ID:
+            size = committee_size if committee_size is not None else 0
+            votes = self._repository.list_votes_for_topics([topic_id])
+            winning = _winning_vote_count(current, votes)
+            if not execution_quorum_met(winning, size):
+                raise ExecutionQuorumNotMet()
         self._repository.save_topic_status(topic_id, status_id)
         return _copy_topic(current, status_id=status_id)
 

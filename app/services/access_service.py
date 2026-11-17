@@ -4,12 +4,14 @@ import uuid
 
 from app.core.access_catalog import AccessCatalog
 from app.domain.access import (
+    BuildingRoleOccupied,
     DuplicateEmail,
     DuplicateRoleName,
     ProtectedRole,
     ProtectedUser,
     RoleNotFound,
     RoleRecord,
+    SINGLETON_BUILDING_ROLES,
     UnknownPermission,
     UnknownRole,
     UserNotFound,
@@ -127,6 +129,15 @@ class UserService:
             raise UnknownRole(assigned_role_id)
         if role.system or role.name.casefold() in {name.casefold() for name in NON_ASSIGNABLE_ROLES}:
             raise UnknownRole(assigned_role_id)
+        role_name = role.name.casefold()
+        if role_name in SINGLETON_BUILDING_ROLES and client_id:
+            roles = {item.id: item for item in self._repository.list_roles()}
+            for existing in self._repository.list_users():
+                if existing.client_id != client_id:
+                    continue
+                existing_role = roles.get(existing.role_id)
+                if existing_role is not None and existing_role.name.casefold() == role_name:
+                    raise BuildingRoleOccupied(role_name)
         cleaned_floor = (floor_number or "").strip() or None
         cleaned_apartment = (apartment_number or "").strip() or None
         if role.name.casefold() == "resident" and (not cleaned_floor or not cleaned_apartment):

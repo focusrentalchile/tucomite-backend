@@ -4,6 +4,7 @@ import pytest
 
 from app.core.access_catalog import AccessCatalog
 from app.domain.access import (
+    BuildingRoleOccupied,
     ClientRecord,
     DuplicateEmail,
     DuplicateRoleName,
@@ -280,6 +281,34 @@ def test_create_and_update_resident_requires_floor_and_apartment() -> None:
             role.id,
             floor_number="",
             apartment_number="402",
+        )
+
+
+def test_caretaker_permissions_match_administrator() -> None:
+    assert STARTER_ROLES["caretaker"] == STARTER_ROLES["administrator"]
+
+
+def test_singleton_building_roles_reject_second_administrator() -> None:
+    repository = InMemoryAccessRepository()
+    registered = catalog()
+    bootstrap_access(repository, registered)
+    users = UserService(repository)
+    admin_role = next(role for role in repository.list_roles() if role.name == "administrator")
+    first = users.create_user(
+        "Admin Uno",
+        "admin1@example.com",
+        "secreto-1",
+        admin_role.id,
+        client_id="building-1",
+    )
+    assert first.role_id == admin_role.id
+    with pytest.raises(BuildingRoleOccupied):
+        users.create_user(
+            "Admin Dos",
+            "admin2@example.com",
+            "secreto-1",
+            admin_role.id,
+            client_id="building-1",
         )
 
 

@@ -309,33 +309,78 @@ class SqlAccessRepository:
                 ManagementWorkspaceImportModel.administrator_user_id == user_id,
             ),
         )
-        authored_management_ids = self._session.scalars(
-            select(ManagementMessageModel.id).where(ManagementMessageModel.author_user_id == user_id),
-        ).all()
-        if authored_management_ids:
-            self._session.execute(
-                delete(ManagementAttachmentModel).where(
-                    ManagementAttachmentModel.message_id.in_(authored_management_ids),
-                ),
-            )
-        self._session.execute(
-            delete(ManagementMessageModel).where(ManagementMessageModel.author_user_id == user_id),
-        )
+        # Keep Gestión tasks for the building; reassign authorship to the client owner
+        # (or another remaining building user) so a new administrator can continue them.
+        from app.models.access import ClientModel, UserModel
+
+        departing = self._session.get(UserModel, user_id)
+        replacement_id: str | None = None
+        replacement_name = ""
+        if departing is not None and departing.client_id:
+            client = self._session.get(ClientModel, departing.client_id)
+            if (
+                client is not None
+                and client.admin_user_id
+                and client.admin_user_id != user_id
+            ):
+                owner = self._session.get(UserModel, client.admin_user_id)
+                if owner is not None:
+                    replacement_id = owner.id
+                    replacement_name = owner.full_name
+            if replacement_id is None:
+                other = self._session.scalars(
+                    select(UserModel).where(
+                        UserModel.client_id == departing.client_id,
+                        UserModel.id != user_id,
+                    ),
+                ).first()
+                if other is not None:
+                    replacement_id = other.id
+                    replacement_name = other.full_name
+
         for task in self._session.scalars(
             select(ManagementTaskModel).where(ManagementTaskModel.assignee_user_id == user_id),
         ).all():
             task.assignee_user_id = None
-        owned_tasks = self._session.scalars(
-            select(ManagementTaskModel).where(ManagementTaskModel.created_by_user_id == user_id),
-        ).all()
-        for task in owned_tasks:
+
+        authored_messages = list(
+            self._session.scalars(
+                select(ManagementMessageModel).where(ManagementMessageModel.author_user_id == user_id),
+            ).all(),
+        )
+        if replacement_id:
+            for message in authored_messages:
+                message.author_user_id = replacement_id
+                message.author_name = replacement_name or message.author_name
+            for task in self._session.scalars(
+                select(ManagementTaskModel).where(ManagementTaskModel.created_by_user_id == user_id),
+            ).all():
+                task.created_by_user_id = replacement_id
+                task.created_by_name = replacement_name or task.created_by_name
+        else:
+            authored_management_ids = [message.id for message in authored_messages]
+            if authored_management_ids:
+                self._session.execute(
+                    delete(ManagementAttachmentModel).where(
+                        ManagementAttachmentModel.message_id.in_(authored_management_ids),
+                    ),
+                )
             self._session.execute(
-                delete(ManagementAttachmentModel).where(ManagementAttachmentModel.task_id == task.id),
+                delete(ManagementMessageModel).where(ManagementMessageModel.author_user_id == user_id),
             )
-            self._session.execute(
-                delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task.id),
-            )
-            self._session.delete(task)
+            owned_tasks = self._session.scalars(
+                select(ManagementTaskModel).where(ManagementTaskModel.created_by_user_id == user_id),
+            ).all()
+            for task in owned_tasks:
+                self._session.execute(
+                    delete(ManagementAttachmentModel).where(
+                        ManagementAttachmentModel.task_id == task.id,
+                    ),
+                )
+                self._session.execute(
+                    delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task.id),
+                )
+                self._session.delete(task)
 
         self._session.execute(
             delete(ResidentMessageReplyModel).where(ResidentMessageReplyModel.author_user_id == user_id),

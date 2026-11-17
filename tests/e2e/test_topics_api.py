@@ -241,6 +241,13 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
             "attachment_name": "",
             "decision": "¿Contratamos reparación?",
             "priority_id": 1,
+            "attachments": [
+                {
+                    "kind": "image",
+                    "name": "humedad.jpg",
+                    "url": "https://example.com/humedad.jpg",
+                }
+            ],
         },
     )
     assert created.status_code == 201
@@ -272,6 +279,10 @@ def test_assigning_building_admin_opens_support_task_with_same_priority() -> Non
     assert match["subject"] == "Filtración en techo"
     assert match["due_date"] == "2026-11-15"
     assert match["assignee_user_id"] == admin_id
+    assert len(match.get("attachments") or []) == 1
+    assert match["attachments"][0]["kind"] == "image"
+    assert match["attachments"][0]["name"] == "humedad.jpg"
+    assert match["attachments"][0]["url"] == "https://example.com/humedad.jpg"
 
 
 def test_assigning_administrator_role_opens_gestion_task() -> None:

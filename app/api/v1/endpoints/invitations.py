@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import Actor, get_current_actor, get_db, require_super_admin
-from app.domain.access import DuplicateEmail
+from app.domain.access import BuildingRoleOccupied, DuplicateEmail
 from app.domain.invitations import (
     KIND_PLATFORM,
     InvitationAlreadyUsed,
@@ -101,6 +101,11 @@ def create_building_invitation(
         )
     except DuplicateEmail as error:
         raise HTTPException(status_code=409, detail="Email already registered.") from error
+    except BuildingRoleOccupied as error:
+        raise HTTPException(
+            status_code=409,
+            detail="This building already has that role.",
+        ) from error
     except InvitationEmailFailed as error:
         raise HTTPException(status_code=502, detail=error.message) from error
     except ValueError as error:

@@ -148,6 +148,21 @@ class InvitationService:
         client = SqlClientRepository(self._db).get_client(client_id)
         if client is None:
             raise ValueError("Building not found.")
+        from app.domain.access import BuildingRoleOccupied, SINGLETON_BUILDING_ROLES
+
+        if cleaned_role in SINGLETON_BUILDING_ROLES:
+            roles = {role.id: role for role in self._access.list_roles()}
+            for user in self._access.list_users():
+                if user.client_id != client_id:
+                    continue
+                role = roles.get(user.role_id)
+                if role is not None and role.name.casefold() == cleaned_role:
+                    raise BuildingRoleOccupied(cleaned_role)
+            for invite in self._repository.list_for_client(client_id):
+                if invite.registered_at:
+                    continue
+                if (invite.role_key or "").casefold() == cleaned_role:
+                    raise BuildingRoleOccupied(cleaned_role)
         existing = self._repository.get_by_email(cleaned_email)
         if existing and not existing.registered_at:
             raise ValueError("An open invitation already exists for this email.")

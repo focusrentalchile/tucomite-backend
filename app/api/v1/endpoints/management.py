@@ -12,12 +12,15 @@ from app.repositories.client_repository import SqlClientRepository
 from app.repositories.management_repository import SqlManagementRepository
 from app.repositories.notification_repository import SqlNotificationRepository
 from app.repositories.period_repository import SqlPeriodRepository
+from app.domain.topics import CompletionAlreadySubmitted, InvalidTopicStatus, TopicNotFound
+from app.repositories.topic_repository import SqlTopicRepository
 from app.schemas.management import (
     BuildingAdministratorListResponse,
     BuildingAdministratorResponse,
     CreateManagementMessageRequest,
     CreateManagementTaskRequest,
     CreateManagementWorkspaceImportRequest,
+    ManagementAttachmentPayload,
     ManagementAttachmentResponse,
     ManagementMessageResponse,
     ManagementTaskListResponse,
@@ -29,6 +32,12 @@ from app.schemas.management import (
     UpdateManagementTaskStatusRequest,
 )
 from app.services.management_service import ManagementService
+from app.services.management_task_status_notify import (
+    notify_management_completion_for_review,
+    notify_management_status_changed,
+)
+from app.services.topic_service import TopicService
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/management", tags=["management"])
 
@@ -407,12 +416,20 @@ def create_message(
     return _task_response(ticket)
 
 
+class SubmitManagementCompletionRequest(BaseModel):
+    """Administrator evidence for a topic-linked Gestión task."""
+
+    note: str = Field(min_length=1, max_length=500)
+    attachments: list[ManagementAttachmentPayload] = []
+
+
 @router.patch("/tasks/{task_id}/status", response_model=ManagementTaskResponse)
 def update_status(
     task_id: str,
     body: UpdateManagementTaskStatusRequest,
     service: ManagementService = Depends(get_management_service),
     actor: Actor = Depends(require_permission("management", "reply")),
+    db: Session = Depends(get_db),
 ) -> ManagementTaskResponse:
     """Move a ticket across Pendientes / En curso / Completadas."""
     try:
@@ -420,10 +437,82 @@ def update_status(
     except TaskNotFound:
         raise HTTPException(status_code=404, detail="Ticket not found.") from None
     _ensure_task_access(service, actor, existing.client_id)
+    previous_status = existing.status
     try:
         ticket = service.set_status(task_id, body.status)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
+    # Topic-sourced tasks notify the client + committee on each column move.
+    if existing.topic_id and previous_status != ticket.status:
+        notify_management_status_changed(
+            db,
+            client_id=existing.client_id,
+            building_name=existing.client_name,
+            subject=existing.subject,
+            previous_status=previous_status,
+            next_status=ticket.status,
+            actor_name=_actor_name(db, actor.user_id),
+        )
+    return _task_response(ticket)
+
+
+@router.post("/tasks/{task_id}/completion", response_model=ManagementTaskResponse)
+def submit_management_completion(
+    task_id: str,
+    body: SubmitManagementCompletionRequest,
+    service: ManagementService = Depends(get_management_service),
+    actor: Actor = Depends(require_permission("management", "reply")),
+    db: Session = Depends(get_db),
+) -> ManagementTaskResponse:
+    """Administrator submits solution evidence for a topic-linked Gestión task."""
+    try:
+        existing = service.get_task(task_id)
+    except TaskNotFound:
+        raise HTTPException(status_code=404, detail="Ticket not found.") from None
+    _ensure_task_access(service, actor, existing.client_id)
+    if not existing.topic_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Only topic-linked Gestión tasks accept completion evidence here.",
+        )
+    topics = TopicService(SqlTopicRepository(db))
+    try:
+        topics.submit_completion(
+            existing.topic_id,
+            note=body.note,
+            attachments=[item.model_dump() for item in body.attachments],
+        )
+    except TopicNotFound as error:
+        raise HTTPException(status_code=404, detail="Linked topic not found.") from error
+    except InvalidTopicStatus as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Completion can only be submitted while the topic is in execution.",
+        ) from error
+    except CompletionAlreadySubmitted as error:
+        raise HTTPException(status_code=409, detail="Completion already submitted.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    ticket = service.set_status(task_id, "done")
+    actor_name = _actor_name(db, actor.user_id)
+    notify_management_completion_for_review(
+        db,
+        client_id=existing.client_id,
+        building_name=existing.client_name,
+        subject=existing.subject,
+        note=body.note.strip(),
+        actor_name=actor_name,
+    )
+    notify_management_status_changed(
+        db,
+        client_id=existing.client_id,
+        building_name=existing.client_name,
+        subject=existing.subject,
+        previous_status=existing.status,
+        next_status=ticket.status,
+        actor_name=actor_name,
+    )
     return _task_response(ticket)
 
 
@@ -439,4 +528,9 @@ def delete_task(
     except TaskNotFound:
         raise HTTPException(status_code=404, detail="Ticket not found.") from None
     _ensure_task_access(service, actor, existing.client_id)
+    if existing.topic_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Topic-linked Gestión tasks cannot be deleted.",
+        )
     service.delete_task(task_id)

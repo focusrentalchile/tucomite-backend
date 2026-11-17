@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import Actor, get_current_actor, get_role_service, get_user_service, require_permission
 from app.core.database import get_db
 from app.domain.access import (
+    BuildingRoleOccupied,
     DuplicateEmail,
     DuplicateRoleName,
     ProtectedRole,
@@ -254,6 +255,11 @@ def create_user(
         )
     except DuplicateEmail:
         raise HTTPException(status_code=409, detail="Email already exists.") from None
+    except BuildingRoleOccupied:
+        raise HTTPException(
+            status_code=409,
+            detail="This building already has that role.",
+        ) from None
     except UnknownRole:
         raise HTTPException(status_code=422, detail="Role not found.") from None
     except ValueError as error:
