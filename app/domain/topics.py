@@ -30,10 +30,6 @@ VOTE_TYPE_CUSTOM = "custom"
 VOTE_TYPES = frozenset({VOTE_TYPE_YES_NO, VOTE_TYPE_CUSTOM})
 PRIORITY_IDS = frozenset(priority_id for priority_id, _ in TOPIC_PRIORITIES)
 
-# Fallback when the building has no consensus_grace_days setting yet.
-CONSENSUS_GRACE_DAYS = 5
-
-
 @dataclass(frozen=True)
 class StatusRecord:
     """One row in the statuses table."""
@@ -326,19 +322,6 @@ def resolve_voting_window(
     )
 
 
-def consensus_grace_ends_at(
-    topic: "TopicRecord",
-    *,
-    grace_days: int | None = None,
-) -> datetime | None:
-    """Return voting_ends_at + grace days, or None when there is no end."""
-    end = parse_instant(topic.voting_ends_at)
-    if end is None:
-        return None
-    days = CONSENSUS_GRACE_DAYS if grace_days is None else max(1, int(grace_days))
-    return end + timedelta(days=days)
-
-
 def is_voting_window_ended(topic: "TopicRecord", now: datetime | None = None) -> bool:
     """True when ``now`` is after the configured voting end."""
     moment = now or datetime.now(timezone.utc)
@@ -348,26 +331,15 @@ def is_voting_window_ended(topic: "TopicRecord", now: datetime | None = None) ->
     return end is not None and moment > end
 
 
-def is_awaiting_consensus(
-    topic: "TopicRecord",
+def all_voters_have_voted(
     votes: list["TopicVoteRecord"],
     committee_size: int,
-    now: datetime | None = None,
-    *,
-    grace_days: int | None = None,
 ) -> bool:
-    """Waiting topic past the vote hours, still inside the consensus grace days."""
-    if topic.status_id != WAITING_STATUS_ID or topic.assignee_user_id:
+    """True when every committee seat already cast a vote (one vote per person)."""
+    if committee_size <= 0:
         return False
-    if execution_quorum_met(winning_vote_count(topic, votes), committee_size):
-        return False
-    if not is_voting_window_ended(topic, now):
-        return False
-    moment = now or datetime.now(timezone.utc)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
-    grace = consensus_grace_ends_at(topic, grace_days=grace_days)
-    return grace is not None and moment <= grace
+    authors = {vote.author_id for vote in votes if vote.author_id}
+    return len(authors) >= committee_size
 
 
 def is_no_consensus(
@@ -378,22 +350,23 @@ def is_no_consensus(
     *,
     grace_days: int | None = None,
 ) -> bool:
-    """Waiting topic whose consensus grace ended without a vote majority.
+    """Waiting topic without a vote majority that should show “sin consenso”.
 
-    The Configuración “días de consenso” must fully elapse after ``voting_ends_at``
-    before the topic is treated as sin consenso.
+    Triggers when:
+    - every voter already cast a ballot and there is still no >50% winner, or
+    - ``voting_ends_at`` already passed and there is still no >50% winner
+      (missing votes count as failure to reach consensus).
+
+    ``grace_days`` is ignored (kept for call-site compatibility).
     """
+    _ = grace_days  # No longer used; voting_ends_at is the only deadline.
     if topic.status_id != WAITING_STATUS_ID or topic.assignee_user_id:
         return False
     if execution_quorum_met(winning_vote_count(topic, votes), committee_size):
         return False
-    moment = now or datetime.now(timezone.utc)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
-    grace = consensus_grace_ends_at(topic, grace_days=grace_days)
-    if grace is None:
-        return is_voting_window_ended(topic, moment)
-    return moment > grace
+    if all_voters_have_voted(votes, committee_size):
+        return True
+    return is_voting_window_ended(topic, now)
 
 
 def ensure_voting_open(
@@ -407,9 +380,10 @@ def ensure_voting_open(
     """Raise VotingWindowClosed when ``now`` is outside the topic's voting window.
 
     Open-column topics (Abiertos) stay votable after ``voting_ends_at`` so the first
-    vote can still move the card to Esperando decisión. Waiting topics without a
-    majority stay votable for the building's consensus grace days after the end.
+    vote can still move the card to Esperando decisión. Waiting topics lock when the
+    vote end passes — there is no extra consensus grace window.
     """
+    _ = (votes, committee_size, grace_days)  # Kept for call-site compatibility.
     moment = now or datetime.now(timezone.utc)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
@@ -421,12 +395,4 @@ def ensure_voting_open(
         # Nobody has voted yet; the board column is still Abiertos.
         if topic.status_id == OPEN_STATUS_ID:
             return
-        if (
-            votes is not None
-            and topic.status_id == WAITING_STATUS_ID
-            and not execution_quorum_met(winning_vote_count(topic, votes), committee_size)
-        ):
-            grace = consensus_grace_ends_at(topic, grace_days=grace_days)
-            if grace is not None and moment <= grace:
-                return
         raise VotingWindowClosed("ended")

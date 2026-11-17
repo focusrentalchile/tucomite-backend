@@ -34,7 +34,6 @@ from app.domain.topics import (
     TopicVoteRecord,
     VoteAlreadyCast,
     VotingWindowClosed,
-    consensus_grace_ends_at,
     execution_quorum_met,
     is_assign_ready,
     is_no_consensus,
@@ -303,9 +302,6 @@ def read_topics(
         return TopicListResponse(items=[])
     topics = _topics_for_open_period(service, db, client_id=actor.client_id)
     committee_size = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
-    grace_days = ClientSettingsService(
-        SqlClientSettingsRepository(db),
-    ).consensus_grace_days(actor.client_id)
     healed: list = []
     for topic in topics:
         previous_status = topic.status_id
@@ -357,18 +353,11 @@ def read_topics(
         completion_by_topic.setdefault(attachment.topic_id, []).append(attachment)
     for confirmation in confirmations:
         confirmations_by_topic.setdefault(confirmation.topic_id, []).append(confirmation)
-    # Notify once when vote hours ended without a majority (start of consensus days).
-    from app.domain.topics import is_awaiting_consensus
-
+    # Notify once when everyone voted without a majority, or vote hours ended without one.
     topics_repo = SqlTopicRepository(db)
     for topic in topics:
         topic_votes = by_topic.get(topic.id, [])
-        if not is_awaiting_consensus(
-            topic,
-            topic_votes,
-            committee_size,
-            grace_days=grace_days,
-        ):
+        if not is_no_consensus(topic, topic_votes, committee_size):
             continue
         if topic.no_consensus_notified_at:
             continue
@@ -414,13 +403,8 @@ def read_topics(
                     topic,
                     by_topic.get(topic.id, []),
                     committee_size,
-                    grace_days=grace_days,
                 ),
-                consensus_ends_at=(
-                    None
-                    if (ends := consensus_grace_ends_at(topic, grace_days=grace_days)) is None
-                    else ends.isoformat()
-                ),
+                consensus_ends_at=None,
             )
             for topic in topics
         ],
@@ -757,7 +741,6 @@ def cast_vote(
             detail="At least three committee members are required to vote.",
         )
     settings_service = ClientSettingsService(SqlClientSettingsRepository(db))
-    grace_days = settings_service.consensus_grace_days(actor.client_id) if actor.client_id else None
     previous = SqlTopicRepository(db).get_topic(topic_id)
     previous_status_id = previous.status_id if previous is not None else None
     reopen_hours = None
@@ -775,7 +758,6 @@ def cast_vote(
             author_name=user.full_name,
             choice=body.choice,
             committee_size=member_count,
-            grace_days=grace_days,
             reopen_window_hours=reopen_hours,
         )
     except TopicNotFound as error:
@@ -813,6 +795,20 @@ def cast_vote(
             client_id=actor.client_id or topic.client_id,
             actor_name=user.full_name,
         )
+    elif is_no_consensus(topic, votes_after, member_count) and not topic.no_consensus_notified_at:
+        try:
+            notify_topic_no_consensus(
+                db,
+                topic=topic,
+                client_id=actor.client_id or topic.client_id,
+                actor_name=user.full_name,
+            )
+            SqlTopicRepository(db).mark_no_consensus_notified(
+                topic.id,
+                datetime.now(timezone.utc).isoformat(),
+            )
+        except Exception:  # noqa: BLE001 — vote must succeed even if mail fails
+            logger.exception("No-consensus notify failed after vote on %s", topic.id)
     return CastVoteResponse(
         topic_id=topic.id,
         status_id=topic.status_id,

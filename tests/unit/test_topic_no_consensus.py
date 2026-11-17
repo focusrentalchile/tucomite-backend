@@ -1,13 +1,12 @@
-"""No-consensus grace window after voting ends without a majority."""
+"""No-consensus rules based on full turnout or voting_ends_at."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from app.domain.topics import (
     WAITING_STATUS_ID,
     TopicRecord,
     TopicVoteRecord,
     VotingWindowClosed,
-    consensus_grace_ends_at,
     ensure_voting_open,
     is_no_consensus,
 )
@@ -28,45 +27,55 @@ def _topic(**overrides) -> TopicRecord:
     return TopicRecord(**{**base.__dict__, **overrides})
 
 
-def test_is_no_consensus_only_after_consensus_grace_days() -> None:
+def test_is_no_consensus_when_everyone_voted_without_majority() -> None:
+    topic = _topic()
+    votes = [
+        TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="A", choice="yes"),
+        TopicVoteRecord(id="v2", topic_id="t1", author_id="u2", author_name="B", choice="no"),
+        TopicVoteRecord(id="v3", topic_id="t1", author_id="u3", author_name="C", choice="abstain"),
+    ]
+    before_deadline = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)
+    assert is_no_consensus(topic, votes, committee_size=3, now=before_deadline) is True
+
+
+def test_is_no_consensus_false_while_votes_missing_before_deadline() -> None:
     topic = _topic()
     votes = [
         TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="A", choice="yes"),
     ]
-    day_after_vote_hours = datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc)
-    assert is_no_consensus(topic, votes, committee_size=3, now=day_after_vote_hours) is False
-    after_grace = datetime(2026, 11, 16, 12, 0, tzinfo=timezone.utc) + timedelta(seconds=1)
-    assert is_no_consensus(topic, votes, committee_size=3, now=after_grace) is True
+    before_deadline = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)
+    assert is_no_consensus(topic, votes, committee_size=3, now=before_deadline) is False
 
 
-def test_consensus_grace_keeps_voting_open_for_five_days() -> None:
+def test_is_no_consensus_after_voting_ends_without_majority() -> None:
     topic = _topic()
     votes = [
         TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="A", choice="yes"),
     ]
-    grace = consensus_grace_ends_at(topic)
-    assert grace is not None
-    assert grace == datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc) + timedelta(days=5)
-    ensure_voting_open(
-        topic,
-        datetime(2026, 11, 12, 12, 0, tzinfo=timezone.utc),
-        votes=votes,
-        committee_size=3,
-    )
+    after_deadline = datetime(2026, 11, 10, 12, 0, 1, tzinfo=timezone.utc)
+    assert is_no_consensus(topic, votes, committee_size=3, now=after_deadline) is True
 
 
-def test_voting_locks_after_consensus_grace() -> None:
+def test_is_no_consensus_false_when_majority_exists() -> None:
     topic = _topic()
     votes = [
         TopicVoteRecord(id="v1", topic_id="t1", author_id="u1", author_name="A", choice="yes"),
+        TopicVoteRecord(id="v2", topic_id="t1", author_id="u2", author_name="B", choice="yes"),
+        TopicVoteRecord(id="v3", topic_id="t1", author_id="u3", author_name="C", choice="no"),
     ]
+    after_deadline = datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc)
+    assert is_no_consensus(topic, votes, committee_size=3, now=after_deadline) is False
+
+
+def test_voting_stays_open_until_voting_ends_at() -> None:
+    topic = _topic()
+    ensure_voting_open(topic, datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc))
+
+
+def test_voting_locks_after_voting_ends_at() -> None:
+    topic = _topic()
     try:
-        ensure_voting_open(
-            topic,
-            datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc),
-            votes=votes,
-            committee_size=3,
-        )
+        ensure_voting_open(topic, datetime(2026, 11, 10, 12, 0, 1, tzinfo=timezone.utc))
         raise AssertionError("expected VotingWindowClosed")
     except VotingWindowClosed as error:
         assert error.reason == "ended"

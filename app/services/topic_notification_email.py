@@ -393,9 +393,8 @@ def notify_topic_no_consensus(
         kind=NOTICE_KIND_TOPIC_NO_CONSENSUS,
         title="Sin consenso",
         body=(
-            f"«{topic.title}» ({building}) cerró la votación sin mayoría. "
-            "Conversen con respeto en Opiniones; usen el plazo de consenso configurado "
-            "para acercar posiciones."
+            f"«{topic.title}» ({building}) no alcanzó más del 50% de votos a favor. "
+            "Conversen con respeto en Opiniones para acercar posiciones."
         ),
     )
     return _send_to_committee(

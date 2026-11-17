@@ -580,13 +580,14 @@ class TopicService:
         """Store one person's first vote and move the topic to waiting.
 
         Raises VotingWindowClosed when the topic has a voting window and ``now``
-        (default: the current UTC time) is outside it. Waiting topics without a
-        majority stay votable during the consensus grace window.
+        (default: the current UTC time) is outside it. Waiting topics lock when
+        ``voting_ends_at`` passes (no extra consensus grace window).
 
         When the first vote lands on an Abiertos topic whose hours already ended,
         ``reopen_window_hours`` extends ``voting_ends_at`` from now so the rest of
         the committee still gets a full voting window.
         """
+        _ = grace_days  # Kept for call-site compatibility; voting_ends_at is the deadline.
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
@@ -596,7 +597,6 @@ class TopicService:
             now,
             votes=existing_votes,
             committee_size=committee_size,
-            grace_days=grace_days,
         )
         normalized = choice.strip()
         allowed = (

@@ -113,14 +113,14 @@ def test_vote_after_the_window_is_rejected_and_locks_changes() -> None:
         committee_size=3,
     )
 
-    # Past voting end + consensus grace (default 5 days): changes lock.
+    # Past voting_ends_at: changes lock (no consensus grace window).
     with pytest.raises(VotingWindowClosed) as raised:
         service.cast_vote(
             topic.id,
             "user-1",
             "Ana",
             "no",
-            now=END + timedelta(days=6),
+            now=END + timedelta(seconds=1),
             committee_size=3,
         )
 
