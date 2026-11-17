@@ -108,16 +108,23 @@ class SqlManagementRepository:
         elif client_id is not None:
             query = query.where(ManagementTaskModel.client_id == client_id)
         rows = self._session.execute(query).scalars().all()
-        return [self._task(row, include_messages=False) for row in rows]
+        return [
+            self._task(row, include_messages=False)
+            for row in rows
+            if getattr(row, "deleted_at", None) is None
+        ]
 
     def get_task(self, task_id: str) -> ManagementTaskRecord | None:
         row = self._session.get(ManagementTaskModel, task_id)
         if row is None:
             return None
+        if getattr(row, "deleted_at", None) is not None:
+            return None
         return self._task(row, include_messages=True)
 
     def add_task(self, ticket: ManagementTaskRecord) -> None:
         due = date.fromisoformat(ticket.due_date) if ticket.due_date else None
+        now = datetime.now(timezone.utc)
         self._session.add(
             ManagementTaskModel(
                 id=ticket.id,
@@ -129,6 +136,7 @@ class SqlManagementRepository:
                 due_date=due,
                 assignee_user_id=ticket.assignee_user_id,
                 topic_id=ticket.topic_id,
+                status_entered_at=now,
             ),
         )
         self._session.flush()
@@ -171,19 +179,28 @@ class SqlManagementRepository:
         row = self._session.get(ManagementTaskModel, task_id)
         if row is None:
             raise KeyError(task_id)
+        now = datetime.now(timezone.utc)
         row.status = status
-        row.updated_at = datetime.now(timezone.utc)
+        row.updated_at = now
+        if hasattr(row, "status_entered_at"):
+            row.status_entered_at = now
 
     def delete_task(self, task_id: str) -> None:
+        """Passive archive: mark deleted_at so the board hides the task."""
+        row = self._session.get(ManagementTaskModel, task_id)
+        if row is None:
+            raise KeyError(task_id)
+        if hasattr(row, "deleted_at"):
+            row.deleted_at = datetime.now(timezone.utc)
+            row.updated_at = datetime.now(timezone.utc)
+            self._session.flush()
+            return
         self._session.execute(
             delete(ManagementAttachmentModel).where(ManagementAttachmentModel.task_id == task_id),
         )
         self._session.execute(
             delete(ManagementMessageModel).where(ManagementMessageModel.task_id == task_id),
         )
-        row = self._session.get(ManagementTaskModel, task_id)
-        if row is None:
-            raise KeyError(task_id)
         self._session.delete(row)
         self._session.flush()
 
@@ -229,6 +246,12 @@ class SqlManagementRepository:
             topic_id=row.topic_id,
             created_at=row.created_at.isoformat() if row.created_at else "",
             updated_at=row.updated_at.isoformat() if row.updated_at else "",
+            status_entered_at=(
+                row.status_entered_at.isoformat()
+                if getattr(row, "status_entered_at", None)
+                else (row.created_at.isoformat() if row.created_at else None)
+            ),
+            deleted_at=row.deleted_at.isoformat() if getattr(row, "deleted_at", None) else None,
             messages=messages,
             attachments=task_attachments,
         )
@@ -427,6 +450,14 @@ def ensure_management_schema(connection) -> None:
         ("due_date", "ALTER TABLE `management_tasks` ADD COLUMN `due_date` DATE NULL"),
         ("assignee_user_id", "ALTER TABLE `management_tasks` ADD COLUMN `assignee_user_id` VARCHAR(36) NULL"),
         ("topic_id", "ALTER TABLE `management_tasks` ADD COLUMN `topic_id` VARCHAR(36) NULL"),
+        (
+            "status_entered_at",
+            "ALTER TABLE `management_tasks` ADD COLUMN `status_entered_at` DATETIME NULL",
+        ),
+        (
+            "deleted_at",
+            "ALTER TABLE `management_tasks` ADD COLUMN `deleted_at` DATETIME NULL",
+        ),
     ):
         if not _column_exists(connection, "management_tasks", column):
             connection.execute(text(ddl))

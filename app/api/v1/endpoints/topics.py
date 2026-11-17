@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.domain.topics import (
     CLOSED_STATUS_ID,
     DOING_STATUS_ID,
+    OPEN_STATUS_ID,
     ExecutionQuorumNotMet,
     CompletionAlreadySubmitted,
     CompletionNotSubmitted,
@@ -33,6 +34,7 @@ from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.topic_notification_email import (
     notify_topic_created,
+    notify_topic_deleted,
     notify_topic_resultado_vote,
     notify_topic_status_changed,
 )
@@ -115,6 +117,8 @@ def _topic_response(
     attachments: list[TopicAttachmentRecord] | None = None,
     completion_attachments: list[TopicAttachmentRecord] | None = None,
     confirmations: list[TopicConfirmationRecord] | None = None,
+    *,
+    assignee_role_key: str | None = None,
 ) -> TopicResponse:
     return TopicResponse(
         id=topic.id,
@@ -126,6 +130,7 @@ def _topic_response(
         status_id=topic.status_id,
         priority_id=topic.priority_id,
         assignee_user_id=topic.assignee_user_id,
+        assignee_role_key=assignee_role_key,
         start_date=topic.start_date,
         due_date=topic.due_date,
         vote_type=topic.vote_type if topic.vote_type in {"yes_no", "custom"} else "yes_no",  # type: ignore[arg-type]
@@ -135,6 +140,7 @@ def _topic_response(
         client_id=topic.client_id,
         voting_starts_at=topic.voting_starts_at,
         voting_ends_at=topic.voting_ends_at,
+        status_entered_at=topic.status_entered_at or topic.created_at,
         votes=[_vote_response(vote) for vote in votes],
         opinions=[_opinion_response(item) for item in (opinions or [])],
         attachments=[_attachment_response(item) for item in (attachments or [])],
@@ -145,6 +151,23 @@ def _topic_response(
         ],
         confirmations=[_confirmation_response(item) for item in (confirmations or [])],
     )
+
+
+def _assignee_role_map(db: Session, topics: list[TopicRecord]) -> dict[str, str]:
+    """Map assignee user ids to role keys for the listed topics."""
+    ids = {topic.assignee_user_id for topic in topics if topic.assignee_user_id}
+    if not ids:
+        return {}
+    access = SqlAccessRepository(db)
+    roles = {role.id: role.name for role in access.list_roles()}
+    out: dict[str, str] = {}
+    for user in access.list_users():
+        if user.id not in ids:
+            continue
+        role_name = roles.get(user.role_id, "")
+        if role_name:
+            out[user.id] = role_name
+    return out
 
 
 def _topics_for_open_period(
@@ -190,6 +213,7 @@ def read_topics(
         completion_by_topic.setdefault(attachment.topic_id, []).append(attachment)
     for confirmation in confirmations:
         confirmations_by_topic.setdefault(confirmation.topic_id, []).append(confirmation)
+    assignee_roles = _assignee_role_map(db, topics)
     return TopicListResponse(
         items=[
             _topic_response(
@@ -199,6 +223,11 @@ def read_topics(
                 attachments_by_topic.get(topic.id, []),
                 completion_by_topic.get(topic.id, []),
                 confirmations_by_topic.get(topic.id, []),
+                assignee_role_key=(
+                    assignee_roles.get(topic.assignee_user_id)
+                    if topic.assignee_user_id
+                    else None
+                ),
             )
             for topic in topics
         ],
@@ -462,14 +491,32 @@ def move_topic(
 def delete_topic(
     topic_id: str,
     service: TopicService = Depends(get_topic_service),
-    _: Actor = Depends(require_permission("matters", "create")),
-    __: Actor = Depends(require_committee_member),
+    actor: Actor = Depends(require_permission("matters", "create")),
+    _: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
 ) -> None:
-    """Remove one topic and its votes. Only committee members may delete."""
+    """Passively archive one open topic and notify the client and committee."""
+    topic = SqlTopicRepository(db).get_topic(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found.") from None
+    if topic.status_id != OPEN_STATUS_ID:
+        raise HTTPException(
+            status_code=409,
+            detail="Only topics in Abiertos can be deleted.",
+        )
+    access = SqlAccessRepository(db)
+    user = access.get_user(actor.user_id)
+    actor_name = user.full_name if user is not None else "Alguien del comité"
     try:
         service.delete_topic(topic_id)
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
+    notify_topic_deleted(
+        db,
+        topic=topic,
+        client_id=actor.client_id or topic.client_id,
+        actor_name=actor_name,
+    )
 
 
 @router.post("/topics/{topic_id}/votes", response_model=CastVoteResponse)

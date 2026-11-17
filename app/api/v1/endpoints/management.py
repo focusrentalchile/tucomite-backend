@@ -90,6 +90,7 @@ def _task_response(ticket) -> ManagementTaskResponse:
         topic_id=ticket.topic_id,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
+        status_entered_at=getattr(ticket, "status_entered_at", None) or ticket.created_at,
         messages=[_message_response(item) for item in ticket.messages],
         attachments=[_attachment_response(item) for item in ticket.attachments],
     )

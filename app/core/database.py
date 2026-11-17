@@ -191,6 +191,14 @@ def init_database() -> None:
                     "completion_submitted_at",
                     "ALTER TABLE `topics` ADD COLUMN `completion_submitted_at` DATETIME NULL",
                 ),
+                (
+                    "status_entered_at",
+                    "ALTER TABLE `topics` ADD COLUMN `status_entered_at` DATETIME NULL",
+                ),
+                (
+                    "deleted_at",
+                    "ALTER TABLE `topics` ADD COLUMN `deleted_at` DATETIME NULL",
+                ),
             ):
                 has_column = connection.execute(
                     text(

@@ -143,6 +143,7 @@ class TopicResponse(BaseModel):
     status_id: int
     priority_id: int
     assignee_user_id: str | None = None
+    assignee_role_key: str | None = None
     start_date: str | None = None
     due_date: str | None = None
     vote_type: Literal["yes_no", "custom"] = "yes_no"
@@ -150,6 +151,7 @@ class TopicResponse(BaseModel):
     client_id: str | None = None
     voting_starts_at: str | None = None
     voting_ends_at: str | None = None
+    status_entered_at: str | None = None
     votes: list[TopicVoteResponse]
     opinions: list[TopicOpinionResponse] = []
     attachments: list[TopicAttachmentResponse] = []

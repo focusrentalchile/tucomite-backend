@@ -81,6 +81,10 @@ class TopicRecord:
     # UTC ISO-8601 instants. None on either side means that side of the window is open.
     voting_starts_at: str | None = None
     voting_ends_at: str | None = None
+    # When the topic entered its current board column.
+    status_entered_at: str | None = None
+    # Soft delete (passive archive). Hidden from boards when set.
+    deleted_at: str | None = None
 
 
 @dataclass(frozen=True)

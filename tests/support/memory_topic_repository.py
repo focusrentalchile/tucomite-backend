@@ -1,6 +1,7 @@
 """In-memory topic repository for unit tests."""
 
 from dataclasses import replace
+from datetime import datetime, timezone
 
 from app.domain.topics import (
     StatusRecord,
@@ -37,11 +38,15 @@ class InMemoryTopicRepository:
         self.topics.append(topic)
 
     def get_topic(self, topic_id: str) -> TopicRecord | None:
-        return next((topic for topic in self.topics if topic.id == topic_id), None)
+        return next(
+            (topic for topic in self.topics if topic.id == topic_id and not topic.deleted_at),
+            None,
+        )
 
     def save_topic_status(self, topic_id: str, status_id: int) -> None:
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         self.topics = [
-            replace(topic, status_id=status_id) if topic.id == topic_id else topic
+            replace(topic, status_id=status_id, status_entered_at=now) if topic.id == topic_id else topic
             for topic in self.topics
         ]
 
@@ -52,17 +57,14 @@ class InMemoryTopicRepository:
         self.topics = [topic if item.id == topic.id else item for item in self.topics]
 
     def delete_topic(self, topic_id: str) -> None:
-        self.votes = [vote for vote in self.votes if vote.topic_id != topic_id]
-        self.opinions = [opinion for opinion in self.opinions if opinion.topic_id != topic_id]
-        self.attachments = [item for item in self.attachments if item.topic_id != topic_id]
-        self.completion_attachments = [
-            item for item in self.completion_attachments if item.topic_id != topic_id
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+        self.topics = [
+            replace(topic, deleted_at=now) if topic.id == topic_id else topic
+            for topic in self.topics
         ]
-        self.confirmations = [item for item in self.confirmations if item.topic_id != topic_id]
-        self.topics = [topic for topic in self.topics if topic.id != topic_id]
 
     def list_topics(self) -> list[TopicRecord]:
-        return list(self.topics)
+        return [topic for topic in self.topics if not topic.deleted_at]
 
     def list_votes(self, topic_id: str) -> list[TopicVoteRecord]:
         return sorted(

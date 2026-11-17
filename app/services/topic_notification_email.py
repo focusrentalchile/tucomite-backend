@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.email_templates import (
     TEMPLATE_TOPIC_CREATED,
+    TEMPLATE_TOPIC_DELETED,
     TEMPLATE_TOPIC_RESULTADO_VOTE,
     TEMPLATE_TOPIC_STATUS_CHANGED,
 )
@@ -193,6 +194,23 @@ def notify_topic_created(
     return _send_to_committee(
         db,
         template_key=TEMPLATE_TOPIC_CREATED,
+        client_id=client_id,
+        actor_name=actor_name,
+        topic=topic,
+    )
+
+
+def notify_topic_deleted(
+    db: Session,
+    *,
+    topic: TopicRecord,
+    client_id: str | None,
+    actor_name: str,
+) -> int:
+    """Email the building client and committee that a topic was archived."""
+    return _send_to_committee(
+        db,
+        template_key=TEMPLATE_TOPIC_DELETED,
         client_id=client_id,
         actor_name=actor_name,
         topic=topic,

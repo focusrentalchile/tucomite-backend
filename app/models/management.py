@@ -30,6 +30,8 @@ class ManagementTaskModel(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    status_entered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
 
 class ManagementMessageModel(Base):

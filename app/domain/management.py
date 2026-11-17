@@ -67,6 +67,8 @@ class ManagementTaskRecord:
     topic_id: str | None
     created_at: str
     updated_at: str
+    status_entered_at: str | None = None
+    deleted_at: str | None = None
     messages: tuple[ManagementMessageRecord, ...] = ()
     # Files added when the task was opened (message_id is None on each).
     attachments: tuple[ManagementAttachmentRecord, ...] = ()

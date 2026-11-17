@@ -172,6 +172,7 @@ class SqlTopicRepository:
                 start_date=date.fromisoformat(topic.start_date) if topic.start_date else None,
                 due_date=date.fromisoformat(topic.due_date) if topic.due_date else None,
                 created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                status_entered_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 closed_at=None,
                 period_id=topic.period_id,
                 completion_note=topic.completion_note,
@@ -193,14 +194,19 @@ class SqlTopicRepository:
         row = self._session.get(TopicModel, topic_id)
         if row is None:
             return None
+        if getattr(row, "deleted_at", None) is not None:
+            return None
         return self._topic(row)
 
     def save_topic_status(self, topic_id: str, status_id: int) -> None:
         row = self._session.get(TopicModel, topic_id)
         if row is not None:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             row.status_id = status_id
+            if hasattr(row, "status_entered_at"):
+                row.status_entered_at = now
             if status_id == CLOSED_STATUS_ID:
-                row.closed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                row.closed_at = now
             else:
                 row.closed_at = None
 
@@ -260,6 +266,14 @@ class SqlTopicRepository:
         )
 
     def delete_topic(self, topic_id: str) -> None:
+        """Passive archive: mark deleted_at so the board hides the topic."""
+        row = self._session.get(TopicModel, topic_id)
+        if row is None:
+            return
+        if hasattr(row, "deleted_at"):
+            row.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            self._session.flush()
+            return
         self._session.execute(delete(TopicVoteModel).where(TopicVoteModel.topic_id == topic_id))
         bind = self._session.get_bind()
         if bind is not None and inspect(bind).has_table("topic_opinions"):
@@ -280,13 +294,15 @@ class SqlTopicRepository:
             self._session.execute(
                 delete(TopicConfirmationModel).where(TopicConfirmationModel.topic_id == topic_id),
             )
-        row = self._session.get(TopicModel, topic_id)
-        if row is not None:
-            self._session.delete(row)
+        self._session.delete(row)
 
     def list_topics(self) -> list[TopicRecord]:
         rows = self._session.scalars(select(TopicModel).order_by(TopicModel.title)).all()
-        return [self._topic(row) for row in rows]
+        return [
+            self._topic(row)
+            for row in rows
+            if getattr(row, "deleted_at", None) is None
+        ]
 
     def list_votes(self, topic_id: str) -> list[TopicVoteRecord]:
         rows = self._session.scalars(
@@ -516,6 +532,9 @@ class SqlTopicRepository:
             client_id=getattr(row, "client_id", None),
             voting_starts_at=_to_utc_iso(getattr(row, "voting_starts_at", None)),
             voting_ends_at=_to_utc_iso(getattr(row, "voting_ends_at", None)),
+            status_entered_at=_to_utc_iso(getattr(row, "status_entered_at", None))
+            or (row.created_at.isoformat() if getattr(row, "created_at", None) else None),
+            deleted_at=_to_utc_iso(getattr(row, "deleted_at", None)),
         )
 
     def _options_json(self, options: tuple[TopicVoteOptionRecord, ...]) -> str:
