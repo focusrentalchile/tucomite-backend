@@ -56,6 +56,7 @@ class TopicModel(Base):
     client_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     voting_starts_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     voting_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    no_consensus_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status_entered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 

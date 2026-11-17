@@ -557,16 +557,25 @@ class TopicService:
         author_name: str,
         choice: str,
         now: datetime | None = None,
+        *,
+        committee_size: int = 0,
     ) -> tuple[TopicRecord, TopicVoteRecord]:
         """Store one person's first vote and move the topic to waiting.
 
         Raises VotingWindowClosed when the topic has a voting window and ``now``
-        (default: the current UTC time) is outside it.
+        (default: the current UTC time) is outside it. Waiting topics without a
+        majority stay votable during the consensus grace window.
         """
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
-        ensure_voting_open(topic, now)
+        existing_votes = self._repository.list_votes(topic_id)
+        ensure_voting_open(
+            topic,
+            now,
+            votes=existing_votes,
+            committee_size=committee_size,
+        )
         normalized = choice.strip()
         allowed = (
             {option.id for option in topic.vote_options} | {"abstain"}

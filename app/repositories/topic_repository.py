@@ -71,6 +71,9 @@ class TopicRepository(Protocol):
     def save_topic_status(self, topic_id: str, status_id: int) -> None:
         """Update the board column for one topic."""
 
+    def mark_no_consensus_notified(self, topic_id: str, notified_at: str) -> None:
+        """Store when the no-consensus email was sent for one topic."""
+
     def save_topic(self, topic: TopicRecord) -> None:
         """Update the editable fields for one topic."""
 
@@ -229,6 +232,12 @@ class SqlTopicRepository:
                 row.closed_at = now
             else:
                 row.closed_at = None
+
+    def mark_no_consensus_notified(self, topic_id: str, notified_at: str) -> None:
+        row = self._session.get(TopicModel, topic_id)
+        if row is None or not hasattr(row, "no_consensus_notified_at"):
+            return
+        row.no_consensus_notified_at = _to_naive_utc(notified_at)
 
     def save_topic(self, topic: TopicRecord) -> None:
         row = self._session.get(TopicModel, topic.id)
@@ -628,6 +637,7 @@ class SqlTopicRepository:
             client_id=getattr(row, "client_id", None),
             voting_starts_at=_to_utc_iso(getattr(row, "voting_starts_at", None)),
             voting_ends_at=_to_utc_iso(getattr(row, "voting_ends_at", None)),
+            no_consensus_notified_at=_to_utc_iso(getattr(row, "no_consensus_notified_at", None)),
             status_entered_at=_to_utc_iso(getattr(row, "status_entered_at", None))
             or (row.created_at.isoformat() if getattr(row, "created_at", None) else None),
             deleted_at=_to_utc_iso(getattr(row, "deleted_at", None)),

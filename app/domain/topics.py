@@ -30,6 +30,9 @@ VOTE_TYPE_CUSTOM = "custom"
 VOTE_TYPES = frozenset({VOTE_TYPE_YES_NO, VOTE_TYPE_CUSTOM})
 PRIORITY_IDS = frozenset(priority_id for priority_id, _ in TOPIC_PRIORITIES)
 
+# Extra days after voting_ends_at for Waiting topics without a majority to debate and change votes.
+CONSENSUS_GRACE_DAYS = 5
+
 
 @dataclass(frozen=True)
 class StatusRecord:
@@ -85,6 +88,8 @@ class TopicRecord:
     # UTC ISO-8601 instants. None on either side means that side of the window is open.
     voting_starts_at: str | None = None
     voting_ends_at: str | None = None
+    # When the committee was emailed that voting closed without a majority.
+    no_consensus_notified_at: str | None = None
     # When the topic entered its current board column.
     status_entered_at: str | None = None
     # Soft delete (passive archive). Hidden from boards when set.
@@ -320,8 +325,49 @@ def resolve_voting_window(
     )
 
 
-def ensure_voting_open(topic: "TopicRecord", now: datetime | None = None) -> None:
-    """Raise VotingWindowClosed when ``now`` is outside the topic's voting window."""
+def consensus_grace_ends_at(topic: "TopicRecord") -> datetime | None:
+    """Return voting_ends_at + CONSENSUS_GRACE_DAYS, or None when there is no end."""
+    end = parse_instant(topic.voting_ends_at)
+    if end is None:
+        return None
+    return end + timedelta(days=CONSENSUS_GRACE_DAYS)
+
+
+def is_voting_window_ended(topic: "TopicRecord", now: datetime | None = None) -> bool:
+    """True when ``now`` is after the configured voting end."""
+    moment = now or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    end = parse_instant(topic.voting_ends_at)
+    return end is not None and moment > end
+
+
+def is_no_consensus(
+    topic: "TopicRecord",
+    votes: list["TopicVoteRecord"],
+    committee_size: int,
+    now: datetime | None = None,
+) -> bool:
+    """Waiting topic whose voting window ended without a vote majority (standby)."""
+    if topic.status_id != WAITING_STATUS_ID or topic.assignee_user_id:
+        return False
+    if not is_voting_window_ended(topic, now):
+        return False
+    return not execution_quorum_met(winning_vote_count(topic, votes), committee_size)
+
+
+def ensure_voting_open(
+    topic: "TopicRecord",
+    now: datetime | None = None,
+    *,
+    votes: list["TopicVoteRecord"] | None = None,
+    committee_size: int = 0,
+) -> None:
+    """Raise VotingWindowClosed when ``now`` is outside the topic's voting window.
+
+    Waiting topics without a majority stay votable for CONSENSUS_GRACE_DAYS after
+    ``voting_ends_at`` so the committee can still reach consensus.
+    """
     moment = now or datetime.now(timezone.utc)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
@@ -330,4 +376,12 @@ def ensure_voting_open(topic: "TopicRecord", now: datetime | None = None) -> Non
     if start is not None and moment < start:
         raise VotingWindowClosed("not_started")
     if end is not None and moment > end:
+        if (
+            votes is not None
+            and topic.status_id == WAITING_STATUS_ID
+            and not execution_quorum_met(winning_vote_count(topic, votes), committee_size)
+        ):
+            grace = consensus_grace_ends_at(topic)
+            if grace is not None and moment <= grace:
+                return
         raise VotingWindowClosed("ended")

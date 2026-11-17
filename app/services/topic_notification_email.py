@@ -10,6 +10,7 @@ from app.domain.email_templates import (
     TEMPLATE_TOPIC_ASSIGN_READY,
     TEMPLATE_TOPIC_CREATED,
     TEMPLATE_TOPIC_DELETED,
+    TEMPLATE_TOPIC_NO_CONSENSUS,
     TEMPLATE_TOPIC_OPINION,
     TEMPLATE_TOPIC_RESULTADO_VOTE,
     TEMPLATE_TOPIC_STATUS_CHANGED,
@@ -48,6 +49,7 @@ TOPIC_STATUS_LABELS: dict[int, str] = {
 ADMIN_TOPICS_URL = "https://admin.tucomite.cl/topics"
 NOTICE_KIND_TOPIC_OPINION = "topic_opinion"
 NOTICE_KIND_TOPIC_ASSIGN_READY = "topic_assign_ready"
+NOTICE_KIND_TOPIC_NO_CONSENSUS = "topic_no_consensus"
 
 
 def topic_status_label(status_id: int) -> str:
@@ -361,6 +363,35 @@ def notify_topic_assign_ready(
     return _send_to_committee(
         db,
         template_key=TEMPLATE_TOPIC_ASSIGN_READY,
+        client_id=resolved_client,
+        actor_name=actor_name,
+        topic=topic,
+    )
+
+
+def notify_topic_no_consensus(
+    db: Session,
+    *,
+    topic: TopicRecord,
+    client_id: str | None,
+    actor_name: str = "TuComité",
+) -> int:
+    """Bell + email when voting ended without a majority; invite debate in Opiniones."""
+    resolved_client = client_id or topic.client_id
+    building = _building_name(db, resolved_client)
+    _add_in_app_notices(
+        db,
+        user_ids=_voter_and_owner_user_ids(db, resolved_client),
+        kind=NOTICE_KIND_TOPIC_NO_CONSENSUS,
+        title="Sin consenso",
+        body=(
+            f"«{topic.title}» ({building}) cerró la votación sin mayoría. "
+            "Conversen con respeto en Opiniones; tienen 5 días para acercar posiciones."
+        ),
+    )
+    return _send_to_committee(
+        db,
+        template_key=TEMPLATE_TOPIC_NO_CONSENSUS,
         client_id=resolved_client,
         actor_name=actor_name,
         topic=topic,

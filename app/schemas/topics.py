@@ -179,6 +179,10 @@ class TopicResponse(BaseModel):
     # Waiting column, vote majority met, and nobody assigned yet.
     assign_ready: bool = False
     has_assign_ready_alert: bool = False
+    # Waiting + voting ended without majority (standby / debate in Opiniones).
+    no_consensus: bool = False
+    # voting_ends_at + 5 days (ISO), when the consensus grace window closes.
+    consensus_ends_at: str | None = None
 
 
 class TopicListResponse(BaseModel):

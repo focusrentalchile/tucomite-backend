@@ -460,6 +460,10 @@ def init_database() -> None:
                 ("client_id", "ALTER TABLE `topics` ADD COLUMN `client_id` VARCHAR(36) NULL"),
                 ("voting_starts_at", "ALTER TABLE `topics` ADD COLUMN `voting_starts_at` DATETIME NULL"),
                 ("voting_ends_at", "ALTER TABLE `topics` ADD COLUMN `voting_ends_at` DATETIME NULL"),
+                (
+                    "no_consensus_notified_at",
+                    "ALTER TABLE `topics` ADD COLUMN `no_consensus_notified_at` DATETIME NULL",
+                ),
             ):
                 has_column = connection.execute(
                     text(

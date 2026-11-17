@@ -34,8 +34,10 @@ from app.domain.topics import (
     TopicVoteRecord,
     VoteAlreadyCast,
     VotingWindowClosed,
+    consensus_grace_ends_at,
     execution_quorum_met,
     is_assign_ready,
+    is_no_consensus,
     winning_vote_count,
 )
 from app.repositories.access_repository import SqlAccessRepository
@@ -47,6 +49,7 @@ from app.services.topic_notification_email import (
     notify_topic_assign_ready,
     notify_topic_created,
     notify_topic_deleted,
+    notify_topic_no_consensus,
     notify_topic_opinion,
     notify_topic_resultado_vote,
     notify_topic_status_changed,
@@ -137,6 +140,8 @@ def _topic_response(
     unread_opinion_count: int = 0,
     opinions_last_seen_at: str | None = None,
     assign_ready: bool = False,
+    no_consensus: bool = False,
+    consensus_ends_at: str | None = None,
 ) -> TopicResponse:
     return TopicResponse(
         id=topic.id,
@@ -185,6 +190,8 @@ def _topic_response(
         opinions_last_seen_at=opinions_last_seen_at,
         assign_ready=assign_ready,
         has_assign_ready_alert=assign_ready,
+        no_consensus=no_consensus,
+        consensus_ends_at=consensus_ends_at,
     )
 
 
@@ -334,6 +341,25 @@ def read_topics(
         completion_by_topic.setdefault(attachment.topic_id, []).append(attachment)
     for confirmation in confirmations:
         confirmations_by_topic.setdefault(confirmation.topic_id, []).append(confirmation)
+    # Notify once when voting ended without a majority (standby / Opiniones).
+    topics_repo = SqlTopicRepository(db)
+    for topic in topics:
+        topic_votes = by_topic.get(topic.id, [])
+        if not is_no_consensus(topic, topic_votes, committee_size):
+            continue
+        if topic.no_consensus_notified_at:
+            continue
+        try:
+            with db.begin_nested():
+                notify_topic_no_consensus(
+                    db,
+                    topic=topic,
+                    client_id=actor.client_id or topic.client_id,
+                )
+                notified_at = datetime.now(timezone.utc).isoformat()
+                topics_repo.mark_no_consensus_notified(topic.id, notified_at)
+        except Exception:  # noqa: BLE001 — board must load even if mail fails
+            logger.exception("No-consensus notify failed for topic %s", topic.id)
     assignee_roles = _assignee_role_map(db, topics)
     reads = service.list_opinion_reads(actor.user_id, topic_ids)
     return TopicListResponse(
@@ -360,6 +386,16 @@ def read_topics(
                     topic,
                     by_topic.get(topic.id, []),
                     committee_size,
+                ),
+                no_consensus=is_no_consensus(
+                    topic,
+                    by_topic.get(topic.id, []),
+                    committee_size,
+                ),
+                consensus_ends_at=(
+                    consensus_grace_ends_at(topic).isoformat()
+                    if consensus_grace_ends_at(topic) is not None
+                    else None
                 ),
             )
             for topic in topics
@@ -709,6 +745,7 @@ def cast_vote(
             author_id=actor.user_id,
             author_name=user.full_name,
             choice=body.choice,
+            committee_size=member_count,
         )
     except TopicNotFound as error:
         raise HTTPException(status_code=404, detail="Topic not found.") from error
