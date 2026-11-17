@@ -47,6 +47,7 @@ from app.domain.topics import (
     ensure_voting_open,
     execution_quorum_met,
     resolve_voting_window,
+    winning_vote_count,
 )
 from app.repositories.topic_repository import TopicRepository
 
@@ -76,16 +77,7 @@ def ensure_topic_priorities(session) -> None:
             current.key = key
 
 
-def _winning_vote_count(topic: TopicRecord, votes: list[TopicVoteRecord]) -> int:
-    """Yes tally for yes/no polls, or the leading custom option count."""
-    if topic.vote_type == VOTE_TYPE_CUSTOM:
-        if not topic.vote_options:
-            return 0
-        return max(
-            (sum(1 for vote in votes if vote.choice == option.id) for option in topic.vote_options),
-            default=0,
-        )
-    return sum(1 for vote in votes if vote.choice == "yes")
+_winning_vote_count = winning_vote_count
 
 
 def _copy_topic(topic: TopicRecord, **changes) -> TopicRecord:
@@ -132,6 +124,16 @@ class TopicService:
     def list_opinions_for_topics(self, topic_ids: list[str]) -> list[TopicOpinionRecord]:
         """Return every opinion for the given topics."""
         return self._repository.list_opinions_for_topics(topic_ids)
+
+    def list_opinion_reads(self, user_id: str, topic_ids: list[str]) -> dict[str, str]:
+        """Return topic id -> last time this person opened the opinions."""
+        return self._repository.list_opinion_reads(user_id, topic_ids)
+
+    def mark_opinions_seen(self, topic_id: str, user_id: str) -> str:
+        """Mark the topic opinions as seen now for one person; return the stored instant."""
+        if self._repository.get_topic(topic_id) is None:
+            raise TopicNotFound()
+        return self._repository.mark_opinions_seen(user_id, topic_id)
 
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         """Return every attachment for the given topics."""
@@ -437,6 +439,12 @@ class TopicService:
         size = committee_size if committee_size is not None else 0
         if size > 0 and no_confirmation_count(confirmations) > (size / 2):
             topic = self._fail_completion_round(topic, confirmations)
+        elif size > 0 and completion_quorum_met(yes_confirmation_count(confirmations), size):
+            self._repository.save_topic_status(topic_id, CLOSED_STATUS_ID)
+            topic = self._repository.get_topic(topic_id) or _copy_topic(
+                topic,
+                status_id=CLOSED_STATUS_ID,
+            )
         return topic, confirmation
 
     def seal_failed_completion_if_needed(
@@ -448,12 +456,21 @@ class TopicService:
         """If an open Resultado already has a No majority, seal it and reopen Culminación.
 
         Used when listing Gestión/Temas so stuck open deliveries heal after deploy.
+        Also closes the topic when a Sí majority is already present but status stayed Doing.
         """
-        if not topic.completion_submitted_at or committee_size <= 0:
+        if topic.status_id != DOING_STATUS_ID or committee_size <= 0:
+            return topic
+        if not topic.completion_submitted_at:
             return topic
         confirmations = self._repository.list_confirmations_for_topics([topic.id])
         if no_confirmation_count(confirmations) > (committee_size / 2):
             return self._fail_completion_round(topic, confirmations)
+        if completion_quorum_met(yes_confirmation_count(confirmations), committee_size):
+            self._repository.save_topic_status(topic.id, CLOSED_STATUS_ID)
+            return self._repository.get_topic(topic.id) or _copy_topic(
+                topic,
+                status_id=CLOSED_STATUS_ID,
+            )
         return topic
 
     def _fail_completion_round(

@@ -401,23 +401,22 @@ def test_completion_and_confirmations_gate_close() -> None:
     except CompletionQuorumNotMet:
         pass
 
-    service.confirm_completion(topic.id, "user-1", "Ana", choice="yes")
+    service.confirm_completion(topic.id, "user-1", "Ana", choice="yes", committee_size=3)
     service.confirm_completion(
         topic.id,
         "user-3",
         "Marta",
         choice="no",
         reason="Falta pintar el marco.",
+        committee_size=3,
     )
-    service.confirm_completion(topic.id, "user-2", "Luis", choice="yes")
+    closed, _ = service.confirm_completion(topic.id, "user-2", "Luis", choice="yes", committee_size=3)
+    assert closed.status_id == 4
     try:
-        service.confirm_completion(topic.id, "user-1", "Ana", choice="yes")
+        service.confirm_completion(topic.id, "user-1", "Ana", choice="yes", committee_size=3)
         raise AssertionError("expected ConfirmationAlreadyCast")
     except ConfirmationAlreadyCast:
         pass
-
-    closed = service.move_topic(topic.id, 4, committee_size=3)
-    assert closed.status_id == 4
 
 
 def test_resultado_second_no_seals_even_with_autoflush_disabled_pattern() -> None:

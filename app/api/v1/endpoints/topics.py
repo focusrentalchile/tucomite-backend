@@ -1,5 +1,7 @@
 """Topic endpoints."""
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,7 @@ from app.domain.topics import (
     CLOSED_STATUS_ID,
     DOING_STATUS_ID,
     OPEN_STATUS_ID,
+    WAITING_STATUS_ID,
     ExecutionQuorumNotMet,
     CompletionAlreadySubmitted,
     CompletionNotSubmitted,
@@ -26,6 +29,9 @@ from app.domain.topics import (
     TopicVoteRecord,
     VoteAlreadyCast,
     VotingWindowClosed,
+    execution_quorum_met,
+    is_assign_ready,
+    winning_vote_count,
 )
 from app.repositories.access_repository import SqlAccessRepository
 from app.repositories.client_settings_repository import SqlClientSettingsRepository
@@ -33,8 +39,10 @@ from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
 from app.services.topic_notification_email import (
+    notify_topic_assign_ready,
     notify_topic_created,
     notify_topic_deleted,
+    notify_topic_opinion,
     notify_topic_resultado_vote,
     notify_topic_status_changed,
 )
@@ -45,6 +53,7 @@ from app.schemas.topics import (
     ConfirmCompletionResponse,
     CreateTopicRequest,
     MoveTopicRequest,
+    SeenOpinionsResponse,
     SubmitCompletionRequest,
     SubmitCompletionResponse,
     TopicAttachmentResponse,
@@ -57,6 +66,7 @@ from app.schemas.topics import (
     UpsertOpinionRequest,
     UpsertOpinionResponse,
 )
+from app.services.access_service import PermissionPolicy
 from app.services.committee_access import is_listed_committee_member
 from app.services.client_settings_service import ClientSettingsService
 from app.services.period_service import PeriodService
@@ -119,6 +129,9 @@ def _topic_response(
     confirmations: list[TopicConfirmationRecord] | None = None,
     *,
     assignee_role_key: str | None = None,
+    unread_opinion_count: int = 0,
+    opinions_last_seen_at: str | None = None,
+    assign_ready: bool = False,
 ) -> TopicResponse:
     return TopicResponse(
         id=topic.id,
@@ -163,7 +176,42 @@ def _topic_response(
             _attachment_response(item) for item in (completion_attachments or [])
         ],
         confirmations=[_confirmation_response(item) for item in (confirmations or [])],
+        unread_opinion_count=unread_opinion_count,
+        opinions_last_seen_at=opinions_last_seen_at,
+        assign_ready=assign_ready,
+        has_assign_ready_alert=assign_ready,
     )
+
+
+def _parse_naive_utc(value: str | None) -> datetime | None:
+    """Parse a stored ISO instant into a naive UTC datetime for comparisons."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+def unread_opinion_count_for(
+    opinions: list[TopicOpinionRecord],
+    *,
+    actor_id: str,
+    last_seen_at: str | None,
+) -> int:
+    """Count opinions from other people written after the actor last opened the section."""
+    seen = _parse_naive_utc(last_seen_at)
+    total = 0
+    for opinion in opinions:
+        if opinion.author_id == actor_id:
+            continue
+        created = _parse_naive_utc(opinion.created_at)
+        if seen is None or created is None or created > seen:
+            total += 1
+    return total
 
 
 def _assignee_role_map(db: Session, topics: list[TopicRecord]) -> dict[str, str]:
@@ -207,12 +255,25 @@ def read_topics(
     healed: list = []
     for topic in topics:
         try:
-            healed.append(
-                service.seal_failed_completion_if_needed(
-                    topic,
-                    committee_size=committee_size,
-                ),
+            previous_status = topic.status_id
+            next_topic = service.seal_failed_completion_if_needed(
+                topic,
+                committee_size=committee_size,
             )
+            if (
+                previous_status != CLOSED_STATUS_ID
+                and next_topic.status_id == CLOSED_STATUS_ID
+            ):
+                from app.repositories.agreement_repository import SqlAgreementRepository
+                from app.repositories.client_repository import SqlClientRepository
+                from app.services.agreement_service import AgreementService
+
+                AgreementService(
+                    SqlAgreementRepository(db),
+                    SqlTopicRepository(db),
+                    SqlClientRepository(db),
+                ).publish_from_topic(next_topic.id, client_id=actor.client_id)
+            healed.append(next_topic)
         except Exception:
             try:
                 db.rollback()
@@ -244,6 +305,7 @@ def read_topics(
     for confirmation in confirmations:
         confirmations_by_topic.setdefault(confirmation.topic_id, []).append(confirmation)
     assignee_roles = _assignee_role_map(db, topics)
+    reads = service.list_opinion_reads(actor.user_id, topic_ids)
     return TopicListResponse(
         items=[
             _topic_response(
@@ -257,6 +319,17 @@ def read_topics(
                     assignee_roles.get(topic.assignee_user_id)
                     if topic.assignee_user_id
                     else None
+                ),
+                unread_opinion_count=unread_opinion_count_for(
+                    opinions_by_topic.get(topic.id, []),
+                    actor_id=actor.user_id,
+                    last_seen_at=reads.get(topic.id),
+                ),
+                opinions_last_seen_at=reads.get(topic.id),
+                assign_ready=is_assign_ready(
+                    topic,
+                    by_topic.get(topic.id, []),
+                    committee_size,
                 ),
             )
             for topic in topics
@@ -360,11 +433,22 @@ def move_topic(
     topic_id: str,
     body: MoveTopicRequest,
     service: TopicService = Depends(get_topic_service),
-    actor: Actor = Depends(require_permission("matters", "create")),
+    actor: Actor = Depends(require_permission("matters", "comment")),
     _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> TopicResponse:
-    """Move one topic. Going to execution requires a responsible person and due date."""
+    """Move one topic. Going to execution requires a responsible person and due date.
+
+    Any committee member (or the client owner) may assign execution once the vote majority
+    is met, and may close when Resultado has a Sí majority. Other column moves still need
+    ``matters.create``.
+    """
+    if body.status_id not in {DOING_STATUS_ID, CLOSED_STATUS_ID} and not PermissionPolicy().allows(
+        actor.permissions,
+        "matters",
+        "create",
+    ):
+        raise HTTPException(status_code=403, detail="Forbidden.")
     from app.repositories.agreement_repository import SqlAgreementRepository
     from app.repositories.client_repository import SqlClientRepository
     from app.repositories.management_repository import SqlManagementRepository
@@ -584,6 +668,11 @@ def cast_vote(
         )
     previous = SqlTopicRepository(db).get_topic(topic_id)
     previous_status_id = previous.status_id if previous is not None else None
+    votes_before = service.list_votes_for_topics([topic_id]) if previous is not None else []
+    quorum_before = previous is not None and execution_quorum_met(
+        winning_vote_count(previous, votes_before),
+        member_count,
+    )
     try:
         topic, vote = service.cast_vote(
             topic_id,
@@ -604,12 +693,26 @@ def cast_vote(
             else "Voting has ended."
         )
         raise HTTPException(status_code=409, detail=detail) from error
-    if previous_status_id is not None and previous_status_id != topic.status_id:
+    # Open -> Waiting after a vote is silent; the committee only hears when the vote majority
+    # is reached (assign-ready email + bell).
+    if (
+        previous_status_id is not None
+        and previous_status_id != topic.status_id
+        and not (previous_status_id == OPEN_STATUS_ID and topic.status_id == WAITING_STATUS_ID)
+    ):
         notify_topic_status_changed(
             db,
             topic=topic,
             previous_status_id=previous_status_id,
             client_id=actor.client_id,
+            actor_name=user.full_name,
+        )
+    votes_after = [item for item in votes_before if item.author_id != vote.author_id] + [vote]
+    if not quorum_before and is_assign_ready(topic, votes_after, member_count):
+        notify_topic_assign_ready(
+            db,
+            topic=topic,
+            client_id=actor.client_id or topic.client_id,
             actor_name=user.full_name,
         )
     return CastVoteResponse(
@@ -644,7 +747,34 @@ def upsert_opinion(
         raise HTTPException(status_code=404, detail="Topic not found.") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    try:
+        topic = SqlTopicRepository(db).get_topic(topic_id)
+        if topic is not None:
+            notify_topic_opinion(
+                db,
+                topic=topic,
+                author_id=actor.user_id,
+                author_name=user.full_name,
+                client_id=actor.client_id or topic.client_id,
+            )
+    except Exception:  # noqa: BLE001 — never block writing an opinion on notices
+        pass
     return UpsertOpinionResponse(topic_id=topic_id, opinion=_opinion_response(opinion))
+
+
+@router.post("/topics/{topic_id}/opinions/seen", response_model=SeenOpinionsResponse)
+def mark_opinions_seen(
+    topic_id: str,
+    service: TopicService = Depends(get_topic_service),
+    actor: Actor = Depends(require_permission("matters", "comment")),
+    _: Actor = Depends(require_committee_member),
+) -> SeenOpinionsResponse:
+    """Mark every current opinion of one topic as seen for the signed-in person."""
+    try:
+        seen_at = service.mark_opinions_seen(topic_id, actor.user_id)
+    except TopicNotFound as error:
+        raise HTTPException(status_code=404, detail="Topic not found.") from error
+    return SeenOpinionsResponse(topic_id=topic_id, last_seen_at=seen_at)
 
 
 @router.delete("/topics/{topic_id}/opinions/{opinion_id}", status_code=204)
@@ -764,6 +894,37 @@ def confirm_completion(
         client_id=actor.client_id or topic.client_id,
         actor_name=user.full_name,
     )
+    if topic.status_id == CLOSED_STATUS_ID:
+        from app.repositories.agreement_repository import SqlAgreementRepository
+        from app.repositories.client_repository import SqlClientRepository
+        from app.repositories.management_repository import SqlManagementRepository
+        from app.repositories.notification_repository import SqlNotificationRepository
+        from app.services.agreement_service import AgreementService
+        from app.services.management_service import ManagementService
+
+        AgreementService(
+            SqlAgreementRepository(db),
+            SqlTopicRepository(db),
+            SqlClientRepository(db),
+        ).publish_from_topic(topic_id, client_id=actor.client_id or topic.client_id)
+        building_id = actor.client_id or topic.client_id
+        if building_id:
+            access_repo = SqlAccessRepository(db)
+            management = ManagementService(
+                SqlManagementRepository(db),
+                access=access_repo,
+                notifications=SqlNotificationRepository(db),
+            )
+            for item in management.list_tasks(client_id=building_id):
+                if item.topic_id == topic_id and item.status != "done":
+                    management.set_status(item.id, "done")
+        notify_topic_status_changed(
+            db,
+            topic=topic,
+            previous_status_id=DOING_STATUS_ID,
+            client_id=building_id,
+            actor_name=user.full_name,
+        )
     completion = service.list_completion_attachments_for_topics([topic_id])
     confirmations = service.list_confirmations_for_topics([topic_id])
     return ConfirmCompletionResponse(
