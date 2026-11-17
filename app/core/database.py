@@ -506,6 +506,25 @@ def init_database() -> None:
                             "ADD COLUMN `consensus_grace_days` INT NOT NULL DEFAULT 5"
                         ),
                     )
+            agreements_exist = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agreements'"
+                ),
+            ).scalar()
+            if agreements_exist:
+                pdf_column_type = connection.execute(
+                    text(
+                        "SELECT DATA_TYPE FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        "AND TABLE_NAME = 'agreements' AND COLUMN_NAME = 'pdf_bytes'"
+                    ),
+                ).scalar()
+                # Branded actas with logo are >64 KiB; plain BLOB rejects the insert.
+                if pdf_column_type and str(pdf_column_type).lower() == "blob":
+                    connection.execute(
+                        text("ALTER TABLE `agreements` MODIFY COLUMN `pdf_bytes` LONGBLOB NOT NULL"),
+                    )
             if periods_exist:
                 # Backfill: topics created before the column belong to their period's building.
                 connection.execute(

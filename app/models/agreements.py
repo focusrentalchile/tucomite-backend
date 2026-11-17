@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text, func
-from sqlalchemy.dialects.mysql import MEDIUMTEXT
+from sqlalchemy.dialects.mysql import LONGBLOB, MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -30,4 +30,5 @@ class AgreementModel(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     pdf_name: Mapped[str] = mapped_column(String(255), default="")
-    pdf_bytes: Mapped[bytes] = mapped_column(LargeBinary)
+    # LONGBLOB: branded PDFs with logo exceed MySQL BLOB (64 KiB).
+    pdf_bytes: Mapped[bytes] = mapped_column(LONGBLOB().with_variant(LargeBinary(), "sqlite"))
