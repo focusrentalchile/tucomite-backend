@@ -64,6 +64,9 @@ class AccessRepository(Protocol):
     def get_user_by_email(self, email: str) -> UserRecord | None:
         """Return the user with this email, or None."""
 
+    def get_user_by_email_in_client(self, email: str, client_id: str) -> UserRecord | None:
+        """Return the user with this email inside one building, or None."""
+
     def get_user_by_activation_token(self, token: str) -> UserRecord | None:
         """Return the user waiting to activate with this token, or None."""
 
@@ -432,6 +435,17 @@ class SqlAccessRepository:
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
         row = self._session.scalar(select(UserModel).where(UserModel.email == email))
+        if row is None:
+            return None
+        return self._user(row)
+
+    def get_user_by_email_in_client(self, email: str, client_id: str) -> UserRecord | None:
+        row = self._session.scalar(
+            select(UserModel).where(
+                UserModel.email == email,
+                UserModel.client_id == client_id,
+            ),
+        )
         if row is None:
             return None
         return self._user(row)

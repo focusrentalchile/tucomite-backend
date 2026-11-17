@@ -119,9 +119,12 @@ class UserService:
         *,
         must_change_password: bool = True,
     ) -> UserRecord:
-        """Create a user when the email is free and the role exists."""
+        """Create a user when the email is free in the building (or platform-wide)."""
         normalized = email.strip().lower()
-        if self._repository.get_user_by_email(normalized) is not None:
+        if client_id:
+            if self._repository.get_user_by_email_in_client(normalized, client_id) is not None:
+                raise DuplicateEmail(normalized)
+        elif self._repository.get_user_by_email(normalized) is not None:
             raise DuplicateEmail(normalized)
         assigned_role_id = role_id or self._default_role_id()
         role = self._repository.get_role(assigned_role_id)
@@ -176,7 +179,10 @@ class UserService:
         if self._is_protected(current, protected_user_ids):
             raise ProtectedUser()
         normalized = email.strip().lower()
-        other = self._repository.get_user_by_email(normalized)
+        if current.client_id:
+            other = self._repository.get_user_by_email_in_client(normalized, current.client_id)
+        else:
+            other = self._repository.get_user_by_email(normalized)
         if other is not None and other.id != user_id:
             raise DuplicateEmail(normalized)
         assigned_role_id = current.role_id

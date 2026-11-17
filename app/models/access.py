@@ -2,7 +2,8 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -72,16 +73,18 @@ class ClientModel(Base):
     responsible_name: Mapped[str] = mapped_column(String(160), default="")
     license_starts_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     license_ends_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    logo_url: Mapped[str] = mapped_column(MEDIUMTEXT().with_variant(Text(), "sqlite"), default="")
 
 
 class UserModel(Base):
     """A person assigned to one role."""
 
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("client_id", "email", name="uq_users_client_email"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     full_name: Mapped[str] = mapped_column(String(120))
-    email: Mapped[str] = mapped_column(String(255), unique=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"))
     client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

@@ -206,6 +206,18 @@ class TopicService:
         """Append a new opinion (legacy name kept for call sites)."""
         return self.create_opinion(topic_id, author_id, author_name, body)
 
+    def delete_opinion(self, topic_id: str, opinion_id: str, author_id: str) -> None:
+        """Remove one opinion when the actor wrote it."""
+        topic = self._repository.get_topic(topic_id)
+        if topic is None:
+            raise TopicNotFound()
+        opinion = self._repository.get_opinion_by_id(opinion_id)
+        if opinion is None or opinion.topic_id != topic_id:
+            raise TopicNotFound()
+        if opinion.author_id != author_id:
+            raise PermissionError("Only the author can delete this opinion.")
+        self._repository.delete_opinion(opinion_id)
+
     def reassign_period(
         self,
         topic_id: str,

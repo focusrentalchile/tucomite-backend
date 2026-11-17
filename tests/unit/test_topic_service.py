@@ -257,6 +257,25 @@ def test_create_topic_stores_attachments() -> None:
     assert {item.kind for item in stored} == {"image", "file"}
 
 
+def test_delete_own_opinion() -> None:
+    repository = InMemoryTopicRepository()
+    ensure_topic_statuses(repository)
+    service = TopicService(repository)
+    topic = service.create_topic(
+        title="Luminarias",
+        description="Están apagadas.",
+        category_key="security",
+        attachment_name="",
+        decision="¿Pedimos cotizaciones?",
+    )
+    first = service.create_opinion(topic.id, "user-1", "Ana Pérez", "Hay que cotizar")
+    service.create_opinion(topic.id, "user-2", "Luis Soto", "Mejor esperar")
+    service.delete_opinion(topic.id, first.id, "user-1")
+    listed = service.list_opinions_for_topics([topic.id])
+    assert len(listed) == 1
+    assert listed[0].author_id == "user-2"
+
+
 def test_create_opinion_appends_many_per_author() -> None:
     repository = InMemoryTopicRepository()
     ensure_topic_statuses(repository)

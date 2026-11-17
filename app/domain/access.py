@@ -61,6 +61,7 @@ class ClientRecord:
     responsible_name: str = ""
     license_starts_at: str | None = None
     license_ends_at: str | None = None
+    logo_url: str = ""
 
 
 

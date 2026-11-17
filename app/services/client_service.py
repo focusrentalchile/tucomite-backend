@@ -143,7 +143,7 @@ class ClientService:
             raise ClientNotFound(client_id)
 
         normalized = email.strip().lower()
-        other = self._access.get_user_by_email(normalized)
+        other = self._access.get_user_by_email_in_client(normalized, client_id)
         if other is not None and other.id != admin.id:
             raise DuplicateEmail(normalized)
 
@@ -171,6 +171,7 @@ class ClientService:
             responsible_name=cleaned_responsible,
             license_starts_at=starts,
             license_ends_at=ends,
+            logo_url=client.logo_url,
         )
         self._clients.save_client(updated)
         return updated, updated_admin
@@ -206,6 +207,7 @@ class ClientService:
             responsible_name=client.responsible_name,
             license_starts_at=starts.isoformat(),
             license_ends_at=new_ends.isoformat(),
+            logo_url=client.logo_url,
         )
         self._clients.save_client(updated)
         return updated, admin

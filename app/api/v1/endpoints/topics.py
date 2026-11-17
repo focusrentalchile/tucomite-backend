@@ -647,6 +647,23 @@ def upsert_opinion(
     return UpsertOpinionResponse(topic_id=topic_id, opinion=_opinion_response(opinion))
 
 
+@router.delete("/topics/{topic_id}/opinions/{opinion_id}", status_code=204)
+def delete_opinion(
+    topic_id: str,
+    opinion_id: str,
+    service: TopicService = Depends(get_topic_service),
+    actor: Actor = Depends(require_permission("matters", "comment")),
+    _: Actor = Depends(require_committee_member),
+) -> None:
+    """Delete one opinion written by the signed-in person."""
+    try:
+        service.delete_opinion(topic_id, opinion_id, actor.user_id)
+    except TopicNotFound as error:
+        raise HTTPException(status_code=404, detail="Opinion not found.") from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
 @router.post("/topics/{topic_id}/completion", response_model=SubmitCompletionResponse)
 def submit_completion(
     topic_id: str,

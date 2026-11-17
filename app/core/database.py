@@ -120,6 +120,10 @@ def init_database() -> None:
                     "responsible_name",
                     "ALTER TABLE `clients` ADD COLUMN `responsible_name` VARCHAR(160) NOT NULL DEFAULT ''",
                 ),
+                (
+                    "logo_url",
+                    "ALTER TABLE `clients` ADD COLUMN `logo_url` MEDIUMTEXT NULL",
+                ),
             ):
                 has_column = connection.execute(
                     text(
@@ -505,6 +509,37 @@ def init_database() -> None:
             ).scalar()
             if has_opinion_author_unique:
                 connection.execute(text("ALTER TABLE `topic_opinions` DROP INDEX `uq_topic_opinions_author`"))
+            users_exist = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+                ),
+            ).scalar()
+            if users_exist:
+                has_email_unique = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        "AND TABLE_NAME = 'users' AND INDEX_NAME = 'email' "
+                        "AND NON_UNIQUE = 0"
+                    ),
+                ).scalar()
+                if has_email_unique:
+                    connection.execute(text("ALTER TABLE `users` DROP INDEX `email`"))
+                has_client_email_unique = connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        "AND TABLE_NAME = 'users' AND INDEX_NAME = 'uq_users_client_email'"
+                    ),
+                ).scalar()
+                if not has_client_email_unique:
+                    connection.execute(
+                        text(
+                            "CREATE UNIQUE INDEX `uq_users_client_email` "
+                            "ON `users` (`client_id`, `email`)"
+                        ),
+                    )
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

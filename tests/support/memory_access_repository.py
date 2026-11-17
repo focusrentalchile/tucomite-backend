@@ -88,3 +88,9 @@ class InMemoryAccessRepository:
 
     def get_user_by_email(self, email: str) -> UserRecord | None:
         return next((user for user in self.users if user.email == email), None)
+
+    def get_user_by_email_in_client(self, email: str, client_id: str) -> UserRecord | None:
+        return next(
+            (user for user in self.users if user.email == email and user.client_id == client_id),
+            None,
+        )

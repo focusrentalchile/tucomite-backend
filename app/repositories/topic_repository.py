@@ -106,6 +106,12 @@ class TopicRepository(Protocol):
     def save_opinion(self, opinion: TopicOpinionRecord) -> None:
         """Update the body stored for one opinion."""
 
+    def get_opinion_by_id(self, opinion_id: str) -> TopicOpinionRecord | None:
+        """Return one opinion by id, or None."""
+
+    def delete_opinion(self, opinion_id: str) -> None:
+        """Remove one opinion row."""
+
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         """Return every attachment belonging to the given topics."""
 
@@ -396,6 +402,17 @@ class SqlTopicRepository:
         if row is not None:
             row.body = opinion.body
             row.author_name = opinion.author_name
+
+    def get_opinion_by_id(self, opinion_id: str) -> TopicOpinionRecord | None:
+        row = self._session.get(TopicOpinionModel, opinion_id)
+        if row is None:
+            return None
+        return self._opinion(row)
+
+    def delete_opinion(self, opinion_id: str) -> None:
+        row = self._session.get(TopicOpinionModel, opinion_id)
+        if row is not None:
+            self._session.delete(row)
 
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         if not topic_ids:

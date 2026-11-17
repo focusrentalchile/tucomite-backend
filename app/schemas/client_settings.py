@@ -19,3 +19,17 @@ class VoteWindowSettingsResponse(BaseModel):
     high_hours: int
     medium_hours: int
     low_hours: int
+
+
+class BuildingProfileResponse(BaseModel):
+    """Public building identity shown in Configuración and the admin chrome."""
+
+    name: str
+    logo_url: str = ""
+
+
+class BuildingProfileRequest(BaseModel):
+    """Editable building name and optional logo (data URL or empty to clear)."""
+
+    name: str = Field(min_length=1, max_length=160)
+    logo_url: str = Field(default="", max_length=6_000_000)

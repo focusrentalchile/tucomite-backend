@@ -143,7 +143,7 @@ class InvitationService:
             raise ValueError("Role is not allowed for invitations.")
         if not cleaned_name or "@" not in cleaned_email:
             raise ValueError("Name and a valid email are required.")
-        if self._access.get_user_by_email(cleaned_email) is not None:
+        if self._access.get_user_by_email_in_client(cleaned_email, client_id) is not None:
             raise DuplicateEmail()
         client = SqlClientRepository(self._db).get_client(client_id)
         if client is None:
@@ -163,9 +163,11 @@ class InvitationService:
                     continue
                 if (invite.role_key or "").casefold() == cleaned_role:
                     raise BuildingRoleOccupied(cleaned_role)
-        existing = self._repository.get_by_email(cleaned_email)
-        if existing and not existing.registered_at:
-            raise ValueError("An open invitation already exists for this email.")
+        for invite in self._repository.list_for_client(client_id):
+            if invite.registered_at:
+                continue
+            if invite.email.casefold() == cleaned_email:
+                raise ValueError("An open invitation already exists for this email.")
         record = InvitationRecord(
             id=str(uuid.uuid4()),
             kind=KIND_BUILDING,

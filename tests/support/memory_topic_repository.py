@@ -118,6 +118,12 @@ class InMemoryTopicRepository:
     def save_opinion(self, opinion: TopicOpinionRecord) -> None:
         self.opinions = [opinion if item.id == opinion.id else item for item in self.opinions]
 
+    def get_opinion_by_id(self, opinion_id: str) -> TopicOpinionRecord | None:
+        return next((item for item in self.opinions if item.id == opinion_id), None)
+
+    def delete_opinion(self, opinion_id: str) -> None:
+        self.opinions = [item for item in self.opinions if item.id != opinion_id]
+
     def list_attachments_for_topics(self, topic_ids: list[str]) -> list[TopicAttachmentRecord]:
         wanted = set(topic_ids)
         return sorted(

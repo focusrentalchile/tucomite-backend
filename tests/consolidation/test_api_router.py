@@ -24,6 +24,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/topics" in paths
     assert "/topics/{topic_id}/votes" in paths
     assert "/topics/{topic_id}/opinions" in paths
+    assert "/topics/{topic_id}/opinions/{opinion_id}" in paths
     assert "/access/me" in paths
     assert "/committee/members" in paths
     assert "/committee/members/{user_id}" in paths
@@ -74,6 +75,7 @@ def test_v1_router_includes_health_path() -> None:
     assert "/platform-settings" in paths
     assert "/account/close" in paths
     assert "/building-settings/vote-window" in paths
+    assert "/building-settings/profile" in paths
 
 
 def test_application_mounts_v1_prefix() -> None:
