@@ -36,5 +36,7 @@ def test_purge_client_dependencies_removes_topics_and_committee_rows() -> None:
     session = FakeSession(topic_ids=["t-period"], period_ids=["p1"], user_ids=["u1"])
     purge_client_dependencies(session, "c1")
     assert session.flushed is True
-    assert any("topics" in str(item).lower() for item in session.deletes)
-    assert any("committee" in str(item).lower() for item in session.deletes)
+    delete_sql = " ".join(str(item).lower() for item in session.deletes)
+    assert "topics" in delete_sql
+    assert "topic_opinion_reads" in delete_sql or "topicopinionread" in delete_sql
+    assert "committee" in delete_sql

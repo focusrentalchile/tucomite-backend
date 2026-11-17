@@ -98,11 +98,13 @@ class InvitationService:
         cleaned_email = email.strip().lower()
         if not cleaned_name or "@" not in cleaned_email:
             raise ValueError("Name and a valid email are required.")
-        if self._access.get_user_by_email(cleaned_email) is not None:
-            raise DuplicateEmail()
+        self._release_platform_email(cleaned_email)
         existing = self._repository.get_by_email(cleaned_email)
         if existing and not existing.registered_at:
             raise ValueError("An open invitation already exists for this email.")
+        if existing and existing.registered_at:
+            # Finished invite for a building that was later deleted — start clean.
+            self._repository.delete(existing.id)
         record = InvitationRecord(
             id=str(uuid.uuid4()),
             kind=KIND_PLATFORM,
@@ -334,6 +336,17 @@ class InvitationService:
         updated = replace(record, registered_at=_now_iso())
         self._repository.save(updated)
         return updated
+
+    def _release_platform_email(self, email: str) -> None:
+        """Allow re-inviting an email after its previous client was deleted."""
+        existing = self._access.get_user_by_email(email)
+        if existing is None:
+            return
+        if existing.client_id:
+            client = SqlClientRepository(self._db).get_client(existing.client_id)
+            if client is not None:
+                raise DuplicateEmail()
+        self._access.delete_user(existing.id)
 
     def _require_open_token(self, token: str, kind: str) -> InvitationRecord:
         record = self._repository.get_by_token(token)

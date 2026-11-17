@@ -34,6 +34,7 @@ from app.models.topics import (
     TopicConfirmationModel,
     TopicModel,
     TopicOpinionModel,
+    TopicOpinionReadModel,
     TopicVoteModel,
 )
 
@@ -44,6 +45,9 @@ def _purge_topics(session: Session, topic_ids: list[str]) -> None:
         return
     session.execute(delete(AgreementModel).where(AgreementModel.topic_id.in_(topic_ids)))
     session.execute(delete(TopicVoteModel).where(TopicVoteModel.topic_id.in_(topic_ids)))
+    session.execute(
+        delete(TopicOpinionReadModel).where(TopicOpinionReadModel.topic_id.in_(topic_ids)),
+    )
     session.execute(delete(TopicOpinionModel).where(TopicOpinionModel.topic_id.in_(topic_ids)))
     session.execute(
         delete(TopicConfirmationModel).where(TopicConfirmationModel.topic_id.in_(topic_ids)),

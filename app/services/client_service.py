@@ -74,8 +74,7 @@ class ClientService:
             raise DuplicateClientName(cleaned_name)
 
         normalized = email.strip().lower()
-        if self._access.get_user_by_email(normalized) is not None:
-            raise DuplicateEmail(normalized)
+        self._release_email_if_orphaned(normalized)
 
         from app.core.access_catalog import access_catalog
         from app.services.access_bootstrap import _ensure_starter_roles
@@ -229,6 +228,18 @@ class ClientService:
             if user.client_id == client_id:
                 self._access.delete_user(user.id)
         self._clients.delete_client(client_id)
+
+    def _release_email_if_orphaned(self, email: str) -> None:
+        """Free an email left behind after a client delete, or reject if still in use."""
+        existing = self._access.get_user_by_email(email)
+        if existing is None:
+            return
+        if existing.client_id:
+            client = self._clients.get_client(existing.client_id)
+            if client is not None:
+                raise DuplicateEmail(email)
+        # User row survived a partial purge, or the building was already removed.
+        self._access.delete_user(existing.id)
 
     def _validated_license(self, starts_at: str, ends_at: str) -> tuple[str, str]:
         try:

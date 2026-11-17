@@ -89,6 +89,37 @@ def test_super_admin_lists_demo_client_and_can_create_another() -> None:
     assert client_id not in {item["id"] for item in listed_again.json()["items"]}
 
 
+def test_super_admin_can_recreate_client_with_same_email_after_delete() -> None:
+    login_as_super_admin(client)
+    email = f"reuse.{uuid.uuid4().hex[:8]}@demo.local"
+    payload = {
+        "name": f"Reuso {uuid.uuid4().hex[:6]}",
+        "email": email,
+        "password": SEED_PASSWORD,
+        "address": "Calle Reuso 1",
+        "responsible_name": "Cliente Reuso",
+        "license_starts_at": "2026-01-01",
+        "license_ends_at": "2027-01-01",
+    }
+    created = client.post("/api/v1/clients", json=payload)
+    assert created.status_code == 201
+    client_id = created.json()["id"]
+
+    removed = client.delete(f"/api/v1/clients/{client_id}")
+    assert removed.status_code == 204
+
+    again = client.post(
+        "/api/v1/clients",
+        json={
+            **payload,
+            "name": f"Reuso Nuevo {uuid.uuid4().hex[:6]}",
+        },
+    )
+    assert again.status_code == 201
+    assert again.json()["admin_email"] == email
+    assert again.json()["id"] != client_id
+
+
 def test_public_register_requires_email_activation() -> None:
     payload = {
         "name": f"Registro {uuid.uuid4().hex[:6]}",
