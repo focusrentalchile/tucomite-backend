@@ -104,13 +104,45 @@ def test_vote_before_the_window_is_rejected() -> None:
 def test_vote_after_the_window_is_rejected_and_locks_changes() -> None:
     service = _service()
     topic = _create(service, voting_starts_at=START.isoformat(), voting_ends_at=END.isoformat())
-    service.cast_vote(topic.id, "user-1", "Ana", "yes", now=START + timedelta(hours=1))
+    service.cast_vote(
+        topic.id,
+        "user-1",
+        "Ana",
+        "yes",
+        now=START + timedelta(hours=1),
+        committee_size=3,
+    )
 
+    # Past voting end + consensus grace (default 5 days): changes lock.
     with pytest.raises(VotingWindowClosed) as raised:
-        service.cast_vote(topic.id, "user-1", "Ana", "no", now=END + timedelta(seconds=1))
+        service.cast_vote(
+            topic.id,
+            "user-1",
+            "Ana",
+            "no",
+            now=END + timedelta(days=6),
+            committee_size=3,
+        )
 
     assert raised.value.reason == "ended"
     assert service.list_votes_for_topics([topic.id])[0].choice == "yes"
+
+
+def test_open_topic_accepts_the_first_vote_after_the_window_ends() -> None:
+    """Abiertos + zero votes must stay votable so a new topic cannot get stuck."""
+    service = _service()
+    topic = _create(service, voting_starts_at=START.isoformat(), voting_ends_at=END.isoformat())
+
+    moved, vote = service.cast_vote(
+        topic.id,
+        "user-1",
+        "Ana",
+        "yes",
+        now=END + timedelta(hours=2),
+    )
+
+    assert vote.choice == "yes"
+    assert moved.status_id == 2
 
 
 def test_topic_without_window_never_locks() -> None:
