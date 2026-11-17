@@ -60,16 +60,29 @@ class EmailTemplateService:
         logo_url: str = "https://tucomite.cl/logo-email.png",
         login_email: str = "",
         temporary_password: str = "",
+        topic_title: str = "",
+        topic_description: str = "",
+        topic_status: str = "",
+        previous_status: str = "",
+        topic_url: str = "",
+        actor_name: str = "",
     ) -> tuple[str, str]:
         """Replace placeholders in subject and HTML."""
+        cleaned_site = site_url.strip() or "https://tucomite.cl"
         mapping = {
             "{{name}}": name.strip() or "hola",
             "{{building_name}}": building_name.strip() or "tu edificio",
-            "{{invite_url}}": invite_url.strip() or site_url.strip() or "https://tucomite.cl/login",
-            "{{site_url}}": site_url.strip() or "https://tucomite.cl",
+            "{{invite_url}}": invite_url.strip() or cleaned_site.rstrip("/") + "/login",
+            "{{site_url}}": cleaned_site,
             "{{logo_url}}": logo_url.strip() or "https://tucomite.cl/logo-email.png",
             "{{email}}": login_email.strip(),
             "{{password}}": temporary_password,
+            "{{topic_title}}": topic_title.strip() or "Tema",
+            "{{topic_description}}": topic_description.strip() or "Sin descripción.",
+            "{{topic_status}}": topic_status.strip() or "Sin estado",
+            "{{previous_status}}": previous_status.strip() or "Sin estado",
+            "{{topic_url}}": topic_url.strip() or "https://admin.tucomite.cl/topics",
+            "{{actor_name}}": actor_name.strip() or "Alguien del comité",
         }
         subject = template.subject
         body = template.html_body
@@ -90,6 +103,12 @@ class EmailTemplateService:
         logo_url: str = "https://tucomite.cl/logo-email.png",
         login_email: str = "",
         temporary_password: str = "",
+        topic_title: str = "",
+        topic_description: str = "",
+        topic_status: str = "",
+        previous_status: str = "",
+        topic_url: str = "",
+        actor_name: str = "",
         smtp: SmtpDeliveryConfig | None = None,
         raise_on_error: bool = False,
     ) -> bool:
@@ -106,6 +125,12 @@ class EmailTemplateService:
             logo_url=logo_url,
             login_email=login_email or to_email,
             temporary_password=temporary_password,
+            topic_title=topic_title,
+            topic_description=topic_description,
+            topic_status=topic_status,
+            previous_status=previous_status,
+            topic_url=topic_url,
+            actor_name=actor_name,
         )
         try:
             send_html_email(

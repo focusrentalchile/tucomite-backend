@@ -6,6 +6,8 @@ from app.domain.email_templates import (
     TEMPLATE_CLIENT_WELCOME,
     TEMPLATE_COMMITTEE_INVITE,
     TEMPLATE_RESIDENT_INVITE,
+    TEMPLATE_TOPIC_CREATED,
+    TEMPLATE_TOPIC_STATUS_CHANGED,
     EmailTemplateRecord,
 )
 from app.services.email_template_defaults import DEFAULT_TEMPLATES
@@ -80,3 +82,40 @@ def test_update_subject_and_html() -> None:
     updated = service.update(current.id, subject="Nuevo asunto", html_body="<p>Hola {{name}}</p>")
     assert updated.subject == "Nuevo asunto"
     assert updated.html_body == "<p>Hola {{name}}</p>"
+
+
+def test_topic_templates_render_board_placeholders() -> None:
+    service = EmailTemplateService(MemoryEmailTemplateRepository())
+    topic_created = next(item for item in service.list_templates() if item.key == TEMPLATE_TOPIC_CREATED)
+    subject, html = service.render(
+        topic_created,
+        name="Ana",
+        building_name="Edificio Norte",
+        topic_title="Ascensor",
+        topic_description="Hace ruido.",
+        topic_status="Abiertos",
+        topic_url="https://admin.tucomite.cl/topics",
+        actor_name="Comité demo",
+    )
+    assert "Ascensor" in subject
+    assert "Edificio Norte" in subject
+    assert "Ana" in html
+    assert "Abiertos" in html
+    assert "Comité demo" in html
+    assert "{{topic_title}}" not in html
+
+    status_changed = next(
+        item for item in service.list_templates() if item.key == TEMPLATE_TOPIC_STATUS_CHANGED
+    )
+    subject2, html2 = service.render(
+        status_changed,
+        name="Ana",
+        building_name="Edificio Norte",
+        topic_title="Ascensor",
+        previous_status="Abiertos",
+        topic_status="Esperando decisión",
+        actor_name="Comité demo",
+    )
+    assert "Esperando decisión" in subject2
+    assert "Abiertos" in html2
+    assert "Esperando decisión" in html2

@@ -88,7 +88,7 @@ def _notify_legal_counsel(db: Session, *, client_id: str, case: LegalCaseRecord)
                 user_id=user.id,
                 kind="legal_case_created",
                 title="Nueva cotización de asesoría legal",
-                body=f"Se solicitó «{case.title}». Revisalo en Casos (En espera).",
+                body=f"Se solicitó «{case.title}». Revísalo en Casos (En espera).",
                 created_at=now,
                 read_at=None,
             ),

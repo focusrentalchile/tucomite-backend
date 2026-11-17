@@ -359,7 +359,7 @@ class ManagementService:
                 title="Solicitud para gestionar tu edificio",
                 body=(
                     f"El administrador {admin_label} ({admin_email}) quiere gestionar "
-                    f"«{client_name}». Entrá a Administradores para aprobar."
+                    f"«{client_name}». Entra a Administradores para aprobar."
                 ),
                 created_at=now,
                 read_at=None,
@@ -474,6 +474,21 @@ class ManagementService:
             attachments=stored_attachments,
         )
         self._repository.add_task(ticket)
+        if assignee_user_id and self._notifications is not None:
+            self._notifications.add(
+                NotificationRecord(
+                    id=str(uuid.uuid4()),
+                    user_id=assignee_user_id,
+                    kind="management_task_assigned",
+                    title="Nueva tarea asignada",
+                    body=(
+                        f"«{cleaned_subject}» quedó en Tareas de Gestión "
+                        f"({client_name}) para que la ejecutes."
+                    ),
+                    created_at=now,
+                    read_at=None,
+                ),
+            )
         return self.get_task(task_id)
 
     def add_message(

@@ -8,6 +8,9 @@ from app.domain.email_templates import (
     TEMPLATE_COMMITTEE_INVITE,
     TEMPLATE_PLATFORM_INVITE,
     TEMPLATE_RESIDENT_INVITE,
+    TEMPLATE_MANAGEMENT_TASK_ASSIGNED,
+    TEMPLATE_TOPIC_CREATED,
+    TEMPLATE_TOPIC_STATUS_CHANGED,
 )
 
 
@@ -280,6 +283,91 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
             + _register_cta()
             + """
               <p style="margin:0;font-size:15px;line-height:1.6;">Estamos construyendo una mejor experiencia para vivir en comunidad.<br />¡Bienvenido a esta nueva etapa!</p>
+            """,
+        ),
+    },
+    TEMPLATE_TOPIC_CREATED: {
+        "name": "Tema creado",
+        "subject": "Nuevo tema en {{building_name}}: {{topic_title}}",
+        "html_body": _shell(
+            title="Tema creado",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Se creó un nuevo tema</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> abrió un tema en <strong>{{building_name}}</strong>.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Tema</p>
+                    <p style="margin:0 0 12px;font-size:17px;line-height:1.4;font-weight:700;color:#001545;">{{topic_title}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Columna</p>
+                    <p style="margin:0 0 12px;font-size:15px;line-height:1.5;color:#001545;">{{topic_status}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Detalle</p>
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#001545;">{{topic_description}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:22px 0 10px;text-align:center;">
+                <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Ver temas</a>
+              </p>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:#5a6a8a;text-align:center;">Si el botón no funciona, abre este enlace:<br />
+              <a href="{{topic_url}}" style="color:#1554d1;word-break:break-all;">{{topic_url}}</a></p>
+            """,
+        ),
+    },
+    TEMPLATE_TOPIC_STATUS_CHANGED: {
+        "name": "Tema cambió de columna",
+        "subject": "{{building_name}}: «{{topic_title}}» pasó a {{topic_status}}",
+        "html_body": _shell(
+            title="Tema cambió de columna",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Un tema cambió de columna</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> actualizó el estado de un tema en <strong>{{building_name}}</strong>.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Tema</p>
+                    <p style="margin:0 0 12px;font-size:17px;line-height:1.4;font-weight:700;color:#001545;">{{topic_title}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Antes</p>
+                    <p style="margin:0 0 12px;font-size:15px;line-height:1.5;color:#001545;">{{previous_status}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Ahora</p>
+                    <p style="margin:0;font-size:15px;line-height:1.5;font-weight:700;color:#001545;">{{topic_status}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:22px 0 10px;text-align:center;">
+                <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Ver temas</a>
+              </p>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:#5a6a8a;text-align:center;">Si el botón no funciona, abre este enlace:<br />
+              <a href="{{topic_url}}" style="color:#1554d1;word-break:break-all;">{{topic_url}}</a></p>
+            """,
+        ),
+    },
+    TEMPLATE_MANAGEMENT_TASK_ASSIGNED: {
+        "name": "Tarea de Gestión asignada",
+        "subject": "Nueva tarea en Gestión: {{topic_title}}",
+        "html_body": _shell(
+            title="Tarea de Gestión asignada",
+            inner="""
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.55;">Hola, {{name}}:</p>
+              <p style="margin:0 0 14px;font-size:20px;line-height:1.35;font-weight:700;color:#001545;">Te asignaron una tarea para ejecutar</p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.6;"><strong>{{actor_name}}</strong> te dejó una tarea en Gestión de <strong>{{building_name}}</strong>.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;border:1px solid #d5deee;border-radius:12px;background:#f7f9fc;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Tarea</p>
+                    <p style="margin:0 0 12px;font-size:17px;line-height:1.4;font-weight:700;color:#001545;">{{topic_title}}</p>
+                    <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;color:#5a6a8a;text-transform:uppercase;">Detalle</p>
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#001545;">{{topic_description}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:22px 0 10px;text-align:center;">
+                <a href="{{topic_url}}" style="display:inline-block;padding:14px 28px;border-radius:999px;background:#1554d1;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Abrir Gestión</a>
+              </p>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:#5a6a8a;text-align:center;">Si el botón no funciona, abre este enlace:<br />
+              <a href="{{topic_url}}" style="color:#1554d1;word-break:break-all;">{{topic_url}}</a></p>
             """,
         ),
     },

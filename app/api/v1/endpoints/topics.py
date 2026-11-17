@@ -30,6 +30,10 @@ from app.repositories.client_settings_repository import SqlClientSettingsReposit
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
 from app.repositories.topic_repository import SqlTopicRepository
+from app.services.topic_notification_email import (
+    notify_topic_created,
+    notify_topic_status_changed,
+)
 from app.schemas.topics import (
     CastVoteRequest,
     CastVoteResponse,
@@ -237,6 +241,13 @@ def create_topic(
             detail="Voting window must have valid dates and end after it starts.",
         ) from error
     stored = service.list_attachments_for_topics([topic.id])
+    actor_user = SqlAccessRepository(db).get_user(actor.user_id)
+    notify_topic_created(
+        db,
+        topic=topic,
+        client_id=actor.client_id,
+        actor_name=actor_user.full_name if actor_user else "",
+    )
     return _topic_response(topic, [], attachments=stored)
 
 
@@ -290,8 +301,10 @@ def move_topic(
     from app.repositories.agreement_repository import SqlAgreementRepository
     from app.repositories.client_repository import SqlClientRepository
     from app.repositories.management_repository import SqlManagementRepository
+    from app.repositories.notification_repository import SqlNotificationRepository
     from app.services.agreement_service import AgreementService
     from app.services.management_service import ManagementService
+    from app.services.management_task_email import notify_management_task_assigned_email
 
     if body.status_id == DOING_STATUS_ID:
         if not body.assignee_user_id or not body.start_date or not body.due_date:
@@ -305,6 +318,8 @@ def move_topic(
                 detail="Due date cannot be before start date.",
             )
     committee_size = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
+    previous = SqlTopicRepository(db).get_topic(topic_id)
+    previous_status_id = previous.status_id if previous is not None else None
     try:
         topic = service.move_topic(topic_id, body.status_id, committee_size=committee_size)
     except TopicNotFound as error:
@@ -321,6 +336,16 @@ def move_topic(
             status_code=409,
             detail="More than 50% of the committee must confirm completion before closing.",
         ) from error
+
+    if previous_status_id is not None and previous_status_id != topic.status_id:
+        actor_user = SqlAccessRepository(db).get_user(actor.user_id)
+        notify_topic_status_changed(
+            db,
+            topic=topic,
+            previous_status_id=previous_status_id,
+            client_id=actor.client_id,
+            actor_name=actor_user.full_name if actor_user else "",
+        )
 
     if body.status_id == CLOSED_STATUS_ID:
         AgreementService(
@@ -348,7 +373,11 @@ def move_topic(
         )
         if should_open_management:
             actor_user = access.get_user(actor.user_id)
-            management = ManagementService(SqlManagementRepository(db))
+            management = ManagementService(
+                SqlManagementRepository(db),
+                access=access,
+                notifications=SqlNotificationRepository(db),
+            )
             existing = next(
                 (
                     item
@@ -358,7 +387,7 @@ def move_topic(
                 None,
             )
             if existing is None:
-                management.create_task(
+                created_task = management.create_task(
                     subject=topic.title,
                     body=topic.description or topic.decision,
                     created_by_user_id=actor.user_id,
@@ -371,6 +400,16 @@ def move_topic(
                     assignee_user_id=body.assignee_user_id,
                     topic_id=topic.id,
                 )
+                if assignee is not None:
+                    notify_management_task_assigned_email(
+                        db,
+                        to_email=assignee.email,
+                        to_name=assignee.full_name,
+                        building_name=client.name,
+                        subject=created_task.subject,
+                        body=topic.description or topic.decision,
+                        actor_name=actor_user.full_name if actor_user else "",
+                    )
 
     votes = service.list_votes_for_topics([topic_id])
     refreshed = next((item for item in service.list_topics() if item.id == topic_id), topic)
@@ -420,6 +459,8 @@ def cast_vote(
             status_code=409,
             detail="At least three committee members are required to vote.",
         )
+    previous = SqlTopicRepository(db).get_topic(topic_id)
+    previous_status_id = previous.status_id if previous is not None else None
     try:
         topic, vote = service.cast_vote(
             topic_id,
@@ -440,6 +481,14 @@ def cast_vote(
             else "Voting has ended."
         )
         raise HTTPException(status_code=409, detail=detail) from error
+    if previous_status_id is not None and previous_status_id != topic.status_id:
+        notify_topic_status_changed(
+            db,
+            topic=topic,
+            previous_status_id=previous_status_id,
+            client_id=actor.client_id,
+            actor_name=user.full_name,
+        )
     return CastVoteResponse(
         topic_id=topic.id,
         status_id=topic.status_id,
