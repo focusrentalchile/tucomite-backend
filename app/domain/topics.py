@@ -104,7 +104,7 @@ class TopicVoteRecord:
 
 @dataclass(frozen=True)
 class TopicOpinionRecord:
-    """One person's written opinion on a topic."""
+    """One written opinion message on a topic (authors may post many)."""
 
     id: str
     topic_id: str

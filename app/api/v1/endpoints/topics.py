@@ -628,13 +628,13 @@ def upsert_opinion(
     _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> UpsertOpinionResponse:
-    """Create or replace the actor's opinion. Listed voters and the client may write."""
+    """Append an opinion message. Listed voters and the client may write many."""
     access = SqlAccessRepository(db)
     user = next((item for item in access.list_users() if item.id == actor.user_id), None)
     if user is None:
         raise HTTPException(status_code=503, detail="Current user is not available.")
     try:
-        opinion = service.upsert_opinion(
+        opinion = service.create_opinion(
             topic_id,
             author_id=actor.user_id,
             author_name=user.full_name,

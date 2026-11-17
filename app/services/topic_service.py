@@ -171,32 +171,20 @@ class TopicService:
             )
         return stored
 
-    def upsert_opinion(
+    def create_opinion(
         self,
         topic_id: str,
         author_id: str,
         author_name: str,
         body: str,
     ) -> TopicOpinionRecord:
-        """Create or replace one person's opinion on a topic."""
+        """Append a new opinion message on a topic."""
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()
         text = body.strip()
         if not text:
             raise ValueError("Opinion body is required.")
-        existing = self._repository.get_opinion(topic_id, author_id)
-        if existing is not None:
-            updated = TopicOpinionRecord(
-                id=existing.id,
-                topic_id=existing.topic_id,
-                author_id=existing.author_id,
-                author_name=author_name.strip(),
-                body=text,
-                created_at=existing.created_at,
-            )
-            self._repository.save_opinion(updated)
-            return updated
         opinion = TopicOpinionRecord(
             id=str(uuid.uuid4()),
             topic_id=topic_id,
@@ -207,6 +195,16 @@ class TopicService:
         )
         self._repository.add_opinion(opinion)
         return opinion
+
+    def upsert_opinion(
+        self,
+        topic_id: str,
+        author_id: str,
+        author_name: str,
+        body: str,
+    ) -> TopicOpinionRecord:
+        """Append a new opinion (legacy name kept for call sites)."""
+        return self.create_opinion(topic_id, author_id, author_name, body)
 
     def reassign_period(
         self,

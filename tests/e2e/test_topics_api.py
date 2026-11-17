@@ -210,15 +210,18 @@ def test_opinion_is_stored_and_visible_to_everyone() -> None:
     assert stored["opinions"][0]["body"] == "Hay que cotizar dos proveedores."
     assert stored["opinions"][0]["author_name"]
 
-    updated = client.post(
+    second = client.post(
         f"/api/v1/topics/{topic_id}/opinions",
         json={"body": "Mejor tres proveedores."},
     )
-    assert updated.status_code == 200
+    assert second.status_code == 200
     listed_again = client.get("/api/v1/topics")
     stored_again = next(item for item in listed_again.json()["items"] if item["id"] == topic_id)
-    assert len(stored_again["opinions"]) == 1
-    assert stored_again["opinions"][0]["body"] == "Mejor tres proveedores."
+    assert len(stored_again["opinions"]) == 2
+    assert [item["body"] for item in stored_again["opinions"]] == [
+        "Hay que cotizar dos proveedores.",
+        "Mejor tres proveedores.",
+    ]
 
 
 def test_assigning_building_admin_opens_support_task_with_same_priority() -> None:

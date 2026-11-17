@@ -190,7 +190,7 @@ class CastVoteResponse(BaseModel):
 
 
 class UpsertOpinionResponse(BaseModel):
-    """The saved opinion for one topic."""
+    """One newly appended opinion on a topic."""
 
     topic_id: str
     opinion: TopicOpinionResponse

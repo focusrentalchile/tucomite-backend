@@ -257,7 +257,7 @@ def test_create_topic_stores_attachments() -> None:
     assert {item.kind for item in stored} == {"image", "file"}
 
 
-def test_upsert_opinion_creates_and_updates() -> None:
+def test_create_opinion_appends_many_per_author() -> None:
     repository = InMemoryTopicRepository()
     ensure_topic_statuses(repository)
     service = TopicService(repository)
@@ -269,16 +269,17 @@ def test_upsert_opinion_creates_and_updates() -> None:
         decision="¿Pedimos cotizaciones?",
     )
 
-    first = service.upsert_opinion(topic.id, "user-1", "Ana Pérez", "Hay que cotizar")
-    second = service.upsert_opinion(topic.id, "user-2", "Luis Soto", "Mejor esperar")
-    updated = service.upsert_opinion(topic.id, "user-1", "Ana Pérez", "Cotizar ya")
+    first = service.create_opinion(topic.id, "user-1", "Ana Pérez", "Hay que cotizar")
+    second = service.create_opinion(topic.id, "user-2", "Luis Soto", "Mejor esperar")
+    third = service.create_opinion(topic.id, "user-1", "Ana Pérez", "Cotizar ya")
 
     listed = service.list_opinions_for_topics([topic.id])
-    assert len(listed) == 2
-    assert first.id == updated.id
-    assert updated.body == "Cotizar ya"
+    assert len(listed) == 3
+    assert first.id != third.id
+    assert third.body == "Cotizar ya"
     assert {item.author_id for item in listed} == {"user-1", "user-2"}
     assert second.body == "Mejor esperar"
+    assert [item.body for item in listed] == ["Hay que cotizar", "Mejor esperar", "Cotizar ya"]
 
 
 def test_update_move_and_delete_topic_persist() -> None:

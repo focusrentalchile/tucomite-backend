@@ -74,10 +74,9 @@ class TopicVoteModel(Base):
 
 
 class TopicOpinionModel(Base):
-    """One written opinion per person on a topic."""
+    """One written opinion message on a topic. Authors may post many."""
 
     __tablename__ = "topic_opinions"
-    __table_args__ = (UniqueConstraint("topic_id", "author_id", name="uq_topic_opinions_author"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)

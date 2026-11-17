@@ -495,6 +495,16 @@ def init_database() -> None:
                 connection.execute(
                     text("ALTER TABLE `topic_votes` MODIFY COLUMN `choice` VARCHAR(36) NOT NULL"),
                 )
+            has_opinion_author_unique = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'topic_opinions' "
+                    "AND INDEX_NAME = 'uq_topic_opinions_author'"
+                ),
+            ).scalar()
+            if has_opinion_author_unique:
+                connection.execute(text("ALTER TABLE `topic_opinions` DROP INDEX `uq_topic_opinions_author`"))
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:
