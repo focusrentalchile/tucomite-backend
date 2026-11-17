@@ -565,6 +565,7 @@ class SqlTopicRepository:
         )
 
     def _rounds_json(self, rounds: tuple[TopicCompletionRoundRecord, ...]) -> str:
+        """Serialize sealed rounds without large data-URL payloads (TEXT column limit)."""
         return json.dumps(
             [
                 {
@@ -590,7 +591,8 @@ class SqlTopicRepository:
                             "topicId": file.topic_id,
                             "kind": file.kind,
                             "name": file.name,
-                            "url": file.url,
+                            # Keep only short http(s) URLs; skip base64 data URLs.
+                            "url": file.url if self._is_compact_attachment_url(file.url) else "",
                         }
                         for file in item.attachments
                     ],
@@ -599,6 +601,13 @@ class SqlTopicRepository:
             ],
             ensure_ascii=False,
         )
+
+    @staticmethod
+    def _is_compact_attachment_url(url: str) -> bool:
+        cleaned = (url or "").strip()
+        if not cleaned or cleaned.startswith("data:"):
+            return False
+        return len(cleaned) <= 2000
 
     def _parse_rounds(self, raw: str | None) -> tuple[TopicCompletionRoundRecord, ...]:
         if not raw:

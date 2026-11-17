@@ -453,6 +453,17 @@ class TopicService:
     ) -> TopicRecord:
         """Archive the current Resultado as failed and reopen Culminación."""
         attachments = self._repository.list_completion_attachments_for_topics([topic.id])
+        # History keeps names only; data-URL evidence would overflow topics.completion_rounds_json.
+        compact_attachments = tuple(
+            TopicAttachmentRecord(
+                id=item.id,
+                topic_id=item.topic_id,
+                kind=item.kind,
+                name=item.name,
+                url="",
+            )
+            for item in attachments
+        )
         closed_at = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         round_number = max(1, int(topic.completion_round or 1))
         sealed = TopicCompletionRoundRecord(
@@ -462,7 +473,7 @@ class TopicService:
             closed_at=closed_at,
             outcome=COMPLETION_ROUND_FAILED,
             confirmations=tuple(confirmations),
-            attachments=tuple(attachments),
+            attachments=compact_attachments,
         )
         updated = _copy_topic(
             topic,

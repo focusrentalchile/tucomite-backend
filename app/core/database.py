@@ -217,6 +217,19 @@ def init_database() -> None:
                 ).scalar()
                 if not has_column:
                     connection.execute(text(ddl))
+            rounds_json_type = connection.execute(
+                text(
+                    "SELECT DATA_TYPE FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'topics' AND COLUMN_NAME = 'completion_rounds_json'"
+                ),
+            ).scalar()
+            if rounds_json_type and str(rounds_json_type).lower() == "text":
+                connection.execute(
+                    text(
+                        "ALTER TABLE `topics` MODIFY COLUMN `completion_rounds_json` MEDIUMTEXT NULL"
+                    ),
+                )
         confirmations_exist = connection.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.TABLES "

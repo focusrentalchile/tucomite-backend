@@ -204,10 +204,22 @@ def read_topics(
         return TopicListResponse(items=[])
     topics = _topics_for_open_period(service, db, client_id=actor.client_id)
     committee_size = SqlCommitteeRepository(db).count_voter_seats(actor.client_id)
-    topics = [
-        service.seal_failed_completion_if_needed(topic, committee_size=committee_size)
-        for topic in topics
-    ]
+    healed: list = []
+    for topic in topics:
+        try:
+            healed.append(
+                service.seal_failed_completion_if_needed(
+                    topic,
+                    committee_size=committee_size,
+                ),
+            )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            healed.append(topic)
+    topics = healed
     topic_ids = [topic.id for topic in topics]
     votes = service.list_votes_for_topics(topic_ids)
     opinions = service.list_opinions_for_topics(topic_ids)
