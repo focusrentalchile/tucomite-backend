@@ -87,11 +87,29 @@ MIN_COMMITTEE_FOR_VOTE = 3
 router = APIRouter(tags=["topics"])
 
 
-def _vote_response(vote: TopicVoteRecord) -> TopicVoteResponse:
+def _avatar_by_user_ids(db: Session, user_ids: set[str] | list[str]) -> dict[str, str]:
+    """Map user ids to avatar URLs for vote and opinion authors."""
+    unique = {user_id for user_id in user_ids if user_id}
+    if not unique:
+        return {}
+    access = SqlAccessRepository(db)
+    out: dict[str, str] = {}
+    for user_id in unique:
+        user = access.get_user(user_id)
+        if user is not None:
+            out[user_id] = user.avatar_url or ""
+    return out
+
+
+def _vote_response(
+    vote: TopicVoteRecord,
+    avatars: dict[str, str] | None = None,
+) -> TopicVoteResponse:
     return TopicVoteResponse(
         id=vote.id,
         author_id=vote.author_id,
         author_name=vote.author_name,
+        author_avatar_url=(avatars or {}).get(vote.author_id, ""),
         choice=vote.choice,
     )
 
@@ -100,12 +118,14 @@ def _opinion_response(
     opinion: TopicOpinionRecord,
     *,
     by_id: dict[str, TopicOpinionRecord] | None = None,
+    avatars: dict[str, str] | None = None,
 ) -> TopicOpinionResponse:
     parent = by_id.get(opinion.reply_to_opinion_id) if by_id and opinion.reply_to_opinion_id else None
     return TopicOpinionResponse(
         id=opinion.id,
         author_id=opinion.author_id,
         author_name=opinion.author_name,
+        author_avatar_url=(avatars or {}).get(opinion.author_id, ""),
         body=opinion.body,
         created_at=opinion.created_at,
         reply_to_opinion_id=opinion.reply_to_opinion_id,
@@ -116,9 +136,12 @@ def _opinion_response(
     )
 
 
-def _opinion_responses(opinions: list[TopicOpinionRecord]) -> list[TopicOpinionResponse]:
+def _opinion_responses(
+    opinions: list[TopicOpinionRecord],
+    avatars: dict[str, str] | None = None,
+) -> list[TopicOpinionResponse]:
     by_id = {item.id: item for item in opinions}
-    return [_opinion_response(item, by_id=by_id) for item in opinions]
+    return [_opinion_response(item, by_id=by_id, avatars=avatars) for item in opinions]
 
 
 def _confirmation_response(confirmation: TopicConfirmationRecord) -> TopicConfirmationResponse:
@@ -158,6 +181,7 @@ def _topic_response(
     assign_ready: bool = False,
     no_consensus: bool = False,
     consensus_ends_at: str | None = None,
+    avatar_by_user: dict[str, str] | None = None,
 ) -> TopicResponse:
     return TopicResponse(
         id=topic.id,
@@ -180,8 +204,8 @@ def _topic_response(
         voting_starts_at=topic.voting_starts_at,
         voting_ends_at=topic.voting_ends_at,
         status_entered_at=topic.status_entered_at or topic.created_at,
-        votes=[_vote_response(vote) for vote in votes],
-        opinions=_opinion_responses(opinions or []),
+        votes=[_vote_response(vote, avatar_by_user) for vote in votes],
+        opinions=_opinion_responses(opinions or [], avatar_by_user),
         attachments=[_attachment_response(item) for item in (attachments or [])],
         completion_note=topic.completion_note,
         completion_submitted_at=topic.completion_submitted_at,
@@ -421,6 +445,8 @@ def read_topics(
             logger.exception("No-consensus notify failed for topic %s", topic.id)
     assignee_roles = _assignee_role_map(db, topics)
     reads = service.list_opinion_reads(actor.user_id, topic_ids)
+    author_ids = {vote.author_id for vote in votes} | {opinion.author_id for opinion in opinions}
+    avatar_by_user = _avatar_by_user_ids(db, author_ids)
     return TopicListResponse(
         items=[
             _topic_response(
@@ -452,6 +478,7 @@ def read_topics(
                     committee_size,
                 ),
                 consensus_ends_at=None,
+                avatar_by_user=avatar_by_user,
             )
             for topic in topics
         ],
@@ -519,6 +546,7 @@ def update_topic(
     service: TopicService = Depends(get_topic_service),
     _: Actor = Depends(require_permission("matters", "create")),
     __: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
 ) -> TopicResponse:
     """Update the editable fields of one topic. Only committee members may edit."""
     try:
@@ -546,7 +574,19 @@ def update_topic(
     stored = service.list_attachments_for_topics([topic.id])
     completion = service.list_completion_attachments_for_topics([topic.id])
     confirmations = service.list_confirmations_for_topics([topic.id])
-    return _topic_response(topic, votes, opinions, stored, completion, confirmations)
+    avatar_by_user = _avatar_by_user_ids(
+        db,
+        {vote.author_id for vote in votes} | {opinion.author_id for opinion in opinions},
+    )
+    return _topic_response(
+        topic,
+        votes,
+        opinions,
+        stored,
+        completion,
+        confirmations,
+        avatar_by_user=avatar_by_user,
+    )
 
 
 @router.patch("/topics/{topic_id}/status", response_model=TopicResponse)
@@ -722,14 +762,21 @@ def move_topic(
                     )
 
     votes = service.list_votes_for_topics([topic_id])
+    opinions = service.list_opinions_for_topics([topic_id])
     refreshed = next((item for item in service.list_topics() if item.id == topic_id), topic)
     completion = service.list_completion_attachments_for_topics([topic_id])
     confirmations = service.list_confirmations_for_topics([topic_id])
+    avatar_by_user = _avatar_by_user_ids(
+        db,
+        {vote.author_id for vote in votes} | {opinion.author_id for opinion in opinions},
+    )
     return _topic_response(
         refreshed,
         votes,
+        opinions,
         completion_attachments=completion,
         confirmations=confirmations,
+        avatar_by_user=avatar_by_user,
     )
 
 
@@ -859,7 +906,7 @@ def cast_vote(
     return CastVoteResponse(
         topic_id=topic.id,
         status_id=topic.status_id,
-        vote=_vote_response(vote),
+        vote=_vote_response(vote, _avatar_by_user_ids(db, {vote.author_id})),
     )
 
 
@@ -911,7 +958,11 @@ def upsert_opinion(
     by_id = {item.id: item for item in [*prior_opinions, opinion]}
     return UpsertOpinionResponse(
         topic_id=topic_id,
-        opinion=_opinion_response(opinion, by_id=by_id),
+        opinion=_opinion_response(
+            opinion,
+            by_id=by_id,
+            avatars=_avatar_by_user_ids(db, {opinion.author_id}),
+        ),
     )
 
 
@@ -999,12 +1050,19 @@ def submit_completion(
     completion = service.list_completion_attachments_for_topics([topic.id])
     confirmations = service.list_confirmations_for_topics([topic.id])
     votes = service.list_votes_for_topics([topic.id])
+    opinions = service.list_opinions_for_topics([topic.id])
+    avatar_by_user = _avatar_by_user_ids(
+        db,
+        {vote.author_id for vote in votes} | {opinion.author_id for opinion in opinions},
+    )
     return SubmitCompletionResponse(
         topic=_topic_response(
             topic,
             votes,
+            opinions,
             completion_attachments=completion,
             confirmations=confirmations,
+            avatar_by_user=avatar_by_user,
         ),
     )
 
@@ -1094,8 +1152,22 @@ def confirm_completion(
             logger.exception("Close status email failed for topic %s", topic_id)
     completion = service.list_completion_attachments_for_topics([topic_id])
     confirmations = service.list_confirmations_for_topics([topic_id])
+    votes = service.list_votes_for_topics([topic_id])
+    opinions = service.list_opinions_for_topics([topic_id])
+    avatar_by_user = _avatar_by_user_ids(
+        db,
+        {vote.author_id for vote in votes} | {opinion.author_id for opinion in opinions},
+    )
     return ConfirmCompletionResponse(
         topic_id=topic_id,
         confirmation=_confirmation_response(confirmation),
-        topic=_topic_response(topic, [], [], [], completion, confirmations),
+        topic=_topic_response(
+            topic,
+            votes,
+            opinions,
+            [],
+            completion,
+            confirmations,
+            avatar_by_user=avatar_by_user,
+        ),
     )

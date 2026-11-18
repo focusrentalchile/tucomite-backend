@@ -33,10 +33,12 @@ class BuildingProfileResponse(BaseModel):
 
     name: str
     logo_url: str = ""
+    identification_number: str = ""
 
 
 class BuildingProfileRequest(BaseModel):
-    """Editable building name and optional logo (data URL or empty to clear)."""
+    """Editable building name, identification number, and optional logo."""
 
     name: str = Field(min_length=1, max_length=160)
     logo_url: str = Field(default="", max_length=6_000_000)
+    identification_number: str = Field(min_length=3, max_length=20)

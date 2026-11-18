@@ -101,6 +101,7 @@ class TopicVoteResponse(BaseModel):
     id: str
     author_id: str
     author_name: str
+    author_avatar_url: str = ""
     choice: str
 
 
@@ -110,6 +111,7 @@ class TopicOpinionResponse(BaseModel):
     id: str
     author_id: str
     author_name: str
+    author_avatar_url: str = ""
     body: str
     created_at: str
     reply_to_opinion_id: str | None = None

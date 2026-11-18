@@ -16,6 +16,7 @@ from app.schemas.client_settings import (
     VoteWindowSettingsResponse,
 )
 from app.services.client_settings_service import ClientSettingsService
+from app.utils.rut import InvalidRut, normalize_rut
 
 router = APIRouter(prefix="/building-settings", tags=["building-settings"])
 
@@ -40,7 +41,11 @@ def read_building_profile(
     client = SqlClientRepository(db).get_client(actor.client_id)
     if client is None:
         raise HTTPException(status_code=404, detail="Building not found.")
-    return BuildingProfileResponse(name=client.name, logo_url=client.logo_url or "")
+    return BuildingProfileResponse(
+        name=client.name,
+        logo_url=client.logo_url or "",
+        identification_number=getattr(client, "building_rut", "") or "",
+    )
 
 
 @router.put("/profile", response_model=BuildingProfileResponse)
@@ -49,7 +54,7 @@ def update_building_profile(
     actor: Actor = Depends(require_period_access),
     db: Session = Depends(get_db),
 ) -> BuildingProfileResponse:
-    """Save the building name and optional logo. Owner or committee only."""
+    """Save the building name, identification number, and optional logo."""
     if not actor.client_id:
         raise HTTPException(status_code=422, detail="Building context is required.")
     repo = SqlClientRepository(db)
@@ -62,9 +67,22 @@ def update_building_profile(
     logo = (body.logo_url or "").strip()
     if logo and not logo.startswith("data:image/"):
         raise HTTPException(status_code=422, detail="Logo must be an image.")
-    updated = replace(client, name=name, logo_url=logo)
+    try:
+        identification_number = normalize_rut(body.identification_number)
+    except InvalidRut as error:
+        raise HTTPException(status_code=422, detail="Identification number is invalid.") from error
+    updated = replace(
+        client,
+        name=name,
+        logo_url=logo,
+        building_rut=identification_number,
+    )
     repo.save_client(updated)
-    return BuildingProfileResponse(name=updated.name, logo_url=updated.logo_url or "")
+    return BuildingProfileResponse(
+        name=updated.name,
+        logo_url=updated.logo_url or "",
+        identification_number=updated.building_rut or "",
+    )
 
 
 @router.get("/vote-window", response_model=VoteWindowSettingsResponse)
