@@ -442,6 +442,17 @@ def test_completion_requires_quorum_before_close() -> None:
     blocked = client.patch(f"/api/v1/topics/{topic_id}/status", json={"status_id": 4})
     assert blocked.status_code == 409
 
+    login("comite2@demo.tucomite.local")
+    forbidden = client.post(
+        f"/api/v1/topics/{topic_id}/completion",
+        json={
+            "note": "No soy el encargado.",
+            "attachments": [],
+        },
+    )
+    assert forbidden.status_code == 403
+
+    login("comite@demo.tucomite.local")
     completed = client.post(
         f"/api/v1/topics/{topic_id}/completion",
         json={

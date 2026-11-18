@@ -62,8 +62,8 @@ class AccountService:
         last_name: str,
         avatar_url: str = "",
     ) -> UserRecord:
-        """Update the building owner's display name and optional avatar."""
-        user = self._require_active_client(user_id)
+        """Update any signed-in person's display name and optional avatar."""
+        user = self._require_active_user(user_id)
         cleaned_first = first_name.strip()
         cleaned_last = last_name.strip()
         if not cleaned_first or not cleaned_last:
@@ -76,18 +76,23 @@ class AccountService:
         self._access.save_user(updated)
         return updated
 
-    def _require_active_client(self, user_id: str) -> UserRecord:
+    def _require_active_user(self, user_id: str) -> UserRecord:
         user = self._access.get_user(user_id)
-        role = self._access.get_role(user.role_id) if user is not None else None
+        if user is None:
+            raise AccountNotClient()
+        if user.account_closed_at:
+            raise AccountAlreadyClosed()
+        return user
+
+    def _require_active_client(self, user_id: str) -> UserRecord:
+        user = self._require_active_user(user_id)
+        role = self._access.get_role(user.role_id)
         if (
-            user is None
-            or role is None
+            role is None
             or role.system
             or role.name.strip().casefold() != CLIENT_ROLE_NAME
         ):
             raise AccountNotClient()
-        if user.account_closed_at:
-            raise AccountAlreadyClosed()
         return user
 
     def close_account(self, user_id: str, reason: str, password: str) -> AccountExport:

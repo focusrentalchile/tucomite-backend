@@ -958,9 +958,18 @@ def submit_completion(
     _: Actor = Depends(require_committee_member),
     db: Session = Depends(get_db),
 ) -> SubmitCompletionResponse:
-    """Store the solution note and evidence for a topic in execution."""
+    """Store the solution note and evidence for a topic in execution.
+
+    Only the assigned person may submit Culminación from Temas. Other committee
+    members still confirm Resultado separately.
+    """
     current = SqlTopicRepository(db).get_topic(topic_id)
-    if current is not None and current.assignee_user_id:
+    if current is not None:
+        if not current.assignee_user_id or current.assignee_user_id != actor.user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the assigned person can submit completion for this topic.",
+            )
         access = SqlAccessRepository(db)
         assignee = access.get_user(current.assignee_user_id)
         role = access.get_role(assignee.role_id) if assignee else None

@@ -45,7 +45,7 @@ def update_account_profile(
     service: AccountService = Depends(get_account_service),
     actor: Actor = Depends(get_current_actor),
 ) -> AccountProfileResponse:
-    """Update the building owner's name and optional avatar."""
+    """Update the signed-in person's name and optional avatar."""
     try:
         user = service.update_profile(
             actor.user_id,
@@ -53,13 +53,10 @@ def update_account_profile(
             last_name=body.last_name,
             avatar_url=body.avatar_url,
         )
-    except AccountNotClient as error:
-        raise HTTPException(
-            status_code=403,
-            detail="Only the building owner can update this account.",
-        ) from error
     except AccountAlreadyClosed as error:
         raise HTTPException(status_code=409, detail="Account already closed.") from error
+    except AccountNotClient as error:
+        raise HTTPException(status_code=404, detail="User not found.") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return _profile_response(user.full_name, user.email, user.avatar_url)

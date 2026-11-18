@@ -64,6 +64,21 @@ def test_owner_can_update_first_and_last_name() -> None:
     assert session.json()["avatar_url"] == avatar
 
 
+def test_committee_member_can_update_own_profile() -> None:
+    signed = _login("comite@demo.tucomite.local", SEED_PASSWORD)
+    assert signed.status_code == 200, signed.text
+
+    updated = client.patch(
+        "/api/v1/account/profile",
+        json={"first_name": "Comité", "last_name": "Demo", "avatar_url": ""},
+    )
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    assert body["first_name"] == "Comité"
+    assert body["last_name"] == "Demo"
+    assert body["full_name"] == "Comité Demo"
+
+
 def test_close_requires_a_session() -> None:
     client.post("/api/v1/auth/logout")
 
