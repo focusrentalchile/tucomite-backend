@@ -166,8 +166,8 @@ def build_agreement_pdf(
     story: list = []
     logo = _logo_path()
     if logo is not None:
-        story.append(Image(str(logo), width=4.8 * cm, height=1.6 * cm, kind="proportional"))
-        story.append(Spacer(1, 0.35 * cm))
+        story.append(Image(str(logo), width=8.2 * cm, height=2.75 * cm, kind="proportional"))
+        story.append(Spacer(1, 0.45 * cm))
     else:
         story.append(Paragraph("Tu Comité", title_style))
 
