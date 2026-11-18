@@ -588,17 +588,17 @@ class TopicService:
         grace_days: int | None = None,
         reopen_window_hours: int | None = None,
     ) -> tuple[TopicRecord, TopicVoteRecord]:
-        """Store one person's first vote and move the topic to waiting.
+        """Store or update one person's vote and move Abiertos topics to waiting.
 
-        Raises VotingWindowClosed when the topic has a voting window and ``now``
-        (default: the current UTC time) is outside it. Waiting topics lock when
-        ``voting_ends_at`` passes (no extra consensus grace window).
+        Raises VotingWindowClosed when voting has not started yet. Abiertos and
+        Esperando stay votable after ``voting_ends_at`` (including sin consenso)
+        until execution is assigned.
 
         When the first vote lands on an Abiertos topic whose hours already ended,
         ``reopen_window_hours`` extends ``voting_ends_at`` from now so the rest of
         the committee still gets a full voting window.
         """
-        _ = grace_days  # Kept for call-site compatibility; voting_ends_at is the deadline.
+        _ = grace_days  # Kept for call-site compatibility.
         topic = self._repository.get_topic(topic_id)
         if topic is None:
             raise TopicNotFound()

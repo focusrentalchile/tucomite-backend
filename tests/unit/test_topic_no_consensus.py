@@ -6,7 +6,6 @@ from app.domain.topics import (
     WAITING_STATUS_ID,
     TopicRecord,
     TopicVoteRecord,
-    VotingWindowClosed,
     ensure_voting_open,
     is_no_consensus,
 )
@@ -72,10 +71,6 @@ def test_voting_stays_open_until_voting_ends_at() -> None:
     ensure_voting_open(topic, datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc))
 
 
-def test_voting_locks_after_voting_ends_at() -> None:
+def test_voting_stays_open_after_voting_ends_at_while_waiting() -> None:
     topic = _topic()
-    try:
-        ensure_voting_open(topic, datetime(2026, 11, 10, 12, 0, 1, tzinfo=timezone.utc))
-        raise AssertionError("expected VotingWindowClosed")
-    except VotingWindowClosed as error:
-        assert error.reason == "ended"
+    ensure_voting_open(topic, datetime(2026, 11, 10, 12, 0, 1, tzinfo=timezone.utc))

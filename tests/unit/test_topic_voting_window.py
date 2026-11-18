@@ -101,7 +101,7 @@ def test_vote_before_the_window_is_rejected() -> None:
     assert raised.value.reason == "not_started"
 
 
-def test_vote_after_the_window_is_rejected_and_locks_changes() -> None:
+def test_vote_after_the_window_still_allows_changes_while_waiting() -> None:
     service = _service()
     topic = _create(service, voting_starts_at=START.isoformat(), voting_ends_at=END.isoformat())
     service.cast_vote(
@@ -113,19 +113,18 @@ def test_vote_after_the_window_is_rejected_and_locks_changes() -> None:
         committee_size=3,
     )
 
-    # Past voting_ends_at: changes lock (no consensus grace window).
-    with pytest.raises(VotingWindowClosed) as raised:
-        service.cast_vote(
-            topic.id,
-            "user-1",
-            "Ana",
-            "no",
-            now=END + timedelta(seconds=1),
-            committee_size=3,
-        )
+    # Past voting_ends_at: Esperando still accepts cast/change votes.
+    _, updated = service.cast_vote(
+        topic.id,
+        "user-1",
+        "Ana",
+        "no",
+        now=END + timedelta(seconds=1),
+        committee_size=3,
+    )
 
-    assert raised.value.reason == "ended"
-    assert service.list_votes_for_topics([topic.id])[0].choice == "yes"
+    assert updated.choice == "no"
+    assert service.list_votes_for_topics([topic.id])[0].choice == "no"
 
 
 def test_open_topic_accepts_the_first_vote_after_the_window_ends() -> None:

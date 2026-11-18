@@ -380,11 +380,11 @@ def ensure_voting_open(
     committee_size: int = 0,
     grace_days: int | None = None,
 ) -> None:
-    """Raise VotingWindowClosed when ``now`` is outside the topic's voting window.
+    """Raise VotingWindowClosed when voting has not started yet.
 
-    Open-column topics (Abiertos) stay votable after ``voting_ends_at`` so the first
-    vote can still move the card to Esperando decisión. Waiting topics lock when the
-    vote end passes — there is no extra consensus grace window.
+    Abiertos and Esperando decisión stay votable after ``voting_ends_at`` (and when
+    there is still no majority), so the committee can keep casting or changing votes
+    until execution is assigned. Doing/Closed topics reject late ballots.
     """
     _ = (votes, committee_size, grace_days)  # Kept for call-site compatibility.
     moment = now or datetime.now(timezone.utc)
@@ -395,7 +395,6 @@ def ensure_voting_open(
     if start is not None and moment < start:
         raise VotingWindowClosed("not_started")
     if end is not None and moment > end:
-        # Nobody has voted yet; the board column is still Abiertos.
-        if topic.status_id == OPEN_STATUS_ID:
+        if topic.status_id in {OPEN_STATUS_ID, WAITING_STATUS_ID}:
             return
         raise VotingWindowClosed("ended")
