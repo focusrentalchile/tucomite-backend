@@ -34,6 +34,8 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "legal.view",
             "support.view",
             "support.create",
+            "users.view",
+            "users.create",
         }
     ),
     "administrator": frozenset(
@@ -93,6 +95,7 @@ STARTER_ROLES: dict[str, frozenset[str]] = {
             "notifications.receive",
             "users.view",
             "users.create",
+            "users.delete",
             "management.approve_import",
             "legal.view",
             "support.view",

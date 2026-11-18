@@ -338,10 +338,10 @@ def update_user(
 def delete_user(
     user_id: str,
     service: UserService = Depends(get_user_service),
-    actor: Actor = Depends(require_permission("users", "create")),
+    actor: Actor = Depends(require_permission("users", "delete")),
     db: Session = Depends(get_db),
 ) -> None:
-    """Delete a user that is not the building admin or a system account."""
+    """Delete a user. Only the building owner (users.delete) may remove people."""
     _, protected_ids = _scoped_users(service, actor, db)
     try:
         service.delete_user(user_id, protected_user_ids=protected_ids)

@@ -12,7 +12,9 @@ def register_builtin_modules() -> None:
     """Register the modules shipped with this build."""
     if access_catalog.modules():
         return
-    access_catalog.register(ModuleDefinition(key="users", functionalities=("view", "create")))
+    access_catalog.register(
+        ModuleDefinition(key="users", functionalities=("view", "create", "delete")),
+    )
     access_catalog.register(
         ModuleDefinition(key="roles", functionalities=("view", "create", "update", "delete")),
     )
