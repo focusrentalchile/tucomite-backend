@@ -40,6 +40,7 @@ from app.domain.topics import (
     winning_vote_count,
 )
 from app.repositories.access_repository import SqlAccessRepository
+from app.repositories.client_repository import SqlClientRepository
 from app.repositories.client_settings_repository import SqlClientSettingsRepository
 from app.repositories.committee_repository import SqlCommitteeRepository
 from app.repositories.period_repository import SqlPeriodRepository
@@ -53,6 +54,7 @@ from app.services.topic_notification_email import (
     notify_topic_resultado_vote,
     notify_topic_status_changed,
 )
+from app.schemas.access import UserListResponse, UserResponse
 from app.schemas.topics import (
     CastVoteRequest,
     CastVoteResponse,
@@ -291,6 +293,49 @@ def _publish_agreement_best_effort(
             ).publish_from_topic(topic_id, client_id=client_id)
     except Exception:  # noqa: BLE001 — closing must stick even if the PDF fails
         logger.exception("Agreement publish failed for topic %s", topic_id)
+
+
+@router.get("/topics/assignees", response_model=UserListResponse)
+def list_topic_assignees(
+    actor: Actor = Depends(require_permission("matters", "comment")),
+    _: Actor = Depends(require_committee_member),
+    db: Session = Depends(get_db),
+) -> UserListResponse:
+    """People a committee voter may assign when starting execution.
+
+    Committee members do not get ``users.view`` (Usuarios), so this lean list is
+    gated by matters.comment + committee membership instead.
+    """
+    if not actor.is_super_admin and not actor.client_id:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    access = SqlAccessRepository(db)
+    roles = {role.id: role for role in access.list_roles()}
+    admin_id = None
+    if actor.client_id:
+        client = SqlClientRepository(db).get_client(actor.client_id)
+        admin_id = None if client is None else client.admin_user_id
+    items: list[UserResponse] = []
+    for user in access.list_users():
+        role = roles.get(user.role_id)
+        if role is not None and role.system:
+            continue
+        if actor.is_super_admin or (actor.client_id and user.client_id == actor.client_id):
+            items.append(
+                UserResponse(
+                    id=user.id,
+                    full_name=user.full_name,
+                    email=user.email,
+                    role_id=user.role_id,
+                    role_key=role.name if role is not None else "",
+                    protected=bool(admin_id and user.id == admin_id),
+                    client_id=user.client_id,
+                    floor_number=user.floor_number,
+                    apartment_number=user.apartment_number,
+                    rut=user.rut or "",
+                )
+            )
+    items.sort(key=lambda item: item.full_name.casefold())
+    return UserListResponse(items=items)
 
 
 @router.get("/topics", response_model=TopicListResponse)
