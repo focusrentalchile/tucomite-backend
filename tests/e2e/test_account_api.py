@@ -48,7 +48,12 @@ def test_owner_can_update_first_and_last_name() -> None:
     avatar = f"data:image/jpeg;base64,{PHOTO}"
     updated = client.patch(
         "/api/v1/account/profile",
-        json={"first_name": "Ana", "last_name": "Pérez", "avatar_url": avatar},
+        json={
+            "first_name": "Ana",
+            "last_name": "Pérez",
+            "avatar_url": avatar,
+            "identification_number": "12.345.678-5",
+        },
     )
     assert updated.status_code == 200, updated.text
     body = updated.json()
@@ -57,11 +62,13 @@ def test_owner_can_update_first_and_last_name() -> None:
     assert body["full_name"] == "Ana Pérez"
     assert body["email"] == owner_email
     assert body["avatar_url"] == avatar
+    assert body["identification_number"] == "12345678-5"
 
     session = client.get("/api/v1/auth/session")
     assert session.status_code == 200
     assert session.json()["full_name"] == "Ana Pérez"
     assert session.json()["avatar_url"] == avatar
+    assert session.json()["identification_number"] == "12345678-5"
 
 
 def test_committee_member_can_update_own_profile() -> None:
@@ -70,13 +77,19 @@ def test_committee_member_can_update_own_profile() -> None:
 
     updated = client.patch(
         "/api/v1/account/profile",
-        json={"first_name": "Comité", "last_name": "Demo", "avatar_url": ""},
+        json={
+            "first_name": "Comité",
+            "last_name": "Demo",
+            "avatar_url": "",
+            "identification_number": "11.111.111-1",
+        },
     )
     assert updated.status_code == 200, updated.text
     body = updated.json()
     assert body["first_name"] == "Comité"
     assert body["last_name"] == "Demo"
     assert body["full_name"] == "Comité Demo"
+    assert body["identification_number"] == "11111111-1"
 
 
 def test_close_requires_a_session() -> None:

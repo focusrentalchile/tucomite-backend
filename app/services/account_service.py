@@ -26,6 +26,7 @@ from app.repositories.project_repository import ProjectRepository
 from app.repositories.topic_repository import TopicRepository
 from app.services.account_export import ArchiveBuilder, slug_with_id, slugify, to_plain
 from app.utils.passwords import verify_password
+from app.utils.rut import InvalidRut, normalize_rut
 
 
 class AccountService:
@@ -61,8 +62,9 @@ class AccountService:
         first_name: str,
         last_name: str,
         avatar_url: str = "",
+        identification_number: str = "",
     ) -> UserRecord:
-        """Update any signed-in person's display name and optional avatar."""
+        """Update any signed-in person's name, identification number, and optional avatar."""
         user = self._require_active_user(user_id)
         cleaned_first = first_name.strip()
         cleaned_last = last_name.strip()
@@ -72,7 +74,16 @@ class AccountService:
         cleaned_avatar = (avatar_url or "").strip()
         if cleaned_avatar and not cleaned_avatar.startswith("data:image/"):
             raise ValueError("Avatar must be an image data URL.")
-        updated = replace(user, full_name=full_name, avatar_url=cleaned_avatar)
+        try:
+            cleaned_identification = normalize_rut(identification_number)
+        except InvalidRut as error:
+            raise ValueError("Identification number is invalid.") from error
+        updated = replace(
+            user,
+            full_name=full_name,
+            avatar_url=cleaned_avatar,
+            rut=cleaned_identification,
+        )
         self._access.save_user(updated)
         return updated
 
